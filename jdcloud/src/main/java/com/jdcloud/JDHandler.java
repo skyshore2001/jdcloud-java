@@ -216,7 +216,7 @@ public class JDHandler extends HttpServlet {
 	 */
 	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		JsArray ret = new JsArray(0, null);
-		response.setContentType("text/plain");
+		response.setContentType("text/plain; charset=utf-8");
 		JDEnvBase env = null;
 		try {
 			env = new JDEnvBase();
