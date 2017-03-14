@@ -3,6 +3,7 @@ package com.jdcloud;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,8 +15,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
-class JsObject extends HashMap<String, Object>
+class JsObject extends LinkedHashMap<String, Object>
 {
 	public JsObject(Object ... args)
 	{
@@ -44,15 +46,15 @@ class MyException extends Exception
 	
 	public MyException(int code, Object debugInfo, String msg)
 	{
-		super(msg);
+		super(msg == null? JDApiBase.GetErrInfo(code): msg);
 		this.code = code;
 		this.debugInfo = debugInfo;
 	}
 	public MyException(int code, Object debugInfo) {
-		this(code, debugInfo, JDApiBase.GetErrInfo(code));
+		this(code, debugInfo, null);
 	}
 	public MyException(int code) {
-		this(code, null, JDApiBase.GetErrInfo(code));
+		this(code, null, null);
 	}
 	
 	public int getCode()
@@ -80,14 +82,14 @@ class JDEnvBase
 	public JsArray debugInfo = new JsArray();
 	public String appName, appType;
 	
-	public JDApiBase api;
+	public JDApiBase api = new JDApiBase();
 	
-	public Object callSvc(String ac) throws MyException
+	public Object callSvc(String ac) throws Throwable
 	{
 		return callSvc(ac, null);
 	}
 	
-	public Object callSvc(String ac, CallSvcOpt opt) throws MyException
+	public Object callSvc(String ac, CallSvcOpt opt) throws Throwable
 	{
 		Matcher m = Pattern.compile("(\\w+)(?:\\.(\\w+))?$").matcher(ac);
 		m.find();
@@ -148,12 +150,12 @@ class JDEnvBase
 			int code = clsName.startsWith("AC_") ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
 			throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
 		}
-		catch (MyException e) {
-			throw e;
-		}
-		catch (Exception e) {
+		catch (Throwable e) {
 			if (mi == null)
 				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
+			if (e instanceof InvocationTargetException && e.getCause() != null)
+				throw e.getCause();
+			throw e;
 		}
 		obj.env = this;
 /*
@@ -234,38 +236,30 @@ public class JDHandler extends HttpServlet {
 			}
 			String ac = m.group(1);
 			Object rv = env.callSvc(ac);
+			if (rv == null)
+				rv = "OK";
 			ret.set(1, rv);
 		}
-		catch (MyException ex)
-		{
+		catch (MyException ex) {
 			ret.set(0, ex.getCode());
 			ret.set(1, ex.getMessage());
 			ret.add(ex.getDebugInfo());
 		}
-		catch (Exception ex)
+		catch (Throwable ex)
 		{
-			ret.set(0, JDApiBase.E_SERVER);
+			int code = ex instanceof SQLException? JDApiBase.E_DB: JDApiBase.E_SERVER;
+			ret.set(0, code);
+			ret.set(1, JDApiBase.GetErrInfo(code));
 			if (env.isTestMode) 
 			{
 				ret.add(ex.getMessage());
 				ret.add(ex.getStackTrace());
 			}
 		}
-		Gson gson = new Gson();
-		String retStr = gson.toJson(ret);
+
+		String retStr = env.api.jsonEncode(ret, env.isTestMode);
 		response.getWriter().write(retStr);
 	}
 
 }
 
-class Global extends JDApiBase
-{
-	public Object api_hello()
-	{
-		JsObject ret = new JsObject(
-			"id", 100,
-			"name", "liang"
-		);
-		return ret;
-	}
-}
