@@ -241,8 +241,15 @@ public class JDHandler extends HttpServlet {
 			ret.set(0, ex.getCode());
 			ret.set(1, ex.getMessage());
 			ret.add(ex.getDebugInfo());
-			if (env.isTestMode)
+		}
+		catch (Exception ex)
+		{
+			ret.set(0, JDApiBase.E_SERVER);
+			if (env.isTestMode) 
+			{
+				ret.add(ex.getMessage());
 				ret.add(ex.getStackTrace());
+			}
 		}
 		Gson gson = new Gson();
 		String retStr = gson.toJson(ret);
