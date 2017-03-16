@@ -199,7 +199,7 @@ public class JDApiBase
 		if (getNewId) {
 			ResultSet rs = stmt.getGeneratedKeys();
 			if (rs.next())
-				rv = rs.getInt(0);
+				rv = rs.getInt(1);
 		}
 		return rv;
 	}
@@ -322,11 +322,9 @@ public class JDApiBase
 		String[] a = parseType(name);
 		String type = a[0];
 		name = a[1];
-		String val = null;
 		Object ret = null;
 		
-		// TODO: get or post
-		val = env.request.getParameter(name);
+		String val = env.getParam(name, coll);
 		/*
 		if (coll == null || coll == "G")
 			val = _GET[name];
@@ -440,5 +438,15 @@ public class JDApiBase
 	public void header(String key, String value)
 	{
 		env.response.addHeader(key, value);
+	}
+
+	public Object getSession(String name) {
+		return env.request.getSession().getAttribute(name);
+	}
+	public void setSession(String name, Object value) {
+		env.request.getSession().setAttribute(name, value);
+	}
+	public void destroySession() {
+		env.request.getSession().invalidate();
 	}
 }

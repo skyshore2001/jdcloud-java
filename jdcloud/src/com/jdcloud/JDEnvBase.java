@@ -2,6 +2,9 @@ package com.jdcloud;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.*;
 import javax.servlet.http.*;
 
@@ -25,7 +28,7 @@ public class JDEnvBase
 	public Connection conn;
 	public HttpServletRequest request;
 	public HttpServletResponse response;
-	public JsObject _GET, _POST, _SERVER, _SESSION;
+	public JsObject _GET, _POST;
 	
 	public Object callSvc(String ac) throws Throwable
 	{
@@ -156,6 +159,24 @@ public class JDEnvBase
 		this.response = response;
 		this.api = new JDApiBase();
 		this.api.env = this;
+		
+		String q = this.request.getQueryString();
+		Set<String> set = new HashSet<String>();
+		for (String q1 : q.split("&")) {
+			for (String k: q1.split("=")) {
+				set.add(k);
+			}
+		}
+		this._GET = new JsObject();
+		this._POST = new JsObject();
+		Enumeration<String> em = this.request.getParameterNames();
+		while (em.hasMoreElements()) {
+			String k = em.nextElement();
+			if (set.contains(k))
+				this._GET.put(k, request.getParameter(k));
+			else
+				this._POST.put(k, request.getParameter(k));
+		}
 /* TODO 
 		this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"] ?? "0") != 0;
 		this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"] ?? "0");
@@ -168,5 +189,19 @@ public class JDEnvBase
 			api.header("X-Daca-Test-Mode", "1");
 		}
 		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
+	}
+	
+	// coll: "G"-GET, "P"-POST, null-BOTH
+	public String getParam(String name, String coll) {
+		if (coll == null) {
+			return this.request.getParameter(name);
+		}
+		if (coll.equals("G")) {
+			return (String)_GET.get(name);
+		}
+		if (coll.equals("P")) {
+			return (String)_POST.get(name);
+		}
+		return null;
 	}
 }
