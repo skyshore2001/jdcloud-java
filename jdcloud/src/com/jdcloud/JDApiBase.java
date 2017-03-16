@@ -449,4 +449,22 @@ public class JDApiBase
 	public void destroySession() {
 		env.request.getSession().invalidate();
 	}
+
+	public void checkAuth(int perms)
+	{
+		if (hasPerm(perms))
+			return;
+		if (hasPerm(AUTH_LOGIN))
+			throw new MyException(E_FORBIDDEN, "permission denied.");
+		throw new MyException(E_NOAUTH, "need login");
+	}
+
+	int perms_;
+	public boolean hasPerm(int perms)
+	{
+		perms_ = env.onGetPerms();
+		if ((perms_ & perms) != 0)
+			return true;
+		return false;
+	}
 }

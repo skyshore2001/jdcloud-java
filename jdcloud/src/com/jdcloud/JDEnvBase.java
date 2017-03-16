@@ -160,22 +160,23 @@ public class JDEnvBase
 		this.api = new JDApiBase();
 		this.api.env = this;
 		
-		String q = this.request.getQueryString();
-		Set<String> set = new HashSet<String>();
-		for (String q1 : q.split("&")) {
-			for (String k: q1.split("=")) {
-				set.add(k);
-			}
-		}
 		this._GET = new JsObject();
 		this._POST = new JsObject();
-		Enumeration<String> em = this.request.getParameterNames();
-		while (em.hasMoreElements()) {
-			String k = em.nextElement();
-			if (set.contains(k))
-				this._GET.put(k, request.getParameter(k));
-			else
-				this._POST.put(k, request.getParameter(k));
+		String q = this.request.getQueryString();
+		if (q != null) {
+			Set<String> set = new HashSet<String>();
+			for (String q1 : q.split("&")) {
+				String[] kv = q1.split("=");
+				set.add(kv[0]);
+			}
+			Enumeration<String> em = this.request.getParameterNames();
+			while (em.hasMoreElements()) {
+				String k = em.nextElement();
+				if (set.contains(k))
+					this._GET.put(k, request.getParameter(k));
+				else
+					this._POST.put(k, request.getParameter(k));
+			}
 		}
 /* TODO 
 		this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"] ?? "0") != 0;

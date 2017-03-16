@@ -26,7 +26,7 @@ public class JDHandler extends HttpServlet {
 		response.setContentType("text/plain; charset=utf-8");
 		JDEnvBase env = null;
 		try {
-			env = new JDEnvBase();
+			env = (JDEnvBase)Class.forName("com.jdcloud.JDEnv").newInstance(); // TODO: new JDEnvBase();
 			env.init(request, response);
 			String origin = request.getHeader("Origin");
 			if (env.isTestMode && origin != null)

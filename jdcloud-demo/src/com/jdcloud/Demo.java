@@ -6,6 +6,25 @@ public class Demo {
 
 }
 
+class JDEnv extends JDEnvBase
+{
+	public int onGetPerms()
+	{
+		int perms = 0;
+		if (api.getSession("uid") != null)
+			perms |= JDApiBase.AUTH_USER;
+
+		return perms;
+	}
+
+	public String onCreateAC(String table)
+	{
+		if (api.hasPerm(JDApiBase.AUTH_USER))
+			return "AC1_" + table;
+		return "AC_" + table;
+	}
+}
+
 class Global extends JDApiBase
 {
 	public Object api_hello() throws Exception
@@ -56,8 +75,7 @@ class Global extends JDApiBase
 		return ret;
 	}
 
-	/*
-	public Object api_login()
+	public Object api_login() throws Exception
 	{
 		String uname = (String)mparam("uname");
 		String pwd = (String)mparam("pwd");
@@ -66,7 +84,7 @@ class Global extends JDApiBase
 		Object id = queryOne(sql);
 		if (id.equals(false))
 			throw new MyException(E_AUTHFAIL, "bad uname or pwd");
-		_SESSION["uid"] = id;
+		setSession("uid", id);
 		return new JsObject(
 			"id", id
 		);
@@ -75,7 +93,7 @@ class Global extends JDApiBase
 	public Object api_whoami()
 	{
 		checkAuth(AUTH_USER);
-		int uid = (int)_SESSION["uid"];
+		int uid = (int)getSession("uid");
 		return new JsObject(
 			"id", uid
 		);
@@ -83,9 +101,6 @@ class Global extends JDApiBase
 	public void api_logout()
 	{
 		// checkAuth(AUTH_LOGIN);
-		if (_SESSION != null)
-			env.request.getSession().set
-			_SESSION.Abandon();
+		destroySession();
 	}
-*/
 }
