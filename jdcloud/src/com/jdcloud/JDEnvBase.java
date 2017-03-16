@@ -1,7 +1,9 @@
 package com.jdcloud;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.sql.Connection;
 import java.util.regex.*;
+import javax.servlet.http.*;
 
 public class JDEnvBase
 {
@@ -19,6 +21,10 @@ public class JDEnvBase
 	public String appName, appType;
 	
 	public JDApiBase api = new JDApiBase();
+
+	public Connection conn;
+	public HttpServletRequest request;
+	public HttpServletResponse response;
 	public JsObject _GET, _POST, _SERVER, _SESSION;
 	
 	public Object callSvc(String ac) throws Throwable
@@ -47,28 +53,29 @@ public class JDEnvBase
 			methodName = "api_" + m.group(1);
 		}
 
-		JDApiBase obj = null;
+		JDApiBase api = null;
 		Class<?> t;
 		Method mi = null;
 		Object ret = null;
 		try {
 			t = Class.forName("com.jdcloud." + clsName); // JDApi
-			obj = (JDApiBase)t.newInstance();
+			api = (JDApiBase)t.newInstance();
+			api.env = this;
 			mi = t.getDeclaredMethod(methodName);
 			if (clsName == "Global")
 			{
-				ret = mi.invoke(obj);
+				ret = mi.invoke(api);
 			}
-			else if (obj instanceof AccessControl)
+			else if (api instanceof AccessControl)
 			{
-				AccessControl accessCtl = (AccessControl)obj;
+				AccessControl accessCtl = (AccessControl)api;
 				/*
 				accessCtl.init(table, ac1);
 				accessCtl.before();
 				*/
-				Object rv = mi.invoke(obj);
+				Object rv = mi.invoke(api);
 				/*
-				//ret[1] = t.InvokeMember(methodName, BindingFlags.InvokeMethod, null, obj, null);
+				//ret[1] = t.InvokeMember(methodName, BindingFlags.InvokeMethod, null, api, null);
 				accessCtl.after(ref rv);
 				*/
 				ret = rv;
@@ -94,7 +101,6 @@ public class JDEnvBase
 				throw e.getCause();
 			throw e;
 		}
-		obj.env = this;
 /*
 		NameValueCollection[] bak = null;
 		if (opt != null)
@@ -142,5 +148,25 @@ public class JDEnvBase
 	public int onGetPerms()
 	{
 		return 0;
+	}
+
+	public void init(HttpServletRequest request, HttpServletResponse response)
+	{
+		this.request = request;
+		this.response = response;
+		this.api = new JDApiBase();
+		this.api.env = this;
+/* TODO 
+		this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"] ?? "0") != 0;
+		this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"] ?? "0");
+
+		this.appName = api.param("_app", "user", "G") as string;
+		this.appType = Regex.Replace(this.appName, @"(\d+|-\w+)$", "");
+*/
+		if (this.isTestMode)
+		{
+			api.header("X-Daca-Test-Mode", "1");
+		}
+		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 	}
 }

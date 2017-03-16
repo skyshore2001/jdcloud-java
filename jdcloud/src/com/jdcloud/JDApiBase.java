@@ -1,7 +1,13 @@
 package com.jdcloud;
 
 import java.sql.*;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Date;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -26,7 +32,6 @@ public class JDApiBase
 	public static final int AUTH_LOGIN = 0xff; 
 
 	public JDEnvBase env;
-	public Connection conn;
 	
 	/*
 	public NameValueCollection _GET 
@@ -65,7 +70,7 @@ public class JDApiBase
 	
 	public void dbconn() throws MyException
 	{
-		if (this.conn == null) {
+		if (this.env.conn == null) {
 			String connStr = "jdbc:mysql://oliveche.com:3306/jdcloud2";
 			try {
 				Class.forName("com.mysql.jdbc.Driver");
@@ -75,15 +80,43 @@ public class JDApiBase
 			String user = "demo";
 			String pwd = "tuuj7PNDC";
 			try {
-				this.conn = DriverManager.getConnection(connStr, user, pwd);
+				this.env.conn = DriverManager.getConnection(connStr, user, pwd);
 			} catch (SQLException e) {
 				throw new MyException(E_DB, "db connection fails", "数据库连接失败。");
 			}
+			/*
+			var dbType = ConfigurationManager.AppSettings["P_DBTYPE"];
+			var connSetting = ConfigurationManager.ConnectionStrings["default"];
+			if (connSetting == null)
+				throw new MyException(JDApiBase.E_SERVER, "No db connectionString defined in web.config");
+
+			cnn_ = new DbConn();
+			cnn_.onExecSql += new DbConn.OnExecSql(delegate(string sql)
+			{
+				api.addLog(sql, 9);
+			});
+			cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName, dbType);
+			cnn_.BeginTransaction();
+			*/
 		}
 	}
 	public void close() throws SQLException
 	{
-		conn.close();
+	/*
+		if (cnn_ != null)
+		{
+			if (ok)
+				cnn_.Commit();
+			else
+				cnn_.Rollback();
+			cnn_.Dispose();
+		}
+		*/
+		env.conn.close();
+	}
+	public static String Q(String s)
+	{
+		return "'" + s.replace("'", "\\'") + "'";
 	}
 	
 	public JsArray queryAll(String sql) throws SQLException, MyException
@@ -93,7 +126,7 @@ public class JDApiBase
 	public JsArray queryAll(String sql, boolean assoc) throws SQLException, MyException
 	{
 		dbconn();
-		Statement stmt = conn.createStatement();
+		Statement stmt = env.conn.createStatement();
 		ResultSet rs = stmt.executeQuery(sql);
 		ResultSetMetaData md = rs.getMetaData();
 		JsArray ret = new JsArray();
@@ -127,7 +160,7 @@ public class JDApiBase
 	public Object queryOne(String sql, boolean assoc) throws SQLException, MyException
 	{
 		dbconn();
-		Statement stmt = conn.createStatement();
+		Statement stmt = env.conn.createStatement();
 		ResultSet rs = stmt.executeQuery(sql);
 		ResultSetMetaData md = rs.getMetaData();
 		if (! rs.next()) {
@@ -161,7 +194,7 @@ public class JDApiBase
 	public int execOne(String sql, boolean getNewId) throws SQLException, MyException
 	{
 		dbconn();
-		Statement stmt = conn.createStatement();
+		Statement stmt = env.conn.createStatement();
 		int rv = stmt.executeUpdate(sql, getNewId? Statement.RETURN_GENERATED_KEYS: Statement.NO_GENERATED_KEYS);
 		if (getNewId) {
 			ResultSet rs = stmt.getGeneratedKeys();
@@ -178,10 +211,234 @@ public class JDApiBase
 	public String jsonEncode(Object o, boolean doFormat)
 	{
 		GsonBuilder gb = new GsonBuilder();
-		gb.serializeNulls().disableHtmlEscaping();
+		gb.serializeNulls().disableHtmlEscaping().setDateFormat("yyyy-MM-dd HH:mm:ss");
 		if (doFormat)
 			gb.setPrettyPrinting();
 		Gson gson = gb.create();
 		return gson.toJson(o);
+	}
+	
+	static final JsObject htmlEntityMapping = new JsObject(
+		"<", "&lt;",
+		">", "&gt;",
+		"&", "&amp;"
+	);
+	public String htmlEscape(String s)
+	{
+		StringBuffer sb = new StringBuffer();
+		Matcher m = Pattern.compile("<|>|&").matcher(s);
+		while (m.find()) {
+			m.appendReplacement(sb, (String)htmlEntityMapping.get(m.group(0)));
+		}
+		m.appendTail(sb);
+		return sb.toString();
+		//return StringEscapeUtils.unescapeHtml();
+	}
+
+
+	public static boolean parseBoolean(String s)
+	{
+		boolean val = false;
+		if (s == null)
+		{
+			return val;
+		}
+		s = s.toLowerCase();
+		if (s.equals("0") || s.equals("false") || s.equals("off") || s.equals("no"))
+			val = false;
+		else if (s.equals("1") || s.equals("true") || s.equals("on") || s.equals("yes"))
+			val = true;
+		else
+			throw new NumberFormatException();
+		return val;
+	}
+
+	// "2010/1/1 10:10", "2011-2-1 8:8:8", "2010.3.4", "2011-02-01T10:10:10Z"
+	// return null if fails
+	public static java.util.Date parseDate(String s) {
+		String fmt;
+		//s = "2010-10-10T10:10:10Z";
+		if (s.indexOf('T') > 0) {
+			if (s.endsWith("Z")) {
+				s = s.replaceFirst("Z$", "+0000");
+			}
+			if (s.indexOf('.') > 0)
+				fmt= "yyyy-MM-dd'T'HH:mm:ss.SSSz";
+			else
+				fmt= "yyyy-MM-dd'T'HH:mm:ssz";
+		}
+		else {
+			s = s.replaceAll("[./]", "-");
+			String[] s1 = s.split(":");
+			if (s1.length == 1)
+				fmt = "yyyy-MM-dd";
+			else if (s1.length == 2)
+				fmt = "yyyy-MM-dd HH:mm";
+			else
+				fmt = "yyyy-MM-dd HH:mm:ss";
+		}
+		
+		DateFormat ofmt = new SimpleDateFormat(fmt);
+		java.util.Date dt = null;
+		try {
+			dt = ofmt.parse(s);
+		} catch (ParseException e) {
+		}
+		return dt;
+	}
+
+	// retrun: [type, name]
+	private String[] parseType(String name)
+	{
+		String type = null;
+		int n;
+		if ((n=name.indexOf('/')) >= 0)
+		{
+			type = name.substring(n+1);
+			name = name.substring(0, n);
+		}
+		else {
+			if (name.equals("id") || name.endsWith("Id")) {
+				type = "i";
+			}
+			else {
+				type = "s";
+			}
+		}
+		return new String[] {type, name};
+	}
+
+	public Object param(String name) {
+		return param(name, null);
+	}
+	public Object param(String name, Object defVal) {
+		return param(name, defVal, null);
+	}
+	public Object param(String name, Object defVal, String coll) {
+		return param(name, defVal, coll, true);
+	}
+	// defVal?=null, coll?=null, doHtmlEscape?=true
+	public Object param(String name, Object defVal, String coll, boolean doHtmlEscape) {
+		String[] a = parseType(name);
+		String type = a[0];
+		name = a[1];
+		String val = null;
+		Object ret = null;
+		
+		// TODO: get or post
+		val = env.request.getParameter(name);
+		/*
+		if (coll == null || coll == "G")
+			val = _GET[name];
+		if ((val == null && coll == null) || coll == "P")
+			val = _POST[name];
+			*/
+		if (val == null && defVal != null)
+			return defVal;
+
+		if (val != null) 
+		{
+			if (type.equals("s"))
+			{
+				// avoid XSS attack
+				if (doHtmlEscape)
+					ret = htmlEscape(val);
+				else
+					ret = val;
+			}
+			else if (type.equals("i"))
+			{
+				try {
+					int i = Integer.parseInt(val);
+					ret = i;
+				} catch (NumberFormatException ex) {
+					throw new MyException(E_PARAM, String.format("Bad Request - integer param `%s`=`%s`.", name, val));
+				}
+			}
+			else if (type.equals("n"))
+			{
+				try {
+					double n = Double.parseDouble(val);
+					ret = n;
+				} catch (NumberFormatException ex) {
+					throw new MyException(E_PARAM, String.format("Bad Request - numeric param `%s`=`%s`.", name, val));
+				}
+			}
+			else if (type.equals("b"))
+			{
+				try {
+					boolean b = parseBoolean(val);
+					ret = b;
+				} catch (NumberFormatException ex) {
+					throw new MyException(E_PARAM, String.format("Bad Request - bool param `%s`=`%s`.", name, val));
+				}
+			}
+			else if (type.equals("i+"))
+			{
+				ArrayList<Integer> arr = new ArrayList<Integer>();
+				for (String e : val.split(","))
+				{
+					try {
+						arr.add(Integer.parseInt(e));
+					}
+					catch (NumberFormatException ex) {
+						throw new MyException(E_PARAM, String.format("Bad Request - int array param `%s` contains `%s`.", name, e));
+					}
+				}
+				if (arr.size() == 0)
+					throw new MyException(E_PARAM, String.format("Bad Request - int array param `%s` is empty.", name));
+				ret = arr;
+			}
+			else if (type.equals("dt") || type.equals("tm"))
+			{
+				java.util.Date dt = parseDate(val);
+				if (dt == null)
+					throw new MyException(E_PARAM, String.format("Bad Request - invalid datetime param `%s`=`%s`.", name, val));
+				ret = dt;
+			}
+			/*
+			else if (type == "js" || type == "tbl") {
+				ret1 = json_decode(ret, true);
+				if (ret1 == null)
+					throw new MyException(E_PARAM, "Bad Request - invalid json param `name`=`ret`.");
+				if (type == "tbl") {
+					ret1 = table2objarr(ret1);
+					if (ret1 == false)
+						throw new MyException(E_PARAM, "Bad Request - invalid table param `name`=`ret`.");
+				}
+				ret = ret1;
+			}
+			*/
+			/* TODO
+			else if (type.Contains(':'))
+			{
+				ret = param_varr(val, type, name);
+			}
+			*/
+			else
+			{
+				throw new MyException(E_SERVER, String.format("unknown type `%s` for param `%s`", type, name));
+			}
+		}
+		return ret;
+	}
+
+	public Object mparam(String name) {
+		return mparam(name, null);
+	}
+	public Object mparam(String name, String coll) {
+		return mparam(name, coll, true);
+	}
+	// coll?=null, htmlEscape?=true
+	public Object mparam(String name, String coll, boolean htmlEscape) {
+		Object val = param(name, null, coll, htmlEscape);
+		if (val == null)
+			throw new MyException(E_PARAM, "require param `" + name + "`");
+		return val;
+	}
+
+	public void header(String key, String value)
+	{
+		env.response.addHeader(key, value);
 	}
 }

@@ -1,6 +1,6 @@
 package com.jdcloud;
 
-class MyException extends Exception
+class MyException extends RuntimeException
 {
 	protected int code;
 	protected Object debugInfo;

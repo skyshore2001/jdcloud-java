@@ -27,7 +27,8 @@ public class JDHandler extends HttpServlet {
 		JDEnvBase env = null;
 		try {
 			env = new JDEnvBase();
-			String origin = request.getHeader("HTTP_ORIGIN");
+			env.init(request, response);
+			String origin = request.getHeader("Origin");
 			if (env.isTestMode && origin != null)
 			{
 				response.setHeader("Access-Control-Allow-Origin", origin);
@@ -57,8 +58,12 @@ public class JDHandler extends HttpServlet {
 			ret.set(1, JDApiBase.GetErrInfo(code));
 			if (env.isTestMode) 
 			{
-				ret.add(ex.getMessage());
+				String msg = ex.getMessage();
+				if (msg == null)
+					msg = ex.getClass().getName();
+				ret.add(msg);
 				ret.add(ex.getStackTrace());
+				ex.printStackTrace();
 			}
 		}
 
