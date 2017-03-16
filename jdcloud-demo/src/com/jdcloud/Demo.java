@@ -1,7 +1,5 @@
 package com.jdcloud;
 
-import java.sql.SQLException;
-
 public class Demo {
 
 }
