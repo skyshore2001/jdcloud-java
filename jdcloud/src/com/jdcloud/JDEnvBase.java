@@ -64,7 +64,7 @@ public class JDEnvBase
 			t = Class.forName("com.jdcloud." + clsName); // JDApi
 			api = (JDApiBase)t.newInstance();
 			api.env = this;
-			mi = t.getDeclaredMethod(methodName);
+			mi = t.getMethod(methodName);
 			if (clsName == "Global")
 			{
 				ret = mi.invoke(api);
@@ -72,15 +72,11 @@ public class JDEnvBase
 			else if (api instanceof AccessControl)
 			{
 				AccessControl accessCtl = (AccessControl)api;
-				/*
 				accessCtl.init(table, ac1);
 				accessCtl.before();
-				*/
 				Object rv = mi.invoke(api);
-				/*
 				//ret[1] = t.InvokeMember(methodName, BindingFlags.InvokeMethod, null, api, null);
-				accessCtl.after(ref rv);
-				*/
+				accessCtl.after(rv);
 				ret = rv;
 			}
 			else
@@ -204,5 +200,10 @@ public class JDEnvBase
 			return (String)_POST.get(name);
 		}
 		return null;
+	}
+	
+	public String fixPaging(String sql) {
+/* TODO support multiple database like mssql */
+		return sql;
 	}
 }

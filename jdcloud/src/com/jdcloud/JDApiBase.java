@@ -191,7 +191,11 @@ public class JDApiBase
 		return ret;
 	}
 	
-	public int execOne(String sql, boolean getNewId) throws SQLException, MyException
+	public int execOne(String sql) throws SQLException {
+		return execOne(sql, false);
+	}
+	// getNewId?=false
+	public int execOne(String sql, boolean getNewId) throws SQLException
 	{
 		dbconn();
 		Statement stmt = env.conn.createStatement();
@@ -235,6 +239,26 @@ public class JDApiBase
 		//return StringEscapeUtils.unescapeHtml();
 	}
 
+	public void addLog(String s)
+	{
+		addLog(s, 0);
+	}
+	// level?=0
+	public void addLog(String s, int level)
+	{
+		if (env.isTestMode && env.debugLevel >= level)
+		{
+			env.debugInfo.add(s);
+		}
+	}
+
+	public void logit(String s) {
+		logit(s, "trace");
+	}
+	// which?="trace"
+	public void logit(String s, String which) {
+		//TODO
+	}
 
 	public static boolean parseBoolean(String s)
 	{
@@ -467,4 +491,39 @@ public class JDApiBase
 			return true;
 		return false;
 	}
+
+	public JsObject objarr2table(JsArray rs, int fixedColCnt /*=-1*/)
+	{
+		JsArray h = new JsArray();
+		JsArray d = new JsArray();
+		JsObject ret = new JsObject("h", h, "d", d);
+		if (rs.size() == 0)
+			return ret;
+
+		JsObject row0 = (JsObject)rs.get(0);
+		h.addAll(row0.keySet());
+		if (fixedColCnt >= 0) {
+			/*
+			TODO
+			foreach (rs as row) {
+				h1 = array_keys(row);
+				for (i=fixedColCnt; i<count(h1); ++i) {
+					if (array_search(h1[i], h) === false) {
+						h[] = h1[i];
+					}
+				}
+			}
+			*/
+		}
+		for (Object row : rs) {
+			JsObject row1 = (JsObject)row;
+			JsArray arr = new JsArray();
+			d.add(arr);
+			for (Object k : h) {
+				arr.add(row1.get(k));
+			}
+		}
+		return ret;
+	}
+	
 }

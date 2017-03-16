@@ -1,6 +1,8 @@
 package com.jdcloud;
 
 import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class Demo {
 
@@ -102,5 +104,23 @@ class Global extends JDApiBase
 	{
 		// checkAuth(AUTH_LOGIN);
 		destroySession();
+	}
+}
+
+class AC_ApiLog extends AccessControl
+{
+	protected void onInit()
+	{
+		this.requiredFields = new JsArray("ac");
+		this.readonlyFields = new JsArray("ac", "tm");
+		this.hiddenFields = new JsArray("ua");
+	}
+	protected void onValidate()
+	{
+		if (this.ac.equals("add"))
+		{
+			String nowStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+			env._POST.put("tm", nowStr);
+		}
 	}
 }
