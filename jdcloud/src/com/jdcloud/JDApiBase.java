@@ -90,7 +90,7 @@ public class JDApiBase
 			while (rs.next()) {
 				JsObject row = new JsObject();
 				for (int i=0; i<md.getColumnCount(); ++i) {
-					row.put(md.getColumnName(i+1), rs.getObject(i+1));
+					row.put(md.getColumnLabel(i+1), rs.getObject(i+1));
 				}
 				ret.add(row);
 			}
@@ -129,7 +129,7 @@ public class JDApiBase
 		if (assoc) {
 			JsObject row = new JsObject();
 			for (int i=0; i<md.getColumnCount(); ++i) {
-				row.put(md.getColumnName(i+1), rs.getObject(i+1));
+				row.put(md.getColumnLabel(i+1), rs.getObject(i+1));
 			}
 			ret = row;
 		}
@@ -185,10 +185,10 @@ public class JDApiBase
 		">", "&gt;",
 		"&", "&amp;"
 	);
-	public String htmlEscape(String s)
+	public static String htmlEscape(String s)
 	{
 		StringBuffer sb = new StringBuffer();
-		Matcher m = Pattern.compile("<|>|&").matcher(s);
+		Matcher m = regexMatch(s, "<|>|&");
 		while (m.find()) {
 			m.appendReplacement(sb, (String)htmlEntityMapping.get(m.group(0)));
 		}
@@ -443,7 +443,7 @@ public class JDApiBase
 		return false;
 	}
 
-	public JsObject objarr2table(JsArray rs, int fixedColCnt /*=-1*/)
+	public static JsObject objarr2table(JsArray rs, int fixedColCnt /*=-1*/)
 	{
 		JsArray h = new JsArray();
 		JsArray d = new JsArray();
@@ -476,5 +476,9 @@ public class JDApiBase
 		}
 		return ret;
 	}
-	
+
+	public static Matcher regexMatch(String str, String pat) {
+		return Pattern.compile(pat).matcher(str);
+	}
+
 }

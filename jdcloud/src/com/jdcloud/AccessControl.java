@@ -91,10 +91,6 @@ public class AccessControl extends JDApiBase {
 		this.onInit();
 	}
 
-	public Matcher regexMatch(String str, String pat) {
-		return Pattern.compile(pat).matcher(str);
-	}
-
 	protected void onInit()
 	{
 	}
@@ -319,12 +315,11 @@ public class AccessControl extends JDApiBase {
 	// return: new field list
 	private void filterRes(String res, boolean gres)
 	{
-		/* TODO
 		String firstCol = "";
 		List<String> cols = new ArrayList<String>();
-		for (var col0 : res.Split(',')) 
+		for (String col0 : res.split(",")) 
 		{
-			String col = col0.Trim();
+			String col = col0.trim();
 			String alias = null;
 			String fn = null;
 			if (col.equals("*") || col.equals("t0.*")) 
@@ -334,13 +329,13 @@ public class AccessControl extends JDApiBase {
 			}
 			Matcher m;
 			// 适用于res/gres, 支持格式："col" / "col col1" / "col as col1"
-			if (! (m=regexMatch(col, "^(\\w+)(?:\\s+(?:AS\\s+)?(\\S+))?$", RegexOptions.IgnoreCase)).find())
+			if (! (m=regexMatch(col, "^(?i)(\\w+)(?:\\s+(?:AS\\s+)?(\\S+))?$")).find())
 			{
 				// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum
-				if (!gres && (m=regexMatch(col, "^(\\w+)\\([a-z0-9_.\'*]+\\)\\s+(?:AS\\s+)?(\\S+)$", RegexOptions.IgnoreCase)).find())
+				if (!gres && (m=regexMatch(col, "^(?i)(\\w+)\\([a-z0-9_.\'*]+\\)\\s+(?:AS\\s+)?(\\S+)$")).find())
 				{
-					fn = m.group(1).Value.ToUpper();
-					if (fn != "COUNT" && fn != "SUM")
+					fn = m.group(1).toUpperCase();
+					if (!fn.equals("COUNT") && !fn.equals("SUM"))
 						throw new MyException(E_FORBIDDEN, String.format("SQL function not allowed: `%s`", fn));
 				}
 				else 
@@ -348,9 +343,9 @@ public class AccessControl extends JDApiBase {
 			}
 			else
 			{
-				if (m.group(2).Length > 0) {
-					col = m.group(1).Value;
-					alias = m.group(2).Value;
+				if (m.group(2) != null) {
+					col = m.group(1);
+					alias = m.group(2);
 				}
 			}
 			if (fn != null) 
@@ -363,71 +358,75 @@ public class AccessControl extends JDApiBase {
 // 				throw new MyException(E_PARAM, "bad property `col`");
 			if (this.addVCol(col, true, alias) == false)
 			{
-				if (!gres && this.subobj != null && this.subobj.ContainsKey(col))
+				if (!gres && this.subobj != null && this.subobj.containsKey(col))
 				{
-					this.sqlConf.subobj[alias != null ? alias : col] = this.subobj[col];
+					String key = alias != null ? alias : col;
+					this.sqlConf.subobj.put(key, this.subobj.get(col));
 				}
 				else
 				{
 					col = "t0." + col;
-					var col1 = col;
+					String col1 = col;
 					if (alias != null)
 					{
-						col1 += " AS " + alias;
+						col1 += " " + alias;
 					}
 					this.addRes(col1, false);
 				}
 			}
 			// mysql可在group-by中直接用alias, 而mssql要用原始定义
-			if (env.cnn.DbStragety.acceptAliasInOrderBy())
-				cols.Add(alias != null ? alias : col);
+			if (env.dbStrategy.acceptAliasInOrderBy())
+				cols.add(alias != null ? alias : col);
 			else
-				cols.Add(col);
+				cols.add(col);
 		}
 		if (gres)
-			this.sqlConf.gres = String.Join(",", cols);
+			this.sqlConf.gres = String.join(",", cols);
 		else
-			this.sqlConf.res[0] = firstCol;
-			*/
+			this.sqlConf.res.set(0, firstCol);
 	}
 
 	// 注意：mysql中order by/group by可以使用alias, 但mssql中不可以，需要换成alias的原始定义
 	// 而在where条件中，alias都需要换成原始定义，见 fixUserQuery
 	private String filterOrderby(String orderby)
 	{
-		/* TODO
-		var colArr = new List<String>();
-		for (var col0 : orderby.Split(',')) {
-			var col = col0.Trim();
-			Matcher m;
-			if (! (m=regexMatch(col, "^(\\w+\\.)?(\\S+)(\\s+(asc|desc))?$", RegexOptions.IgnoreCase)).find())
+		List<String> colArr = new ArrayList<String>();
+		for (String col0 : orderby.split(",")) {
+			String col = col0.trim();
+			Matcher m = regexMatch(col, "^(?i)(\\w+\\.)?(\\S+)(\\s+(asc|desc))?$");
+			if (! m.find())
 				throw new MyException(E_PARAM, String.format("bad property `%s`", col));
-			if (m.group(1).Length > 0) // e.g. "t0.id desc"
+			if (m.group(1) != null) // e.g. "t0.id desc"
 			{
-				colArr.Add(col);
+				colArr.add(col);
 				continue;
 			}
-			if (col.IndexOf(".") < 0)
+			if (col.indexOf(".") < 0)
 			{
-				col = Regex.Replace(col, "^(\\S+)", m1 =>
-				{
+				Matcher m1 = regexMatch(col, "^(\\S+)");
+				StringBuffer sb = new StringBuffer();
+				while (m1.find()) {
+					String rep;
 					String col1 = m1.group(1);
 					col1 = col1.replace("\"", "");
 					if (this.addVCol(col1, true, "-") != false)
 					{
 						// mysql可在order-by中直接用alias, 而mssql要用原始定义
-						if (! env.cnn.DbStragety.acceptAliasInOrderBy())
-							return this.vcolMap[col1].def;
-						return col1;
+						if (! env.dbStrategy.acceptAliasInOrderBy())
+							rep = this.vcolMap.get(col1).def;
+						else
+							rep = col1;
 					}
-					return "t0." + col1;
-				});
+					else
+						rep = "t0." + col1;
+					m1.appendReplacement(sb, rep);
+				}
+				m1.appendTail(sb);
+				col = sb.toString();
 			}
-			colArr.Add(col);
+			colArr.add(col);
 		}
-		return String.Join(",", colArr);
-		*/
-		return "";
+		return String.join(",", colArr);
 	}
 
 	private boolean afterIsCalled = false;
@@ -741,9 +740,9 @@ public class AccessControl extends JDApiBase {
 			}
 		}
 		int maxPageSz = Math.min(this.maxPageSz, PAGE_SZ_LIMIT);
-		if (pagesz < 0 || pagesz > maxPageSz)
+		if (pagesz != null && (pagesz < 0 || pagesz > maxPageSz))
 			pagesz = maxPageSz;
-		else if (pagesz == 0)
+		else if (pagesz == null || pagesz == 0)
 			pagesz = 20;
 
 		if (sqlConf.gres != null) {
@@ -943,7 +942,7 @@ public class AccessControl extends JDApiBase {
 			colName = m.group(2);
 			def = res;
 		}
-		else if ( (m = regexMatch(res, "(?is)^(.*?)\\s+(?:as\\s+)?\"?(\\w+)\"?$")).find()) {
+		else if ( (m = regexMatch(res, "(?is)^(.*?)\\s+(?:as\\s+)?\"?(\\S+?)\"?$")).find()) {
 			colName = m.group(2);
 			def = m.group(1);
 		}
@@ -1008,7 +1007,7 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 		this.addVColDef(this.vcolMap.get(col).vcolDefIdx);
 		if (alias != null) {
 			if (alias != "-")
-				this.addRes(this.vcolMap.get(col).def + " AS " + alias, false);
+				this.addRes(this.vcolMap.get(col).def + " " + alias, false);
 		}
 		else {
 			this.addRes(this.vcolMap.get(col).def0, false);

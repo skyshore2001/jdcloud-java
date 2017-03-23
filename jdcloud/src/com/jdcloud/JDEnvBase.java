@@ -35,6 +35,8 @@ public class JDEnvBase
 	public HttpServletResponse response;
 	public JsObject _GET, _POST;
 	
+	public DbStrategy dbStrategy;
+	
 	public void init(HttpServletRequest request, HttpServletResponse response)
 	{
 		this.request = request;
@@ -74,6 +76,9 @@ public class JDEnvBase
 		}
 		this.appName = (String)api.param("_app", "user", "G");
 		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
+
+		this.dbStrategy = new MySQLStrategy();
+		this.dbStrategy.init(this);
 
 		if (this.isTestMode)
 		{
@@ -191,7 +196,7 @@ public class JDEnvBase
 	public void dbconn() throws MyException
 	{
 		if (this.conn == null) {
-			String connStr = "jdbc:mysql://oliveche.com:3306/jdcloud2";
+			String connStr = "jdbc:mysql://oliveche.com:3306/jdcloud2?characterEncoding=utf8";
 			try {
 				Class.forName("com.mysql.jdbc.Driver");
 			} catch (ClassNotFoundException e) {
@@ -202,6 +207,9 @@ public class JDEnvBase
 			try {
 				this.conn = DriverManager.getConnection(connStr, user, pwd);
 				this.conn.setAutoCommit(false);
+				// if ($DBTYPE == "mysql") {
+				//this.api.execOne("set names utf8");
+				//}
 			} catch (SQLException e) {
 				throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
 			}
@@ -272,7 +280,109 @@ public class JDEnvBase
 	}
 	
 	public String fixPaging(String sql) {
-/* TODO support multiple database like mssql */
-		return sql;
+		return this.dbStrategy.fixPaging(sql);
+	}
+	
+
+	public abstract class DbStrategy
+	{
+		protected JDEnvBase env;
+
+		public void init(JDEnvBase env)
+		{
+			this.env = env;
+		}
+
+		abstract public int getLastInsertId();
+
+		// 处理LIMIT语句，转换成SQL服务器支持的语句
+		abstract public String fixPaging(String sql);
+
+		// 表名或字段名转义
+		abstract public String quoteName(String s);
+
+		// 在group-by, order-by中允许使用alias
+		abstract boolean acceptAliasInOrderBy();
+	}
+
+	public class MySQLStrategy extends DbStrategy
+	{
+		public int getLastInsertId()
+		{
+			try {
+				Object ret = this.env.api.queryOne("SELECT LAST_INSERT_ID()");
+				return (int)ret;
+			}
+			catch (Exception ex) {
+				return 0;
+			}
+		}
+
+		public String quoteName(String s)
+		{
+			return "`" + s + "`";
+		}
+
+		public String fixPaging(String sql)
+		{
+			return sql;
+		}
+
+		public boolean acceptAliasInOrderBy()
+		{
+			return true;
+		}
+	}
+
+	class MsSQLStrategy extends DbStrategy
+	{
+		public int getLastInsertId()
+		{
+			try {
+				// or use "SELECT @@IDENTITY"
+				Object ret = this.env.api.queryOne("SELECT SCOPE_IDENTITY()");
+				return (int)ret;
+			}
+			catch (Exception ex) {
+				return 0;
+			}
+		}
+
+		public String quoteName(String s)
+		{
+			return "[" + s + "]";
+		}
+
+		public String fixPaging(String sql)
+		{
+			// for MSSQL: LIMIT -> TOP+ROW_NUMBER
+			Matcher m = this.env.api.regexMatch(sql, "(?isx)SELECT(.*?) (?: " +
+"	LIMIT\\s+(\\d+) " +
+"	| (ORDER\\s+BY.*?)\\s*LIMIT\\s+(\\d+),(\\d+)" +
+")\\s*$" );
+
+			StringBuffer sb = new StringBuffer();
+			while (m.find()) {
+				String rep;
+				if (m.group(2) != null)
+				{
+					rep = "SELECT TOP " + m.group(2) + " " + m.group(1);
+					m.appendReplacement(sb, rep);
+					continue;
+				}
+				int n1 = Integer.parseInt(m.group(4))+1;
+				int n2 = n1+Integer.parseInt(m.group(5))-1;
+				rep = String.format("SELECT * FROM (SELECT ROW_NUMBER() OVER(%s) _row, %s) t0 WHERE _row BETWEEN %s AND %s",
+					m.group(3), m.group(1), n1, n2);
+				m.appendReplacement(sb, rep);
+			}
+			m.appendTail(sb);
+			return sb.toString();
+		}
+
+		public boolean acceptAliasInOrderBy()
+		{
+			return false;
+		}
 	}
 }
