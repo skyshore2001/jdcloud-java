@@ -383,12 +383,10 @@ public class JDApiBase
 				ret = ret1;
 			}
 			*/
-			/* TODO
-			else if (type.Contains(':'))
+			else if (type.contains(":"))
 			{
 				ret = param_varr(val, type, name);
 			}
-			*/
 			else
 			{
 				throw new MyException(E_SERVER, String.format("unknown type `%s` for param `%s`", type, name));
@@ -410,6 +408,102 @@ public class JDApiBase
 			throw new MyException(E_PARAM, "require param `" + name + "`");
 		return val;
 	}
+	
+	class ElemType
+	{
+		public String type; // type
+		public boolean optional;
+		public ElemType(String type, boolean optional) {
+			this.type = type;
+			this.optional = optional;
+		}
+	}
+	public JsArray param_varr(String str, String type, String name)
+	{
+		JsArray ret = new JsArray();
+		List<ElemType> elemTypes = new ArrayList<ElemType>();
+		for (String t : type.split(":"))
+		{
+			int tlen = t.length();
+			if (tlen == 0)
+				throw new MyException(E_SERVER, String.format("bad type spec: `%s`", type));
+			boolean optional = false;
+			String t1= t;
+			if (t.charAt(tlen-1) == '?')
+			{
+				t1 = t.substring(0, tlen-1);
+				optional = true;
+			}
+			elemTypes.add(new ElemType(t1, optional));
+		}
+		int colCnt = elemTypes.size();
+
+		for (String row0 : str.split(",")) {
+			String[] row = row0.split(":", colCnt);
+
+			JsArray row1 = new JsArray();
+			for (int i=0; i<colCnt; ++i)
+			{
+				String e = i<row.length? row[i]: null;
+				ElemType t = elemTypes.get(i);
+				if (e == null || e.length() == 0)
+				{
+					if (t.optional)
+					{
+						row1.add(null);
+						continue;
+					}
+					throw new MyException(E_PARAM, String.format("Bad Request - param `%s`: list(%s). require col: `%s`[%s]", name, type, row0, i));
+				}
+				String v = htmlEscape(e);
+				if (t.type.equals("i")) 
+				{
+					try {
+						int ival = Integer.parseInt(v);
+						row1.add(ival);
+					} catch (NumberFormatException ex) {
+						throw new MyException(E_PARAM, String.format("Bad Request - param `%s`: list(%s). require integer col: `%s`[%s]=`%s`.", name, type, row0, i, v));
+					}
+				}
+				else if (t.type.equals("n")) 
+				{
+					try {
+						double n = Double.parseDouble(v);
+						row1.add(n);
+					} catch (NumberFormatException ex) {
+						throw new MyException(E_PARAM, String.format("Bad Request - param `%s`: list(%s). require numberic col: `%s`[%s]=`%s`.", name, type, row0, i, v));
+					}
+				}
+				else if (t.type.equals("b"))
+				{
+					try {
+						boolean b = parseBoolean(v);
+						row1.add(b);
+					} catch (NumberFormatException ex) {
+						throw new MyException(E_PARAM, String.format("Bad Request - param `%s`: list(%s). require boolean col: `%s`[%s]=`%s`.", name, type, row0, i, v));
+					}
+				}
+				else if (t.type.equals("s"))
+				{
+					row1.add(v);
+				}
+				else if (t.type.equals("dt") || t.type.equals("tm")) {
+					java.util.Date dt = parseDate(v);
+					if (dt == null)
+						throw new MyException(E_PARAM, String.format("Bad Request - param `%s`: list(%s). require datetime col: `%s`[%s]=`%s`.", name, t.type, row0, i, v));
+					row1.add(dt);
+				}
+				else {
+					throw new MyException(E_SERVER, String.format("unknown elem type `%s` for param `%s`: list(%s)", t.type, name, v));
+				}
+			}
+			ret.add(row1);
+		}
+		if (ret.size() == 0)
+			throw new MyException(E_PARAM, "Bad Request - list param `%s` is empty.", name);
+		return ret;
+	}
+
 
 	public void header(String key, String value)
 	{
