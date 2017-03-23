@@ -174,6 +174,13 @@ class AC1_UserApiLog extends AC_ApiLog
 		);
 
 		this.subobj = new HashMap<String, SubobjDef>();
+		this.subobj.put("user", new SubobjDef() {{
+				sql = "SELECT id,name FROM User u WHERE id=" + me.uid;
+				wantOne = true;
+			}});
+		this.subobj.put("last3Log", new SubobjDef() {{
+				sql = env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + me.uid + " ORDER BY id DESC LIMIT 3");
+			}});
 		/*
 		{
 			{ "user", new SubobjDef() {

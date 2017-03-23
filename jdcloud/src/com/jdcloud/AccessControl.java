@@ -4,6 +4,8 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.*;
 
+import com.jdcloud.AccessControl.SubobjDef;
+
 public class AccessControl extends JDApiBase {
 
 	public class VcolDef
@@ -588,16 +590,13 @@ public class AccessControl extends JDApiBase {
 		return new Object[] { sql, tblSql, condSql };
 	}
 
-	/* TODO
 	private JsObject queryAllCache = new JsObject();
-	protected JsArray queryAll(String sql, boolean assoc, boolean tryCache)
+	protected JsArray queryAll(String sql, boolean assoc, boolean tryCache) throws Exception
 	{
 		JsArray ret = null;
 		if (tryCache && queryAllCache != null)
 		{
-			Object value;
-			queryAllCache.TryGetValue(sql, out value);
-			ret = value as JsArray;
+			ret = (JsArray)queryAllCache.get(sql);
 		}
 		if (ret == null)
 		{
@@ -606,20 +605,20 @@ public class AccessControl extends JDApiBase {
 			{
 				if (queryAllCache == null)
 					queryAllCache = new JsObject();
-				queryAllCache[sql] = ret;
+				queryAllCache.put(sql, ret);
 			}
 		}
 		return ret;
 	}
-	private void handleSubObj(int id, JsObject mainObj)
+	private void handleSubObj(int id, JsObject mainObj) throws Exception
 	{
-		var subobj = this.sqlConf.subobj;
+		HashMap<String, SubobjDef> subobj = this.sqlConf.subobj;
 		if (subobj != null) 
 		{
 			// opt: {sql, wantOne=false}
-			for (var kv : subobj) {
-				String k = kv.Key;
-				var opt = kv.Value;
+			for (Map.Entry<String, SubobjDef> kv : subobj.entrySet()) {
+				String k = kv.getKey();
+				SubobjDef opt = kv.getValue();
 				if (opt.sql == null)
 					continue;
 				String sql1 = String.format(opt.sql, id); // e.g. "select * from OrderItem where orderId=%d"
@@ -627,18 +626,17 @@ public class AccessControl extends JDApiBase {
 				JsArray ret1 = queryAll(sql1, true, true);
 				if (opt.wantOne) 
 				{
-					if (ret1.Count > 0)
-						mainObj[k] = ret1[0];
+					if (ret1.size() > 0)
+						mainObj.put(k, ret1.get(0));
 					else
-						mainObj[k] = null;
+						mainObj.put(k, null);
 				}
 				else {
-					mainObj[k] = ret1;
+					mainObj.put(k, ret1);
 				}
 			}
 		}
 	}
-	*/
 
 	// return: JsObject
 	public Object api_get() throws Exception
@@ -649,10 +647,9 @@ public class AccessControl extends JDApiBase {
 		Object ret = queryOne(sql.toString(), true);
 		if (ret.equals(false))
 			throw new MyException(E_PARAM, String.format("not found `%s.id`=`%s`", table, id));
-		/* TODO
-		JsObject ret1 = ret as JsObject;
+
+		JsObject ret1 = (JsObject)ret;
 		this.handleSubObj(this.id, ret1);
-*/
 		return ret;
 	}
 
@@ -845,11 +842,8 @@ public class AccessControl extends JDApiBase {
 		for (Object mainObj0 : objArr) {
 			JsObject mainObj = (JsObject)mainObj0;
 			Object id = mainObj.get("id");
-			if (id != null)
-			{
-				/* TODO
+			if (id != null) {
 				handleSubObj((int)id, (JsObject)mainObj);
-				*/
 			}
 		}
 		String fmt = (String)param("_fmt");
