@@ -37,6 +37,7 @@ public class JDEnvBase
 
 	public String dbType = "mysql";
 	public DbStrategy dbStrategy;
+	protected Properties props;
 	
 	public void init(HttpServletRequest request, HttpServletResponse response)
 	{
@@ -65,20 +66,24 @@ public class JDEnvBase
 		}
 		
 		try {
-			Properties props = new Properties();
-			InputStream is = request.getServletContext().getResourceAsStream("web.properties");
+			this.props = new Properties();
+			InputStream is = request.getServletContext().getResourceAsStream("/WEB-INF/web.properties");
 			props.load(is);
 			this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE"));
 			this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "9"));
+			this.dbType = props.getProperty("P_DBTYPE", "mysql");
 		} catch (Exception e) {
-			// TODO
-			this.isTestMode = true;
-			this.debugLevel = 9;
 		}
 		this.appName = (String)api.param("_app", "user", "G");
 		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
 
-		this.dbStrategy = new MySQLStrategy();
+		if (this.dbType.equals("mysql"))
+			this.dbStrategy = new MySQLStrategy();
+		else if (this.dbType.equals("mssql"))
+			this.dbStrategy = new MsSQLStrategy();
+		else
+			throw new MyException(JDApiBase.E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
+		
 		this.dbStrategy.init(this);
 
 		if (this.isTestMode)
@@ -197,37 +202,25 @@ public class JDEnvBase
 	public void dbconn() throws MyException
 	{
 		if (this.conn == null) {
-			String connStr = "jdbc:mysql://oliveche.com:3306/jdcloud2?characterEncoding=utf8";
+			String dbDriver = props.getProperty("P_DB_DRIVER", "com.mysql.jdbc.Driver");
+			String url = props.getProperty("P_DB", "jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8");
+			String dbcred = props.getProperty("P_DBCRED", "");
+			String[] arr = dbcred.split(":");
+			String user = arr[0];
+			String pwd = arr[1];
+
 			try {
-				Class.forName("com.mysql.jdbc.Driver");
+				Class.forName(dbDriver);
 			} catch (ClassNotFoundException e) {
 				throw new MyException(JDApiBase.E_DB, "db driver not found");
 			}
-			String user = "demo";
-			String pwd = "tuuj7PNDC";
 			try {
-				this.conn = DriverManager.getConnection(connStr, user, pwd);
+				this.conn = DriverManager.getConnection(url, user, pwd);
+				// start transaction
 				this.conn.setAutoCommit(false);
-				// if ($DBTYPE == "mysql") {
-				//this.api.execOne("set names utf8");
-				//}
 			} catch (SQLException e) {
 				throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
 			}
-			/*
-			var dbType = ConfigurationManager.AppSettings["P_DBTYPE"];
-			var connSetting = ConfigurationManager.ConnectionStrings["default"];
-			if (connSetting == null)
-				throw new MyException(JDApiBase.E_SERVER, "No db connectionString defined in web.config");
-
-			cnn_ = new DbConn();
-			cnn_.onExecSql += new DbConn.OnExecSql(delegate(string sql)
-			{
-				api.addLog(sql, 9);
-			});
-			cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName, dbType);
-			cnn_.BeginTransaction();
-			*/
 		}
 	}
 	
