@@ -235,17 +235,15 @@ public class AccessControl extends JDApiBase {
 				this.filterRes(res);
 			}
 			else {
-				/* TODO
 				this.addDefaultVCols();
 				if (this.sqlConf.subobj.size() == 0 && this.subobj != null) {
-					for (var kv : this.subobj) {
-						var col = kv.Key;
-						var def = kv.Value;
+					for (Map.Entry<String, SubobjDef> kv : this.subobj.entrySet()) {
+						String col = kv.getKey();
+						SubobjDef def = kv.getValue();
 						if (def.isDefault)
-							this.sqlConf.subobj[col] = def;
+							this.sqlConf.subobj.put(col, def);
 					}
 				}
-				*/
 			}
 			if (ac.equals("query"))
 			{
@@ -274,25 +272,29 @@ public class AccessControl extends JDApiBase {
 	// for query. "field1"=>"t0.field1"
 	private void fixUserQuery()
 	{
-		/* TODO
-		if (this.sqlConf.cond[0] != null) {
-			if (this.sqlConf.cond[0].indexOf("select", StringComparison.OrdinalIgnoreCase) >= 0) {
+		if (this.sqlConf.cond.get(0) != null) {
+			if (regexMatch(this.sqlConf.cond.get(0), "(?i)select").find()) {
 				throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
 			}
-			// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null" 
-			this.sqlConf.cond[0] = Regex.replace(this.sqlConf.cond[0], "[\\w|.]+(?=(\\s*[=><]|(\\s+(IS|LIKE))))", m => {
+			// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null"
+			Matcher m = regexMatch(this.sqlConf.cond.get(0), "(?i)[\\w|.]+(?=(\\s*[=><]|(\\s+(IS|LIKE))))");
+			StringBuffer sb = new StringBuffer();
+			while (m.find()) {
 				// 't0.0' for col, or 'voldef' for vcol
-				var col = m.Value;
-				if (col.Contains('.'))
-					return col;
-				if (this.vcolMap.ContainsKey(col)) {
-					this.addVCol(col, false, "-");
-					return this.vcolMap[col].def;
+				String col = m.group();
+				if (col.contains(".")) {
+					m.appendReplacement(sb, col);
+					continue;
 				}
-				return "t0." + col;
-			}, RegexOptions.IgnoreCase);
+				if (this.vcolMap.containsKey(col)) {
+					this.addVCol(col, false, "-");
+					m.appendReplacement(sb, this.vcolMap.get(col).def);
+					continue;
+				}
+				m.appendReplacement(sb, "t0." + col);
+			}
+			m.appendTail(sb);
 		}
-		*/
 	}
 	private void supportEasyuiSort()
 	{
