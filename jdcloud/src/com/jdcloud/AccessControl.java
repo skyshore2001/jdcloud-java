@@ -85,37 +85,37 @@ public class AccessControl extends JDApiBase {
 	// virtual columns
 	private HashMap<String, Vcol> vcolMap; // elem: vcol => {def, def0, added?, vcolDefIdx?=-1}
 
-	public void init(String table, String ac)
+	public void init(String table, String ac) throws Exception
 	{
 		this.table = table;
 		this.ac = ac;
 		this.onInit();
 	}
 
-	protected void onInit()
+	protected void onInit() throws Exception
 	{
 	}
-	protected void onValidate()
+	protected void onValidate() throws Exception
 	{
 	}
-	protected void onValidateId()
+	protected void onValidateId() throws Exception
 	{
 	}
-	protected void onHandleRow(JsObject rowData)
+	protected void onHandleRow(JsObject rowData) throws Exception
 	{
 	}
-	protected void onAfter(Object ret)
+	protected void onAfter(Object ret) throws Exception
 	{
 	}
-	protected void onQuery()
+	protected void onQuery() throws Exception
 	{
 	}
-	protected int onGenId()
+	protected int onGenId() throws Exception
 	{
 		return 0;
 	}
 
-	public void before()
+	public void before() throws Exception
 	{
 		if (this.allowedAc != null && stdAc.contains(ac) && !this.allowedAc.contains(ac))
 			throw new MyException(E_FORBIDDEN, String.format("Operation `%s` is not allowed on object `%s`", ac, table));
@@ -254,7 +254,7 @@ public class AccessControl extends JDApiBase {
 		}
 	}
 
-	private void handleRow(JsObject rowData)
+	private void handleRow(JsObject rowData) throws Exception
 	{
 		if (this.hiddenFields != null)
 		{
@@ -294,6 +294,7 @@ public class AccessControl extends JDApiBase {
 				m.appendReplacement(sb, "t0." + col);
 			}
 			m.appendTail(sb);
+			this.sqlConf.cond.set(0, sb.toString());
 		}
 	}
 	private void supportEasyuiSort()
@@ -433,7 +434,7 @@ public class AccessControl extends JDApiBase {
 	}
 
 	private boolean afterIsCalled = false;
-	public void after(Object ret)
+	public void after(Object ret) throws Exception
 	{
 		// 确保只调用一次
 		if (afterIsCalled)
@@ -459,7 +460,7 @@ public class AccessControl extends JDApiBase {
 			*/
 	}
 
-	public Object api_add() throws Throwable
+	public Object api_add() throws Exception
 	{
 		StringBuffer keys = new StringBuffer();
 		StringBuffer values = new StringBuffer();

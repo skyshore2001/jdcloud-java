@@ -1,8 +1,12 @@
 package com.jdcloud;
 
+import java.lang.reflect.Array;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 
 public class Demo {
 
@@ -122,5 +126,101 @@ class AC_ApiLog extends AccessControl
 			String nowStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
 			env._POST.put("tm", nowStr);
 		}
+	}
+}
+
+class AC1_UserApiLog extends AC_ApiLog
+{
+	private int uid;
+	protected void  onInit()
+	{
+		this.allowedAc = new JsArray("get", "query", "add", "del");
+		this.uid = (int)this.getSession("uid");
+
+		this.table = "ApiLog";
+		this.defaultSort = "id DESC";
+		
+		AC1_UserApiLog me = this;
+
+		VcolDef vcol = null;
+		if (env.dbType.equals("mssql")) {
+			vcol = new VcolDef() {{
+				res = Arrays.asList( 
+"(SELECT TOP 3 cast(id as varchar) + ':' + ac + ',' " +
+"FROM ApiLog log " +
+"WHERE userId=" + me.uid + " ORDER BY id DESC FOR XML PATH('') " +
+") last3LogAc");
+			}};
+		}
+		else if (env.dbType.equals("mysql")) {
+			vcol = new VcolDef() {{
+				res = Arrays.asList(
+"(SELECT group_concat(concat(id, ':', ac)) " + 
+"FROM (" +
+"SELECT id, ac " +
+"FROM ApiLog " +
+"WHERE userId=" + me.uid + " ORDER BY id DESC LIMIT 3) t" +
+") last3LogAc");
+			}};
+		}
+	
+		this.vcolDefs = Arrays.asList(
+			new VcolDef() {{
+				res = Arrays.asList("u.name userName");
+				join = "INNER JOIN User u ON u.id=t0.userId";
+				isDefault = true;
+			}},
+			vcol
+		);
+
+		this.subobj = new HashMap<String, SubobjDef>();
+		/*
+		{
+			{ "user", new SubobjDef() {
+				sql = "SELECT id,name FROM User u WHERE id=" + this.uid,
+				wantOne = true
+			}},
+			{ "last3Log", new SubobjDef() {
+				sql = env.cnn.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3"),
+			}}
+		};
+		*/
+	}
+
+	protected void onValidate()
+	{
+		super.onValidate();
+		if (this.ac.equals("add"))
+		{
+			env._POST.put("userId", this.uid);
+		}
+	}
+
+	protected void onValidateId() throws Exception
+	{
+		if (this.ac.equals("del"))
+		{
+			int id = (int)mparam("id");
+			Object rv = queryOne("SELECT id FROM ApiLog WHERE id=" + id + " AND userId=" + this.uid);
+			if (!rv.equals(false))
+				throw new MyException(E_FORBIDDEN, "not your log");
+		}
+	}
+
+	protected void onQuery() throws Exception
+	{
+		super.onQuery();
+		this.addCond("userId=" + this.uid);
+	}
+
+	public Object api_listByAc() throws Exception
+	{
+		String ac = (String)mparam("ac", "G");
+		JsObject param = new JsObject(
+			"_fmt", "list",
+			"cond", "ac=" + Q(ac)
+		);
+
+		return env.callSvc("UserApiLog.query", param, null, null);
 	}
 }

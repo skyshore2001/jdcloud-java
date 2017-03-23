@@ -58,7 +58,7 @@ public class JDHandler extends HttpServlet {
 			ret.set(1, ex.getMessage());
 			ret.add(ex.getDebugInfo());
 		}
-		catch (Throwable ex)
+		catch (Exception ex)
 		{
 			int code = ex instanceof SQLException? JDApiBase.E_DB: JDApiBase.E_SERVER;
 			ret.set(0, code);

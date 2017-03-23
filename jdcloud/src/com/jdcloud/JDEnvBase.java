@@ -34,7 +34,8 @@ public class JDEnvBase
 	public HttpServletRequest request;
 	public HttpServletResponse response;
 	public JsObject _GET, _POST;
-	
+
+	public String dbType = "mysql";
 	public DbStrategy dbStrategy;
 	
 	public void init(HttpServletRequest request, HttpServletResponse response)
@@ -87,13 +88,13 @@ public class JDEnvBase
 		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 	}
 	
-	public Object callSvc(String ac) throws Throwable
+	public Object callSvc(String ac) throws Exception
 	{
 		return callSvc(ac, null, null, null);
 	}
 
 	// TODO: asAdmin
-	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Throwable
+	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Exception
 	{
 		JsObject[] bak = null;
 		if (opt != null)
@@ -105,17 +106,17 @@ public class JDEnvBase
 				this._GET = new JsObject();
 				this._POST = new JsObject();
 			}
-			if (param != null)
+		}
+		if (param != null)
+		{
+			for (Entry<String, Object> kv : param.entrySet())
 			{
-				for (Entry<String, Object> kv : param.entrySet())
-				{
-					this._GET.put(kv.getKey(), kv.getValue());
-				}
+				this._GET.put(kv.getKey(), kv.getValue());
 			}
-			if (postParam != null) {
-				for (Entry<String, Object> kv : postParam.entrySet()) {
-					this._POST.put(kv.getKey(), kv.getValue());
-				}
+		}
+		if (postParam != null) {
+			for (Entry<String, Object> kv : postParam.entrySet()) {
+				this._POST.put(kv.getKey(), kv.getValue());
 			}
 		}
 
@@ -175,11 +176,11 @@ public class JDEnvBase
 			int code = clsName.startsWith("AC_") ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
 			throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
 		}
-		catch (Throwable e) {
+		catch (Exception e) {
 			if (mi == null)
 				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
 			if (e instanceof InvocationTargetException && e.getCause() != null)
-				throw e.getCause();
+				throw (Exception)e.getCause();
 			throw e;
 		}
 		finally {
