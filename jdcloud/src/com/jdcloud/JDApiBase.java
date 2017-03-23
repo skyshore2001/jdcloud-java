@@ -346,20 +346,13 @@ public class JDApiBase
 		String[] a = parseType(name);
 		String type = a[0];
 		name = a[1];
-		Object ret = null;
+		Object ret = env.getParam(name, coll);
 		
-		String val = env.getParam(name, coll);
-		/*
-		if (coll == null || coll == "G")
-			val = _GET[name];
-		if ((val == null && coll == null) || coll == "P")
-			val = _POST[name];
-			*/
-		if (val == null && defVal != null)
+		if (ret == null && defVal != null)
 			return defVal;
 
-		if (val != null) 
-		{
+		if (ret != null && ret instanceof String) {
+			String val = (String)ret;
 			if (type.equals("s"))
 			{
 				// avoid XSS attack

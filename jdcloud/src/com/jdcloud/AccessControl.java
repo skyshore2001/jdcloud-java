@@ -457,7 +457,7 @@ public class AccessControl extends JDApiBase {
 			*/
 	}
 
-	public Object api_add() throws SQLException
+	public Object api_add() throws Throwable
 	{
 		StringBuffer keys = new StringBuffer();
 		StringBuffer values = new StringBuffer();
@@ -491,10 +491,8 @@ public class AccessControl extends JDApiBase {
 		Object ret = null;
 		if (res != null)
 		{
-			/* TODO
-			this._GET["id"] = this.id.toString();
+			env._GET.put("id", this.id);
 			ret = env.callSvc(this.table + ".get");
-			*/
 		}
 		else
 			ret = this.id;

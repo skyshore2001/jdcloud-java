@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.*;
 import javax.servlet.http.*;
@@ -12,9 +13,8 @@ public class JDEnvBase
 {
 	public class CallSvcOpt
 	{
-		public JsObject _GET, _POST;
+		public boolean backupEnv = false;
 		public boolean isCleanCall = false;
-		public String ac;
 		public boolean asAdmin = false;
 	}
 
@@ -32,11 +32,36 @@ public class JDEnvBase
 	
 	public Object callSvc(String ac) throws Throwable
 	{
-		return callSvc(ac, null);
+		return callSvc(ac, null, null, null);
 	}
-	
-	public Object callSvc(String ac, CallSvcOpt opt) throws Throwable
+
+	// TODO: asAdmin
+	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Throwable
 	{
+		JsObject[] bak = null;
+		if (opt != null)
+		{
+			if (opt.backupEnv) {
+				bak = new JsObject[] { this._GET, this._POST };
+			}
+			if (opt.isCleanCall) {
+				this._GET = new JsObject();
+				this._POST = new JsObject();
+			}
+			if (param != null)
+			{
+				for (Entry<String, Object> kv : param.entrySet())
+				{
+					this._GET.put(kv.getKey(), kv.getValue());
+				}
+			}
+			if (postParam != null) {
+				for (Entry<String, Object> kv : postParam.entrySet()) {
+					this._POST.put(kv.getKey(), kv.getValue());
+				}
+			}
+		}
+
 		Matcher m = Pattern.compile("(\\w+)(?:\\.(\\w+))?$").matcher(ac);
 		m.find();
 		String ac1 = null;
@@ -100,42 +125,14 @@ public class JDEnvBase
 				throw e.getCause();
 			throw e;
 		}
-/*
-		NameValueCollection[] bak = null;
-		if (opt != null)
-		{
-			if (opt.isCleanCall || opt._GET != null|| opt._POST != null)
+		finally {
+			if (bak != null)
 			{
-				bak = new NameValueCollection[] { this._GET, this._POST };
-				if (opt.isCleanCall)
-				{
-					this._GET = new NameValueCollection();
-					this._POST = new NameValueCollection();
-				}
-				if (opt._GET != null)
-				{
-					for (String k : opt._GET)
-					{
-						this._GET[k] = opt._GET[k];
-					}
-				}
-				if (opt._POST != null)
-				{
-					for (String k : opt._POST)
-					{
-						this._POST[k] = opt._POST[k];
-					}
-				}
+				this._GET = bak[0];
+				this._POST = bak[1];
 			}
 		}
-*/
-		/*
-		if (bak != null)
-		{
-			this._GET = bak[0] as NameValueCollection;
-			this._POST = bak[1] as NameValueCollection;
-		}
-		*/
+
 		return ret;
 	}
 
@@ -189,17 +186,21 @@ public class JDEnvBase
 	}
 	
 	// coll: "G"-GET, "P"-POST, null-BOTH
-	public String getParam(String name, String coll) {
-		if (coll == null) {
-			return this.request.getParameter(name);
+	public Object getParam(String name, String coll) {
+		// return this.request.getParameter(name);
+		Object val = null;
+		if (coll != null) {
+			if (coll.equals("G")) 
+				val = _GET.get(name);
+			else if (coll.equals("P"))
+				val = _POST.get(name);
 		}
-		if (coll.equals("G")) {
-			return (String)_GET.get(name);
+		else {
+			val = _GET.get(name);
+			if (val == null)
+				val = _POST.get(name);
 		}
-		if (coll.equals("P")) {
-			return (String)_POST.get(name);
-		}
-		return null;
+		return val;
 	}
 	
 	public String fixPaging(String sql) {
