@@ -1,4 +1,5 @@
 package com.jdcloud;
+import java.io.UnsupportedEncodingException;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.*;
@@ -652,7 +653,6 @@ public class AccessControl extends JDApiBase {
 		return ret;
 	}
 
-	/*
 	void outputCsvLine(JsArray row, String enc)
 	{
 		boolean firstCol = true;
@@ -665,8 +665,12 @@ public class AccessControl extends JDApiBase {
 			String s = e.toString().replace("\"", "\"\"");
 			if (enc != null)
 			{
-				byte[] bs = Encoding.GetEncoding(enc).GetBytes(s);
-				echo('"', bs, '"');
+				try {
+					byte[] bs = s.getBytes(enc);
+					s = new String(bs, enc);
+				} catch (UnsupportedEncodingException e1) {
+				}
+				echo('"', s, '"');
 			}
 			else
 			{
@@ -676,21 +680,22 @@ public class AccessControl extends JDApiBase {
 		echo("\n");
 	}
 
-	void table2csv(JsObject tbl, String enc = null)
+	void table2csv(JsObject tbl, String enc)
 	{
-		outputCsvLine(tbl["h"] as JsArray, enc);
-		for (JsArray row : tbl["d"] as JsArray) 
+		outputCsvLine((JsArray)tbl.get("h"), enc);
+		for (Object row : (JsArray)tbl.get("d")) 
 		{
-			outputCsvLine(row, enc);
+			outputCsvLine((JsArray)row, enc);
 		}
 	}
 
 	void table2txt(JsObject tbl)
 	{
-		echo(String.Join("\t", (tbl["h"] as JsArray)), "\n");
-		for (JsArray row : (tbl["d"] as JsArray)) 
+		String hdr = join("\t", (JsArray)tbl.get("h"));
+		echo(hdr, "\n");
+		for (Object row : (JsArray)tbl.get("d")) 
 		{
-			echo(String.Join("\t", row), "\n");
+			echo(join("\t", (JsArray)row), "\n");
 		}
 	}
 
@@ -701,7 +706,7 @@ public class AccessControl extends JDApiBase {
 		{
 			header("Content-Type", "application/csv; charset=UTF-8");
 			header("Content-Disposition", "attachment;filename=" + fname + ".csv");
-			table2csv(ret);
+			table2csv(ret, null);
 			handled = true;
 		}
 		else if (fmt.equals("excel")) 
@@ -721,7 +726,7 @@ public class AccessControl extends JDApiBase {
 		if (handled)
 			throw new DirectReturn();
 	}
-*/
+
 	public Object api_query() throws Exception
 	{
 		Integer pagesz = (Integer)param("_pagesz/i");
@@ -858,10 +863,8 @@ public class AccessControl extends JDApiBase {
 		if (totalCnt != null) {
 			ret.put("total", totalCnt);
 		}
-		/* TODO
-		if (fmt != null && fmt != "list")
+		if (fmt != null && !fmt.equals("list"))
 			handleExportFormat(fmt, ret, this.table);
-*/
 		return ret;
 	}
 

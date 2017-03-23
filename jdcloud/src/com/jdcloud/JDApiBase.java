@@ -1,5 +1,6 @@
 package com.jdcloud;
 
+import java.io.IOException;
 import java.sql.*;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -414,6 +415,15 @@ public class JDApiBase
 	{
 		env.response.addHeader(key, value);
 	}
+	public void echo(Object... objs)
+	{
+		for (Object o: objs) {
+			try {
+				this.env.response.getWriter().print(o);
+			} catch (IOException e) {
+			}
+		}
+	}
 
 	public Object getSession(String name) {
 		return env.request.getSession().getAttribute(name);
@@ -481,4 +491,13 @@ public class JDApiBase
 		return Pattern.compile(pat).matcher(str);
 	}
 
+	public String join(String sep, List<?> ls) {
+		StringBuffer sb = new StringBuffer();
+		for (Object o : ls) {
+			if (sb.length() > 0)
+				sb.append(sep);
+			sb.append(o.toString());
+		}
+		return sb.toString();
+	}
 }
