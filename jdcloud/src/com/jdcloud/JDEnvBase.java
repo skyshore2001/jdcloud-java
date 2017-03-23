@@ -1,10 +1,15 @@
 package com.jdcloud;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
 import java.util.regex.*;
 import javax.servlet.http.*;
@@ -18,7 +23,7 @@ public class JDEnvBase
 		public boolean asAdmin = false;
 	}
 
-	public boolean isTestMode = true;
+	public boolean isTestMode = false;
 	public int debugLevel = 0;
 	public JsArray debugInfo = new JsArray();
 	public String appName, appType;
@@ -29,6 +34,53 @@ public class JDEnvBase
 	public HttpServletRequest request;
 	public HttpServletResponse response;
 	public JsObject _GET, _POST;
+	
+	public void init(HttpServletRequest request, HttpServletResponse response)
+	{
+		this.request = request;
+		this.response = response;
+		this.api = new JDApiBase();
+		this.api.env = this;
+		
+		this._GET = new JsObject();
+		this._POST = new JsObject();
+		String q = this.request.getQueryString();
+		if (q != null) {
+			Set<String> set = new HashSet<String>();
+			for (String q1 : q.split("&")) {
+				String[] kv = q1.split("=");
+				set.add(kv[0]);
+			}
+			Enumeration<String> em = this.request.getParameterNames();
+			while (em.hasMoreElements()) {
+				String k = em.nextElement();
+				if (set.contains(k))
+					this._GET.put(k, request.getParameter(k));
+				else
+					this._POST.put(k, request.getParameter(k));
+			}
+		}
+		
+		try {
+			Properties props = new Properties();
+			InputStream is = request.getServletContext().getResourceAsStream("web.properties");
+			props.load(is);
+			this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE"));
+			this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "9"));
+		} catch (Exception e) {
+			// TODO
+			this.isTestMode = true;
+			this.debugLevel = 9;
+		}
+		this.appName = (String)api.param("_app", "user", "G");
+		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
+
+		if (this.isTestMode)
+		{
+			api.header("X-Daca-Test-Mode", "1");
+		}
+		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
+	}
 	
 	public Object callSvc(String ac) throws Throwable
 	{
@@ -136,6 +188,61 @@ public class JDEnvBase
 		return ret;
 	}
 
+	public void dbconn() throws MyException
+	{
+		if (this.conn == null) {
+			String connStr = "jdbc:mysql://oliveche.com:3306/jdcloud2";
+			try {
+				Class.forName("com.mysql.jdbc.Driver");
+			} catch (ClassNotFoundException e) {
+				throw new MyException(JDApiBase.E_DB, "db driver not found");
+			}
+			String user = "demo";
+			String pwd = "tuuj7PNDC";
+			try {
+				this.conn = DriverManager.getConnection(connStr, user, pwd);
+				this.conn.setAutoCommit(false);
+			} catch (SQLException e) {
+				throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
+			}
+			/*
+			var dbType = ConfigurationManager.AppSettings["P_DBTYPE"];
+			var connSetting = ConfigurationManager.ConnectionStrings["default"];
+			if (connSetting == null)
+				throw new MyException(JDApiBase.E_SERVER, "No db connectionString defined in web.config");
+
+			cnn_ = new DbConn();
+			cnn_.onExecSql += new DbConn.OnExecSql(delegate(string sql)
+			{
+				api.addLog(sql, 9);
+			});
+			cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName, dbType);
+			cnn_.BeginTransaction();
+			*/
+		}
+	}
+	
+	public void close(boolean ok)
+	{
+		if (this.conn == null)
+			return;
+
+		
+		try {
+			if (ok) {
+				this.conn.commit();
+			}
+			else {
+				this.conn.rollback();
+			}
+			this.conn.setAutoCommit(false);
+			this.conn.close();
+			this.conn = null;
+		}
+		catch (SQLException e) {
+		}
+	}
+	
 	public String onCreateAC(String table)
 	{
 		return "AC_" + table;
@@ -146,45 +253,6 @@ public class JDEnvBase
 		return 0;
 	}
 
-	public void init(HttpServletRequest request, HttpServletResponse response)
-	{
-		this.request = request;
-		this.response = response;
-		this.api = new JDApiBase();
-		this.api.env = this;
-		
-		this._GET = new JsObject();
-		this._POST = new JsObject();
-		String q = this.request.getQueryString();
-		if (q != null) {
-			Set<String> set = new HashSet<String>();
-			for (String q1 : q.split("&")) {
-				String[] kv = q1.split("=");
-				set.add(kv[0]);
-			}
-			Enumeration<String> em = this.request.getParameterNames();
-			while (em.hasMoreElements()) {
-				String k = em.nextElement();
-				if (set.contains(k))
-					this._GET.put(k, request.getParameter(k));
-				else
-					this._POST.put(k, request.getParameter(k));
-			}
-		}
-/* TODO 
-		this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"] ?? "0") != 0;
-		this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"] ?? "0");
-
-		this.appName = api.param("_app", "user", "G") as string;
-		this.appType = Regex.Replace(this.appName, @"(\d+|-\w+)$", "");
-*/
-		if (this.isTestMode)
-		{
-			api.header("X-Daca-Test-Mode", "1");
-		}
-		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
-	}
-	
 	// coll: "G"-GET, "P"-POST, null-BOTH
 	public Object getParam(String name, String coll) {
 		// return this.request.getParameter(name);

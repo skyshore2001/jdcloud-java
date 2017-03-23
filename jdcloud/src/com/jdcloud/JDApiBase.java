@@ -68,52 +68,7 @@ public class JDApiBase
 		return "未知错误";
 	}
 	
-	public void dbconn() throws MyException
-	{
-		if (this.env.conn == null) {
-			String connStr = "jdbc:mysql://oliveche.com:3306/jdcloud2";
-			try {
-				Class.forName("com.mysql.jdbc.Driver");
-			} catch (ClassNotFoundException e) {
-				throw new MyException(E_DB, "db driver not found");
-			}
-			String user = "demo";
-			String pwd = "tuuj7PNDC";
-			try {
-				this.env.conn = DriverManager.getConnection(connStr, user, pwd);
-			} catch (SQLException e) {
-				throw new MyException(E_DB, "db connection fails", "数据库连接失败。");
-			}
-			/*
-			var dbType = ConfigurationManager.AppSettings["P_DBTYPE"];
-			var connSetting = ConfigurationManager.ConnectionStrings["default"];
-			if (connSetting == null)
-				throw new MyException(JDApiBase.E_SERVER, "No db connectionString defined in web.config");
 
-			cnn_ = new DbConn();
-			cnn_.onExecSql += new DbConn.OnExecSql(delegate(string sql)
-			{
-				api.addLog(sql, 9);
-			});
-			cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName, dbType);
-			cnn_.BeginTransaction();
-			*/
-		}
-	}
-	public void close() throws SQLException
-	{
-	/*
-		if (cnn_ != null)
-		{
-			if (ok)
-				cnn_.Commit();
-			else
-				cnn_.Rollback();
-			cnn_.Dispose();
-		}
-		*/
-		env.conn.close();
-	}
 	public static String Q(String s)
 	{
 		return "'" + s.replace("'", "\\'") + "'";
@@ -125,7 +80,8 @@ public class JDApiBase
 	}
 	public JsArray queryAll(String sql, boolean assoc) throws SQLException, MyException
 	{
-		dbconn();
+		addLog(sql, 9);
+		env.dbconn();
 		Statement stmt = env.conn.createStatement();
 		ResultSet rs = stmt.executeQuery(sql);
 		ResultSetMetaData md = rs.getMetaData();
@@ -159,7 +115,8 @@ public class JDApiBase
 	}
 	public Object queryOne(String sql, boolean assoc) throws SQLException, MyException
 	{
-		dbconn();
+		addLog(sql, 9);
+		env.dbconn();
 		Statement stmt = env.conn.createStatement();
 		ResultSet rs = stmt.executeQuery(sql);
 		ResultSetMetaData md = rs.getMetaData();
@@ -197,7 +154,8 @@ public class JDApiBase
 	// getNewId?=false
 	public int execOne(String sql, boolean getNewId) throws SQLException
 	{
-		dbconn();
+		addLog(sql, 9);
+		env.dbconn();
 		Statement stmt = env.conn.createStatement();
 		int rv = stmt.executeUpdate(sql, getNewId? Statement.RETURN_GENERATED_KEYS: Statement.NO_GENERATED_KEYS);
 		if (getNewId) {

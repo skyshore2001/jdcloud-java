@@ -25,6 +25,8 @@ public class JDHandler extends HttpServlet {
 		JsArray ret = new JsArray(0, null);
 		response.setContentType("text/plain; charset=utf-8");
 		JDEnvBase env = null;
+		boolean ok = false;
+		boolean dret = false;
 		try {
 			env = (JDEnvBase)Class.forName("com.jdcloud.JDEnv").newInstance(); // TODO: new JDEnvBase();
 			env.init(request, response);
@@ -44,7 +46,12 @@ public class JDHandler extends HttpServlet {
 			Object rv = env.callSvc(ac);
 			if (rv == null)
 				rv = "OK";
+			ok = true;
 			ret.set(1, rv);
+		}
+		catch (DirectReturn ex) {
+			ok = true;
+			dret = true;
 		}
 		catch (MyException ex) {
 			ret.set(0, ex.getCode());
@@ -67,6 +74,18 @@ public class JDHandler extends HttpServlet {
 			}
 		}
 
+		if (env != null) {
+			env.close(ok);
+			if (env.debugInfo.size() > 0)
+				ret.add(env.debugInfo);
+		}
+		else {
+			env = new JDEnvBase();
+		}
+		
+		if (dret)
+			return;
+		
 		String retStr = env.api.jsonEncode(ret, env.isTestMode);
 		response.getWriter().write(retStr);
 	}
