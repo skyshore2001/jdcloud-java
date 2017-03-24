@@ -1,6 +1,7 @@
 package com.jdcloud;
 import java.util.*;
 
+@SuppressWarnings("serial")
 public class JsObject extends LinkedHashMap<String, Object>
 {
 	public JsObject(Object ... args)

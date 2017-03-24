@@ -4,8 +4,6 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.*;
 
-import com.jdcloud.AccessControl.SubobjDef;
-
 public class AccessControl extends JDApiBase {
 
 	public class VcolDef
@@ -45,8 +43,8 @@ public class AccessControl extends JDApiBase {
 		public boolean added;
 	}
 
-	public static final JsArray stdAc = new JsArray("add", "get", "set", "del", "query");
-	protected JsArray allowedAc;
+	public static final List<String> stdAc = asList("add", "get", "set", "del", "query");
+	protected List<String> allowedAc;
 	protected String ac;
 	protected String table;
 
@@ -54,15 +52,15 @@ public class AccessControl extends JDApiBase {
 	protected int id;
 
 	// for add/set
-	protected JsArray readonlyFields;
+	protected List<String> readonlyFields;
 	// for set
-	protected JsArray readonlyFields2;
+	protected List<String> readonlyFields2;
 	// for add/set
-	protected JsArray requiredFields;
+	protected List<String> requiredFields;
 	// for set
-	protected JsArray requiredFields2;
+	protected List<String> requiredFields2;
 	// for get/query
-	protected JsArray hiddenFields;
+	protected List<String> hiddenFields;
 	// for query
 	protected String defaultRes; // 缺省为 "t0.*" 加  default=true的虚拟字段
 	protected String defaultSort = "t0.id";
@@ -72,7 +70,7 @@ public class AccessControl extends JDApiBase {
 	// for get/query
 	// virtual columns definition
 	protected List<VcolDef> vcolDefs; // elem: {res, join, default?=false}
-	protected HashMap<String, SubobjDef> subobj; // elem: { name => {sql, wantOne, isDefault}}
+	protected Map<String, SubobjDef> subobj; // elem: { name => {sql, wantOne, isDefault}}
 
 /* TODO
 	// 回调函数集。在after中执行（在onAfter回调之后）。
@@ -168,7 +166,7 @@ public class AccessControl extends JDApiBase {
 				}
 			}
 			else { // for set, the fields can not be set null
-				JsArray arr = new JsArray();
+				List<String> arr = new ArrayList<>();
 				if (this.requiredFields != null)
 					arr.addAll(this.requiredFields);
 				if (this.requiredFields2 != null)
@@ -189,17 +187,16 @@ public class AccessControl extends JDApiBase {
 		else if (ac.equals("get") || ac.equals("query")) {
 			String gres = (String)param("gres", null, null, false);
 			String res = (String)param("res", null, this.defaultRes, false);
-			String res1 = res;
-			sqlConf = new SqlConf() {{
-				res = new ArrayList<String>() {{ add(res1); }};
-				gres = gres;
-				cond = new ArrayList<String>() {{ add((String)param("cond", null, null, false)); }};
-				join = new ArrayList<String>();
-				orderby = (String)param("orderby", null, null, false);
-				subobj = new HashMap<String, SubobjDef>();
-				union = (String)param("union", null, null, false);
-				distinct = (boolean)param("distinct/b", false);
-			}};
+
+			sqlConf = new SqlConf();
+			sqlConf.res = asList(res);
+			sqlConf.gres = gres;
+			sqlConf.cond = asList((String)param("cond", null, null, false));
+			sqlConf.join = asList();
+			sqlConf.orderby = (String)param("orderby", null, null, false);
+			sqlConf.subobj = new HashMap<String, SubobjDef>();
+			sqlConf.union = (String)param("union", null, null, false);
+			sqlConf.distinct = (boolean)param("distinct/b", false);
 
 			this.initVColMap();
 
@@ -535,6 +532,7 @@ public class AccessControl extends JDApiBase {
 		}
 		else {
 			String sql = String.format("UPDATE %s SET %s WHERE id=%s", table, kv, id);
+			@SuppressWarnings("unused")
 			int cnt = execOne(sql);
 		}
 	}
@@ -623,7 +621,7 @@ public class AccessControl extends JDApiBase {
 					continue;
 				String sql1 = String.format(opt.sql, id); // e.g. "select * from OrderItem where orderId=%d"
 				boolean tryCache = sql1 == opt.sql;
-				JsArray ret1 = queryAll(sql1, true, true);
+				JsArray ret1 = queryAll(sql1, true, tryCache);
 				if (opt.wantOne) 
 				{
 					if (ret1.size() > 0)

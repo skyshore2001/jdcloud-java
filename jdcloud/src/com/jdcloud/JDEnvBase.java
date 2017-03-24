@@ -1,5 +1,4 @@
 package com.jdcloud;
-import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -350,7 +349,7 @@ public class JDEnvBase
 		public String fixPaging(String sql)
 		{
 			// for MSSQL: LIMIT -> TOP+ROW_NUMBER
-			Matcher m = this.env.api.regexMatch(sql, "(?isx)SELECT(.*?) (?: " +
+			Matcher m = JDApiBase.regexMatch(sql, "(?isx)SELECT(.*?) (?: " +
 "	LIMIT\\s+(\\d+) " +
 "	| (ORDER\\s+BY.*?)\\s*LIMIT\\s+(\\d+),(\\d+)" +
 ")\\s*$" );

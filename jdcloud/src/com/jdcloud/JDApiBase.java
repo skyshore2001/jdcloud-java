@@ -6,7 +6,6 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,14 +52,32 @@ public class JDApiBase
 	}
 	*/
 
-	public static final Map<Integer, String> ERRINFO = new HashMap<Integer, String>(){{
-		put(E_AUTHFAIL, "认证失败");
-		put(E_PARAM, "参数不正确");
-		put(E_NOAUTH, "未登录");
-		put(E_DB, "数据库错误");
-		put(E_SERVER, "服务器错误");
-		put(E_FORBIDDEN, "禁止操作");
-	}};
+	public static final Map<Integer, String> ERRINFO = asMap(
+		E_AUTHFAIL, "认证失败",
+		E_PARAM, "参数不正确",
+		E_NOAUTH, "未登录",
+		E_DB, "数据库错误",
+		E_SERVER, "服务器错误",
+		E_FORBIDDEN, "禁止操作"
+	);
+
+	@SuppressWarnings("unchecked")
+	public static <K,V> Map<K,V> asMap(Object ... args) {
+		Map<K,V> m = new LinkedHashMap<K, V>();
+		for (int i=0; i<args.length-1; i+=2) {
+			m.put((K)args[i], (V)args[i+1]);
+		}
+		return m; 
+	}
+
+	@SuppressWarnings("unchecked")
+	public static <T> List<T> asList(T ... args) {
+		List<T> ls = new ArrayList<>();
+		for (T e: args) {
+			ls.add(e);
+		}
+		return ls;
+	}
 
 	public static String GetErrInfo(int code)
 	{
@@ -75,11 +92,11 @@ public class JDApiBase
 		return "'" + s.replace("'", "\\'") + "'";
 	}
 	
-	public JsArray queryAll(String sql) throws SQLException, MyException
+	public JsArray queryAll(String sql) throws SQLException
 	{
 		return this.queryAll(sql, false);
 	}
-	public JsArray queryAll(String sql, boolean assoc) throws SQLException, MyException
+	public JsArray queryAll(String sql, boolean assoc) throws SQLException
 	{
 		addLog(sql, 9);
 		env.dbconn();
@@ -181,7 +198,7 @@ public class JDApiBase
 		return gson.toJson(o);
 	}
 	
-	static final JsObject htmlEntityMapping = new JsObject(
+	static final Map<String, String> htmlEntityMapping = asMap(
 		"<", "&lt;",
 		">", "&gt;",
 		"&", "&amp;"

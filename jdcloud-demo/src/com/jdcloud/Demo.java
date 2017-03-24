@@ -1,12 +1,8 @@
 package com.jdcloud;
 
-import java.lang.reflect.Array;
-import java.sql.SQLException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 
 public class Demo {
 
@@ -84,6 +80,7 @@ class Global extends JDApiBase
 	public Object api_login() throws Exception
 	{
 		String uname = (String)mparam("uname");
+		@SuppressWarnings("unused")
 		String pwd = (String)mparam("pwd");
 
 		String sql = String.format("SELECT id FROM User WHERE uname=%s", Q(uname));
@@ -115,9 +112,9 @@ class AC_ApiLog extends AccessControl
 {
 	protected void onInit()
 	{
-		this.requiredFields = new JsArray("ac");
-		this.readonlyFields = new JsArray("ac", "tm");
-		this.hiddenFields = new JsArray("ua");
+		this.requiredFields = asList("ac");
+		this.readonlyFields = asList("ac", "tm");
+		this.hiddenFields = asList("ua");
 	}
 	protected void onValidate()
 	{
@@ -134,7 +131,7 @@ class AC1_UserApiLog extends AC_ApiLog
 	private int uid;
 	protected void  onInit()
 	{
-		this.allowedAc = new JsArray("get", "query", "add", "del");
+		this.allowedAc = asList("get", "query", "add", "del");
 		this.uid = (int)this.getSession("uid");
 
 		this.table = "ApiLog";
@@ -164,7 +161,7 @@ class AC1_UserApiLog extends AC_ApiLog
 			}};
 		}
 	
-		this.vcolDefs = Arrays.asList(
+		this.vcolDefs = asList(
 			new VcolDef() {{
 				res = Arrays.asList("u.name userName");
 				join = "INNER JOIN User u ON u.id=t0.userId";
@@ -173,14 +170,15 @@ class AC1_UserApiLog extends AC_ApiLog
 			vcol
 		);
 
-		this.subobj = new HashMap<String, SubobjDef>();
-		this.subobj.put("user", new SubobjDef() {{
+		this.subobj = asMap(
+			"user", new SubobjDef() {{
 				sql = "SELECT id,name FROM User u WHERE id=" + me.uid;
 				wantOne = true;
-			}});
-		this.subobj.put("last3Log", new SubobjDef() {{
+			}},
+			"last3Log", new SubobjDef() {{
 				sql = env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + me.uid + " ORDER BY id DESC LIMIT 3");
-			}});
+			}}
+		);
 		/*
 		{
 			{ "user", new SubobjDef() {

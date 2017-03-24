@@ -1,6 +1,7 @@
 package com.jdcloud;
 import java.util.*;
 
+@SuppressWarnings("serial")
 public class JsArray extends ArrayList<Object>
 {
 	public JsArray(Object ... args)
