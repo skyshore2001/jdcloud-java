@@ -14,12 +14,46 @@ public class AccessControl extends JDApiBase {
 		public boolean isDefault;
 		// 依赖另一列
 		public String require;
+		
+		public VcolDef res(String... val) {
+			this.res = JDApiBase.asList(val);
+			return this;
+		}
+		public VcolDef join(String val) {
+			this.join = val;
+			return this;
+		}
+		public VcolDef cond(String val) {
+			this.cond = val;
+			return this;
+		}
+		public VcolDef isDefault(boolean val) {
+			this.isDefault = val;
+			return this;
+		}
+		public VcolDef require(String val) {
+			this.require = val;
+			return this;
+		}
 	}
 	public class SubobjDef
 	{
 		public String sql;
 		public boolean wantOne;
 		public boolean isDefault;
+		
+		public SubobjDef sql(String val) {
+			this.sql = val;
+			return this;
+		}
+		public SubobjDef wantOne(boolean val) {
+			this.wantOne = val;
+			return this;
+		}
+		public SubobjDef isDefault(boolean val) {
+			this.isDefault = val;
+			return this;
+		}
 	}
 
 	class SqlConf

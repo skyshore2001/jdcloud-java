@@ -137,59 +137,38 @@ class AC1_UserApiLog extends AC_ApiLog
 		this.table = "ApiLog";
 		this.defaultSort = "id DESC";
 		
-		AC1_UserApiLog me = this;
-
 		VcolDef vcol = null;
 		if (env.dbType.equals("mssql")) {
-			vcol = new VcolDef() {{
-				res = Arrays.asList( 
+			vcol = new VcolDef().res( 
 "(SELECT TOP 3 cast(id as varchar) + ':' + ac + ',' " +
 "FROM ApiLog log " +
-"WHERE userId=" + me.uid + " ORDER BY id DESC FOR XML PATH('') " +
+"WHERE userId=" + this.uid + " ORDER BY id DESC FOR XML PATH('') " +
 ") last3LogAc");
-			}};
 		}
 		else if (env.dbType.equals("mysql")) {
-			vcol = new VcolDef() {{
-				res = Arrays.asList(
+			vcol = new VcolDef().res(
 "(SELECT group_concat(concat(id, ':', ac)) " + 
 "FROM (" +
 "SELECT id, ac " +
 "FROM ApiLog " +
-"WHERE userId=" + me.uid + " ORDER BY id DESC LIMIT 3) t" +
+"WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3) t" +
 ") last3LogAc");
-			}};
 		}
 	
-		this.vcolDefs = asList(
-			new VcolDef() {{
-				res = Arrays.asList("u.name userName");
-				join = "INNER JOIN User u ON u.id=t0.userId";
-				isDefault = true;
-			}},
+		this.vcolDefs = Arrays.asList(
+			new VcolDef().res("u.name userName")
+				.join("INNER JOIN User u ON u.id=t0.userId")
+				.isDefault(true),
 			vcol
 		);
 
 		this.subobj = asMap(
-			"user", new SubobjDef() {{
-				sql = "SELECT id,name FROM User u WHERE id=" + me.uid;
-				wantOne = true;
-			}},
-			"last3Log", new SubobjDef() {{
-				sql = env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + me.uid + " ORDER BY id DESC LIMIT 3");
-			}}
+			"user", new SubobjDef()
+				.sql("SELECT id,name FROM User u WHERE id=" + this.uid)
+				.wantOne(true),
+			"last3Log", new SubobjDef()
+				.sql(env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3"))
 		);
-		/*
-		{
-			{ "user", new SubobjDef() {
-				sql = "SELECT id,name FROM User u WHERE id=" + this.uid,
-				wantOne = true
-			}},
-			{ "last3Log", new SubobjDef() {
-				sql = env.cnn.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3"),
-			}}
-		};
-		*/
 	}
 
 	protected void onValidate()
