@@ -98,7 +98,7 @@ public class JDApiBase
 	}
 	public JsArray queryAll(String sql, boolean assoc) throws SQLException
 	{
-		addLog(sql, 9);
+		sql = env.getSqlForExec(sql);
 		env.dbconn();
 		Statement stmt = env.conn.createStatement();
 		ResultSet rs = stmt.executeQuery(sql);
@@ -133,7 +133,7 @@ public class JDApiBase
 	}
 	public Object queryOne(String sql, boolean assoc) throws SQLException, MyException
 	{
-		addLog(sql, 9);
+		sql = env.getSqlForExec(sql);
 		env.dbconn();
 		Statement stmt = env.conn.createStatement();
 		ResultSet rs = stmt.executeQuery(sql);
@@ -172,7 +172,7 @@ public class JDApiBase
 	// getNewId?=false
 	public int execOne(String sql, boolean getNewId) throws SQLException
 	{
-		addLog(sql, 9);
+		sql = env.getSqlForExec(sql);
 		env.dbconn();
 		Statement stmt = env.conn.createStatement();
 		int rv = stmt.executeUpdate(sql, getNewId? Statement.RETURN_GENERATED_KEYS: Statement.NO_GENERATED_KEYS);
@@ -607,7 +607,7 @@ public class JDApiBase
 		for (Object o : ls) {
 			if (sb.length() > 0)
 				sb.append(sep);
-			sb.append(o.toString());
+			sb.append(o);
 		}
 		return sb.toString();
 	}

@@ -296,8 +296,14 @@ public class AccessControl extends JDApiBase {
 				rowData.remove(field);
 			}
 		}
-		if (rowData.containsKey("pwd"))
-			rowData.put("pwd", "****");
+		Iterator<Map.Entry<String, Object>> it = rowData.entrySet().iterator();
+		while (it.hasNext()) {
+			Map.Entry<String, Object> e = it.next();
+			String k = e.getKey();
+			if (k.equals("pwd") || k.charAt(0) == '_')
+				it.remove();
+		}
+		
 		// TODO: flag_handleResult(rowData);
 		this.onHandleRow(rowData);
 	}
@@ -694,7 +700,7 @@ public class AccessControl extends JDApiBase {
 				firstCol = false;
 			else
 				echo(',');
-			String s = e.toString().replace("\"", "\"\"");
+			String s = e==null? "": e.toString().replace("\"", "\"\"");
 			if (enc != null)
 			{
 				try {
@@ -702,12 +708,8 @@ public class AccessControl extends JDApiBase {
 					s = new String(bs, enc);
 				} catch (UnsupportedEncodingException e1) {
 				}
-				echo('"', s, '"');
 			}
-			else
-			{
-				echo('"', s, '"');
-			}
+			echo('"', s, '"');
 		}
 		echo("\n");
 	}
@@ -790,7 +792,7 @@ public class AccessControl extends JDApiBase {
 
 		// setup cond for partialQuery
 		if (orderSql == null)
-			orderSql = defaultSort;
+			orderSql = this.filterOrderby(defaultSort);
 
 		if (enableTotalCnt == false && pagekey != null && pagekey.intValue() == 0)
 		{

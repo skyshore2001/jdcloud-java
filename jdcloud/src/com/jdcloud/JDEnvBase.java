@@ -218,6 +218,7 @@ public class JDEnvBase
 				// start transaction
 				this.conn.setAutoCommit(false);
 			} catch (SQLException e) {
+				api.addLog(e.getMessage());
 				throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
 			}
 		}
@@ -275,7 +276,21 @@ public class JDEnvBase
 	public String fixPaging(String sql) {
 		return this.dbStrategy.fixPaging(sql);
 	}
+
+	public String getSqlForExec(String sql)
+	{
+		sql = fixTableName(sql);
+		api.addLog(sql, 9);
+		return sql;
+	}
 	
+	private String fixTableName(String sql)
+	{
+		String q = this.dbStrategy.quoteName("$1");
+		Matcher m = JDApiBase.regexMatch(sql, "(?isx)(?<= (?:UPDATE | FROM | JOIN | INTO) \\s+ )([\\w|.]+)");
+		return m.replaceAll(q);
+	}
+
 
 	public abstract class DbStrategy
 	{
@@ -348,8 +363,9 @@ public class JDEnvBase
 
 		public String fixPaging(String sql)
 		{
+			api.addLog(sql, 9);
 			// for MSSQL: LIMIT -> TOP+ROW_NUMBER
-			Matcher m = JDApiBase.regexMatch(sql, "(?isx)SELECT(.*?) (?: " +
+			Matcher m = JDApiBase.regexMatch(sql, "(?isx)SELECT(.*) (?: " +
 "	LIMIT\\s+(\\d+) " +
 "	| (ORDER\\s+BY.*?)\\s*LIMIT\\s+(\\d+),(\\d+)" +
 ")\\s*$" );
