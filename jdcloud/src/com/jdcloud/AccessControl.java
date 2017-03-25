@@ -802,7 +802,7 @@ public class AccessControl extends JDApiBase {
 		// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), _pagekey表示该字段的最后值；否则_pagekey表示下一页页码。
 		String partialQueryCond;
 		if (! enablePartialQuery) {
-			if (orderSql.matches("^(t0\\.)?id\b")) {
+			if (orderSql.matches("^(t0\\.)?id\\b")) {
 				enablePartialQuery = true;
 				if (pagekey != null && pagekey != 0) {
 					if (orderSql.matches("(?i)\bid DESC")) {
@@ -849,9 +849,13 @@ public class AccessControl extends JDApiBase {
 				sql.append(String.format("\nLIMIT %s", pagesz));
 			}
 			else {
-				if (pagekey == null || pagekey == 0)
+				if (pagekey == null || pagekey == 0) {
 					pagekey = 1;
-				sql.append(String.format("\nLIMIT %s,%s", (pagekey-1)*pagesz, pagesz));
+					sql.append(String.format("\nLIMIT %s", pagesz));
+				}
+				else {
+					sql.append(String.format("\nLIMIT %s,%s", (pagekey-1)*pagesz, pagesz));
+				}
 			}
 		}
 
