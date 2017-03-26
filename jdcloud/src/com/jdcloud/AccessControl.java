@@ -511,7 +511,7 @@ public class AccessControl extends JDApiBase {
 			String val = env._POST.get(k).toString();
 			if (val.length() == 0)
 				continue;
-			if (!k.matches("^\\w+$"))
+			if (!k.matches("\\w+"))
 				throw new MyException(E_PARAM, String.format("bad property `%s`" + k));
 			if (keys.length() > 0)
 			{
@@ -552,7 +552,7 @@ public class AccessControl extends JDApiBase {
 			//if (substr($k,0,2) == "p_")
 				//continue;
 			// TODO: check meta
-			if (!k.matches("^\\w+$"))
+			if (!k.matches("\\w+"))
 				throw new MyException(E_PARAM, String.format("bad property `%s`" + k));
 
 			if (kv.length() > 0)
@@ -612,7 +612,7 @@ public class AccessControl extends JDApiBase {
 				continue;
 			if (condBuilder.length() > 0)
 				condBuilder.append(" AND ");
-			if (cond.matches("(?i) (and|or) "))
+			if (regexMatch(cond, "(?i) (and|or) ").find())
 				condBuilder.append("(").append(cond).append(")");
 			else 
 				condBuilder.append(cond);
@@ -802,10 +802,10 @@ public class AccessControl extends JDApiBase {
 		// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), _pagekey表示该字段的最后值；否则_pagekey表示下一页页码。
 		String partialQueryCond;
 		if (! enablePartialQuery) {
-			if (orderSql.matches("^(t0\\.)?id\\b")) {
+			if (regexMatch(orderSql, "^(t0\\.)?id\\b").find()) {
 				enablePartialQuery = true;
 				if (pagekey != null && pagekey != 0) {
-					if (orderSql.matches("(?i)\bid DESC")) {
+					if (regexMatch(orderSql, "(?i)\\bid DESC").find()) {
 						partialQueryCond = "t0.id<" + pagekey;
 					}
 					else {
