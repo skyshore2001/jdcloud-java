@@ -375,7 +375,7 @@ public class JDEnvBase
 
 		public String fixPaging(String sql)
 		{
-			api.addLog(sql, 9);
+			// api.addLog(sql, 9); // 原始sql，复杂语句出问题时可打开看
 			// for MSSQL: LIMIT -> TOP+ROW_NUMBER
 			Matcher m = JDApiBase.regexMatch(sql, "(?isx)SELECT(.*) (?: " +
 "	LIMIT\\s+(\\d+) " +
