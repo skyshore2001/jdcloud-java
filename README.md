@@ -51,7 +51,7 @@ public class AC_ApiLog extends AccessControl
 **[函数型接口 - 简单直接]**
 
 除了对象型接口，还有一类叫函数型接口，比如要实现一个接口叫"getInfo"用于返回一些信息，开发起来也非常容易，只要在名为Global的类中定义一个函数：
-```php
+```java
 package com.demo;
 import com.jdcloud.*;
 
@@ -79,7 +79,7 @@ public class Global extends JDApiBase
 
 权限包括几种，比如根据登录类型不同，分为用户、员工、超级管理员等角色，每种角色可访问的数据表、数据列（即字段）有所不同，一般称为授权(auth)。
 授权控制不同角色的用户可以访问哪些对象或函数型接口，比如getInfo接口只许用户登录后访问：
-```php
+```java
 public Object api_getInfo()
 {
 	checkAuth(AUTH_USER); // 在应用配置中，已将AUTH_USER定义为用户权限，在用户登录后获得
@@ -88,7 +88,7 @@ public Object api_getInfo()
 ```
 
 再如ApiLog对象接口只允许员工登录后访问，且限制为只读访问（只允许get/query接口），不允许用户或游客访问，只要定义：
-```php
+```java
 // 不要定义AC_ApiLog，改为AC2_ApiLog
 public class AC2_ApiLog extends AccessControl
 {
@@ -104,7 +104,7 @@ asList是框架提供的工具函数，生成一个列表，与Array.asList类�
 
 通常权限还控制对同一个表中数据行的可见性，比如即使同是员工登录，普通员工只能看自己的操作日志，经理可以看到所有日志。
 这种数据行权限，也称为Data ownership，一般通过在查询时追加限制条件来实现。假设已定义一个权限PERM_MGR，对应经理权限，然后实现权限控制：
-```php
+```java
 public class AC2_ApiLog extends AccessControl
 {
 	...
@@ -189,7 +189,7 @@ public class AC2_ApiLog extends AccessControl
 
 public类com.demo.WebApi就是在web.properties配置文件中指定的入口(JDEnv=com.demo.WebApi)，它必须继承com.jdcloud.JDEnvBase类。为了学习接口编程，我们先清空这个文件，只留下这些代码：
 
-```php
+```java
 package com.demo;
 import java.lang.reflect.Method;
 import com.jdcloud.*;
@@ -377,7 +377,7 @@ query接口也支持常用的数组返回，需要加上`_fmt=list`参数：
 	- 权限：AUTH_USER (必须用户登录后才可用)
 
 我们使用模拟数据实现接口，函数名规范为`api_{接口名}`，写在类com.demo.Global下：
-```php
+```java
 class Global extends JDApiBase
 {
 	public Object api_whoami()
@@ -395,7 +395,7 @@ class Global extends JDApiBase
 JsObject是框架提供的通用对象，其原型接口是一个`Map<String, Object>`，类似的还有JsArray，其原型接口是`List<Object>`，两者相互组合，可模拟Javascript中的对象和数组，
 例如创建一个Person对象具有复杂数据结构 `[ {id, name, addr={country, city}, carIds=[id,...] ]`，我们写个接口`getPersons`来测试：
 
-```php
+```java
 public Object api_getPersons() {
 	JsArray personList = new JsArray(
 		new JsObject(
@@ -574,7 +574,7 @@ public class WebApi ...
 然后在JDEnv子类即WebApi类中定义一个重要的回调函数`onGetPerms`，它将根据登录情况或全局变量来取出所有当前可能有的权限，
 常用的检查权限的函数hasPerm/checkAuth都将调用它:
 
-```php
+```java
 public class WebApi extends JDEnvBase
 {
 	public static final int AUTH_DOCTOR = 0x4; // 自定义登录类型，从0x4开始。
@@ -627,7 +627,7 @@ public class WebApi extends JDEnvBase
 ### 登录与退出
 
 上节我们已经了解到，登录与权限检查密切相关，需要将用户信息存入session中，登录接口的大致实现如下（在Global类中）：
-```php
+```java
 public Object api_login()
 {
 	type = getAppType();
@@ -646,7 +646,7 @@ public Object api_login()
 定义一个函数型接口，函数名称一定要符合 `api_{接口名}` 的规范。接口名以小写字母开头。
 在接口实现时，一般应根据接口中的权限说明，使用checkAuth函数进行权限检查。
 
-```php
+```java
 public class WebApi extends JDEnvBase
 {
 	// 自定义登录类型，从0x4开始。
@@ -841,7 +841,7 @@ param/mparam除了检查简单类型，还支持一些复杂类型，比如"/i+"
 	[-1, "认证失败"]
 
 常用的其它返回码还有E_PARAM（参数错）, E_FORBIDDEN（无权限操作）等:
-```php
+```java
 E_ABORT = -100; // 要求客户端不报错
 E_PARAM=1; // 参数不合法
 E_NOAUTH=2; // 未认证，一般要求前端跳转登录页面
@@ -853,7 +853,7 @@ E_FORBIDDEN=5; // 无操作权限，不允许访问
 **[立即返回]**
 
 接口除了通过return来返回数据，还可以抛出DirectReturn异常，立即中断执行并返回结果，例如：
-```php
+```java
 public Object api_hello()
 {
 	// env.response.setContentType("application/json");
@@ -871,7 +871,7 @@ echo是JDApiBase中的工具函数，相当于 `env.response.getWriter().print()
 	pic() -> 图片内容
 	
 注意：该接口直接返回图片内容，不符合筋斗云`[0, JSON数据]`的返回规范，所以用DirectReturn立即返回，避免框架干预：
-```php
+```java
 public void api_hello() throws Exception
 {
 	String path = this.env.request.getServletContext().getRealPath("1.jpg");
@@ -975,7 +975,7 @@ queryOne只返回首行数据，特别地，如果返回行中只有一列，则
 **[支持数据库事务]**
 
 假如有一个用户用帐户余额给订单付款的接口，先更新订单状态，再更新用户帐户余额：
-```php
+```java
 public Object api_payOrder()
 {
 	execOne("UPDATE Ordr SET status='已付款'...");
@@ -1008,7 +1008,7 @@ public Object api_payOrder()
 ### 定制操作类型和字段
 
 对象接口通过继承AccessControl类来实现，默认允许5个标准对象操作，可以在onInit回调中改写属性`allowedAc`来限定允许的操作：
-```php
+```java
 class AC_ApiLog extends AccessControl
 {
 	@Override
@@ -1021,7 +1021,7 @@ class AC_ApiLog extends AccessControl
 ```
 
 缺省get/query操作返回ApiLog的所有字段，可以用属性`hiddenFields`隐藏一些字段，比如不返回"addr"和"tm"字段：
-```php
+```java
 this.hiddenFields = asList("addr", "tm");
 ```
 
@@ -1034,7 +1034,7 @@ this.hiddenFields = asList("addr", "tm");
 - "tm"字段为只读字段，即在add/set接口中如果填值则忽略（但不报错）；
 - 在add操作中，由程序自动填写"tm"字段。
 
-```php
+```java
 class AC_ApiLog extends AccessControl
 {
 	@Override
@@ -1066,7 +1066,7 @@ class AC_ApiLog extends AccessControl
 在对象型接口中，通过绑定访问控制类与权限，来实现不同角色通过不同的类来控制。
 
 比如前例中ApiLog对象接口允许员工登录(AUTH_EMP)后访问，只要定义：
-```php
+```java
 class AC2_ApiLog extends AccessControl
 {
 	...
@@ -1074,7 +1074,7 @@ class AC2_ApiLog extends AccessControl
 ```
 
 那么为什么AC2前缀对应员工权限呢？这需要实现一个重要回调函数`JDEnvBase.onCreateAC`，由它来实现类与权限的绑定：
-```php
+```java
 
 public class WebApi extends JDEnvBase
 {
@@ -1139,7 +1139,7 @@ TODO: 返回数组？
 上面接口原型描述中，get接口用"..."省略了详细的返回字段，因为返回对象的字段与query接口是一样的，两者写清楚一个即可。
 
 实现对象型接口如下：
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	@Override
@@ -1184,7 +1184,7 @@ class AC1_Ordr extends AccessControl
 我们把需求稍扩展一下，现在允许set/del操作，即用户可以更改和删除自己的订单。
 
 可以这样实现：
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	@Override
@@ -1228,7 +1228,7 @@ MyException的第二个参数是内部调试信息，第三个参数是对用户
 其中，表的字段就可直接映射为对象的属性。对于不在对象主表中定义的字段，统称为虚拟字段。
 
 通过属性`vcolDefs`来定义虚拟字段，最简单的一类虚拟字段是字段别名，比如在`AC1_Ordr.onInit`中设置:
-```php
+```java
 this.vcolDefs = asList(
 	new VcolDef().res("t0.id orderId", "t0.dscr description")
 );
@@ -1263,7 +1263,7 @@ this.vcolDefs = asList(
 	Ordr.query(cond="userName LIKE '%john%'", res="id,dscr")
 
 实现时，通过设置属性`vcolDefs`实现这些关联字段：
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	protected override void onInit()
@@ -1294,7 +1294,7 @@ class AC1_Ordr extends AccessControl
 注意：userName字段不直接与Rating表关联，而是通过Ordr表桥接到User表才能取到。
 
 需要在vcolDefs定义"userName"字段时，使用require选项指定依赖字段：
-```php
+```java
 public class AC1_Ordr extends AccessControl
 {
 	@Override 
@@ -1329,7 +1329,7 @@ public class AC1_Ordr extends AccessControl
 订单中有一个amount字段表示金额，由于可能存在折扣或优惠，它不一定等于OrderItem中每个产品价格之和。
 现在希望增加一个amount2字段表示原价，可以实现为：
 
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	@Override
@@ -1411,7 +1411,7 @@ class AC1_Ordr extends AccessControl
 上面接口原型描述中，字段orderLog前面的"@"标记表示它是一个数组，在返回值介绍中列出了它的数据结构。
 
 实现：
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	@Override
@@ -1457,7 +1457,7 @@ class AC1_Ordr extends AccessControl
 	- 权限：AUTH_EMP
 
 EmpLog类似一个数据库视图，是一个虚拟对象或虚拟表，筋斗云可直接使用AccessControl创建虚拟表，代码如下：
-```php
+```java
 class AC2_EmpLog extends AccessControl
 {
 	@Override
@@ -1509,7 +1509,7 @@ query接口中可以通过"orderby"来指定排序方式，如果未指定，默
 	- 用户只能操作自己的订单
 
 只要在相应的访问控制类中，添加名为`api_{非标准接口名}`的函数即可：
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	// "Ordr.cancel"接口
@@ -1529,7 +1529,7 @@ class AC1_Ordr extends AccessControl
 ### 接口返回前回调
 
 示例：添加订单到Ordr表时，自动添加一条"创建订单"日志到OrderLog表，可以这样实现：
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	@Override 
@@ -1564,7 +1564,7 @@ class AC1_Ordr extends AccessControl
 	- status: "CR" - 新创建, "PA" - 已付款
 	- statusStr: 状态名称，用中文表示，当有status返回时则同时返回该字段
 
-```php
+```java
 class AC1_Ordr extends AccessControl
 {
 	public static final Map<String, String> statusStr = asMap(
