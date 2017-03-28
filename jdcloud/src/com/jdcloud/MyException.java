@@ -1,7 +1,7 @@
 package com.jdcloud;
 
 @SuppressWarnings("serial")
-class MyException extends RuntimeException
+public class MyException extends RuntimeException
 {
 	protected int code;
 	protected Object debugInfo;

@@ -38,10 +38,12 @@ public class JDEnvBase
 	public DbStrategy dbStrategy;
 	protected Properties props;
 	
-	public void init(HttpServletRequest request, HttpServletResponse response)
+	public void init(HttpServletRequest request, HttpServletResponse response, Properties props)
 	{
 		this.request = request;
 		this.response = response;
+		this.props = props;
+		
 		this.api = new JDApiBase();
 		this.api.env = this;
 		
@@ -64,15 +66,10 @@ public class JDEnvBase
 			}
 		}
 		
-		try {
-			this.props = new Properties();
-			InputStream is = request.getServletContext().getResourceAsStream("/WEB-INF/web.properties");
-			props.load(is);
-			this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE"));
-			this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "9"));
-			this.dbType = props.getProperty("P_DBTYPE", "mysql");
-		} catch (Exception e) {
-		}
+		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
+		this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "0"));
+		this.dbType = props.getProperty("P_DBTYPE", "mysql");
+
 		this.appName = (String)api.param("_app", "user", "G");
 		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
 
@@ -148,21 +145,25 @@ public class JDEnvBase
 		Method mi = null;
 		Object ret = null;
 		try {
-			t = Class.forName("com.jdcloud." + clsName); // JDApi
-			api = (JDApiBase)t.newInstance();
+			String pkg = this.getClass().getPackage().getName(); 
+			t = Class.forName(pkg + "." + clsName); // JDApi
+
+			api = this.onGetApi(t);
+			//api = (JDApiBase)t.newInstance();
 			api.env = this;
-			mi = t.getMethod(methodName);
+			mi = api.getClass().getMethod(methodName);
 			if (clsName == "Global")
 			{
-				ret = mi.invoke(api);
+				//ret = mi.invoke(api);
+				ret = this.onInvoke(mi, api);
 			}
 			else if (api instanceof AccessControl)
 			{
 				AccessControl accessCtl = (AccessControl)api;
 				accessCtl.init(table, ac1);
 				accessCtl.before();
-				Object rv = mi.invoke(api);
-				//ret[1] = t.InvokeMember(methodName, BindingFlags.InvokeMethod, null, api, null);
+				// Object rv = mi.invoke(api);
+				Object rv = this.onInvoke(mi, api);
 				accessCtl.after(rv);
 				ret = rv;
 			}
@@ -245,6 +246,17 @@ public class JDEnvBase
 		}
 	}
 	
+	public JDApiBase onGetApi(Class<?> t) throws Exception
+	{
+		JDApiBase api = (JDApiBase)t.newInstance();
+		return api;
+	}
+
+	public Object onInvoke(Method mi, JDApiBase api) throws Exception
+	{
+		return mi.invoke(api);
+	}
+
 	public String onCreateAC(String table)
 	{
 		return "AC_" + table;

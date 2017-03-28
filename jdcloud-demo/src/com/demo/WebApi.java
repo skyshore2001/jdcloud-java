@@ -1,15 +1,33 @@
-package com.jdcloud;
+package com.demo;
 
+import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import com.jdcloud.*;
 
-public class Demo {
-
-}
-
-class JDEnv extends JDEnvBase
+public class WebApi extends JDEnvBase
 {
+	@Override
+	public JDApiBase onGetApi(Class<?> t) throws Exception
+	{
+		JDApiBase api = (JDApiBase)t.newInstance();
+		return api;
+	}
+	
+	@Override
+	public Object onInvoke(Method mi, JDApiBase api) throws Exception
+	{
+		return mi.invoke(api);
+	}
+	
+	@Override
+	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Exception
+	{
+		return super.callSvc(ac, param, postParam, opt);
+	}
+
+	@Override
 	public int onGetPerms()
 	{
 		int perms = 0;
@@ -19,6 +37,7 @@ class JDEnv extends JDEnvBase
 		return perms;
 	}
 
+	@Override
 	public String onCreateAC(String table)
 	{
 		if (api.hasPerm(JDApiBase.AUTH_USER))

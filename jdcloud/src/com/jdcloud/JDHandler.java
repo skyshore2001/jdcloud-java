@@ -1,7 +1,9 @@
 package com.jdcloud;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.sql.SQLException;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,8 +30,23 @@ public class JDHandler extends HttpServlet {
 		boolean ok = false;
 		boolean dret = false;
 		try {
-			env = (JDEnvBase)Class.forName("com.jdcloud.JDEnv").newInstance(); // TODO: new JDEnvBase();
-			env.init(request, response);
+			Properties props = null;
+			try {
+				props = new Properties();
+				InputStream is = request.getServletContext().getResourceAsStream("/WEB-INF/web.properties");
+				props.load(is);
+			} catch (Exception e) {
+			}
+			
+			try {
+				String clsEnv = props.getProperty("JDEnv");
+				if (clsEnv == null)
+					throw null; 
+				env = (JDEnvBase)Class.forName(clsEnv).newInstance();
+			} catch (Exception ex) {
+				throw new MyException(JDApiBase.E_SERVER, "JDEnv is not defined");
+			}
+			env.init(request, response, props);
 			String origin = request.getHeader("Origin");
 			if (env.isTestMode && origin != null)
 			{
