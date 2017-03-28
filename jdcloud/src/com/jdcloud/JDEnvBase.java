@@ -1,15 +1,10 @@
 package com.jdcloud;
-import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.*;
 import javax.servlet.http.*;
 
@@ -110,13 +105,13 @@ public class JDEnvBase
 		}
 		if (param != null)
 		{
-			for (Entry<String, Object> kv : param.entrySet())
+			for (Map.Entry<String, Object> kv : param.entrySet())
 			{
 				this._GET.put(kv.getKey(), kv.getValue());
 			}
 		}
 		if (postParam != null) {
-			for (Entry<String, Object> kv : postParam.entrySet()) {
+			for (Map.Entry<String, Object> kv : postParam.entrySet()) {
 				this._POST.put(kv.getKey(), kv.getValue());
 			}
 		}

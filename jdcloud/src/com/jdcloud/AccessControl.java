@@ -106,11 +106,13 @@ public class AccessControl extends JDApiBase {
 	protected List<VcolDef> vcolDefs; // elem: {res, join, default?=false}
 	protected Map<String, SubobjDef> subobj; // elem: { name => {sql, wantOne, isDefault}}
 
-/* TODO
+	@FunctionalInterface
+	public interface OnAfterAction
+	{
+		void exec();
+	}
 	// 回调函数集。在after中执行（在onAfter回调之后）。
-	public delegate void OnAfterActions();
-	protected OnAfterActions onAfterActions;
-*/
+	protected List<OnAfterAction> onAfterActions = asList();
 
 	// for get/query
 	// 注意：sqlConf.res/.cond[0]分别是传入的res/cond参数, sqlConf.orderby是传入的orderby参数, 为空均表示未传值。
@@ -492,11 +494,9 @@ public class AccessControl extends JDApiBase {
 		}
 
 		this.onAfter(ret);
-
-		/* TODO
-		if (this.onAfterActions != null)
-			this.onAfterActions();
-			*/
+		if (this.onAfterActions != null) {
+			this.onAfterActions.forEach(e -> e.exec());
+		}
 	}
 
 	public Object api_add() throws Exception
