@@ -96,7 +96,7 @@ public class AccessControl extends JDApiBase {
 	// for get/query
 	protected List<String> hiddenFields;
 	// for query
-	protected String defaultRes; // 缺省为 "t0.*" 加  default=true的虚拟字段
+	protected String defaultRes = "t0.*"; // 缺省为 "t0.*" 加  default=true的虚拟字段
 	protected String defaultSort = "t0.id";
 	// for query
 	protected int maxPageSz = 100;
@@ -222,10 +222,10 @@ public class AccessControl extends JDApiBase {
 		}
 		else if (ac.equals("get") || ac.equals("query")) {
 			String gres = (String)param("gres", null, null, false);
-			String res = (String)param("res", null, this.defaultRes, false);
+			String res = (String)param("res", null, null, false);
 
 			sqlConf = new SqlConf();
-			sqlConf.res = asList(res);
+			sqlConf.res = asList();
 			sqlConf.gres = gres;
 			sqlConf.cond = asList((String)param("cond", null, null, false));
 			sqlConf.join = asList();
@@ -262,14 +262,21 @@ public class AccessControl extends JDApiBase {
 			this.fixUserQuery();
 			this.onQuery();
 
+			boolean addDefaultCol = false;
 			// 确保res/gres参数符合安全限定
 			if (gres != null) {
 				this.filterRes(gres, true);
 			}
+			else if (res == null) {
+				res = this.defaultRes;
+				addDefaultCol = true;
+			}
+
 			if (res != null) {
 				this.filterRes(res);
 			}
-			else {
+			// 设置gres时，不使用default vcols/subobj
+			if (addDefaultCol) {
 				this.addDefaultVCols();
 				if (this.sqlConf.subobj.size() == 0 && this.subobj != null) {
 					for (Map.Entry<String, SubobjDef> kv : this.subobj.entrySet()) {
@@ -282,7 +289,7 @@ public class AccessControl extends JDApiBase {
 			}
 			if (ac.equals("query"))
 			{
-				this.supportEasyuiSort();
+				this.supportEasyui();
 				if (this.sqlConf.orderby != null && this.sqlConf.union == null)
 					this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
 			}
@@ -338,8 +345,12 @@ public class AccessControl extends JDApiBase {
 			this.sqlConf.cond.set(0, sb.toString());
 		}
 	}
-	private void supportEasyuiSort()
+	private void supportEasyui()
 	{
+		if (param("rows") != null) {
+			env._GET.put("pagesz", param("rows"));
+		}
+
 		// support easyui: sort/order
 		String sort = (String)param("sort");
 		if (sort != null)
@@ -349,6 +360,14 @@ public class AccessControl extends JDApiBase {
 			if (order != null)
 				orderby += " " + order;
 			this.sqlConf.orderby = orderby;
+		}
+		// 兼容旧代码: 支持 _pagesz等参数，新代码应使用pagesz
+		String[] arr = new String[] {"_pagesz", "_pagekey", "_fmt"};
+		for (int i=0; i<arr.length; ++i) {
+			String key = arr[i];
+			if (param(key) != null) {
+				env._GET.put(key.substring(1), param(key));
+			}
 		}
 	}
 	
@@ -360,7 +379,6 @@ public class AccessControl extends JDApiBase {
 	// return: new field list
 	private void filterRes(String res, boolean gres)
 	{
-		String firstCol = "";
 		List<String> cols = new ArrayList<String>();
 		for (String col0 : res.split(",")) 
 		{
@@ -369,15 +387,15 @@ public class AccessControl extends JDApiBase {
 			String fn = null;
 			if (col.equals("*") || col.equals("t0.*")) 
 			{
-				firstCol = "t0.*";
+				this.addRes("t0.*", false);
 				continue;
 			}
 			Matcher m;
 			// 适用于res/gres, 支持格式："col" / "col col1" / "col as col1"
 			if (! (m=regexMatch(col, "^(?i)(\\w+)(?:\\s+(?:AS\\s+)?(\\S+))?$")).find())
 			{
-				// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum
-				if (!gres && (m=regexMatch(col, "^(?i)(\\w+)\\([a-z0-9_.\'*]+\\)\\s+(?:AS\\s+)?(\\S+)$")).find())
+				// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum，如"count(distinct ac) cnt", "sum(qty*price) docTotal"
+				if (!gres && (m=regexMatch(col, "^(?i)(\\w+)\\([a-z0-9_.\'* ,+\\/]+\\)\\s+(?:AS\\s+)?(\\S+)$")).find())
 				{
 					fn = m.group(1).toUpperCase();
 					if (!fn.equals("COUNT") && !fn.equals("SUM"))
@@ -427,8 +445,6 @@ public class AccessControl extends JDApiBase {
 		}
 		if (gres)
 			this.sqlConf.gres = String.join(",", cols);
-		else
-			this.sqlConf.res.set(0, firstCol);
 	}
 
 	// 注意：mysql中order by/group by可以使用alias, 但mssql中不可以，需要换成alias的原始定义
@@ -588,11 +604,6 @@ public class AccessControl extends JDApiBase {
 	// return [stringbuffer, tblSql, condSql]
 	protected Object[] genQuerySql()
 	{
-		if (sqlConf.res.get(0) == null)
-			sqlConf.res.set(0, "t0.*");
-		else if (sqlConf.res.get(0).length() == 0)
-			sqlConf.res.remove(0);
-
 		String tblSql, condSql;
 		String resSql = String.join(",", sqlConf.res);
 		if (resSql.equals("")) {
@@ -763,14 +774,12 @@ public class AccessControl extends JDApiBase {
 
 	public Object api_query() throws Exception
 	{
-		Integer pagesz = (Integer)param("_pagesz/i");
-		Integer pagekey = (Integer)param("_pagekey/i");
+		Integer pagesz = (Integer)param("pagesz/i");
+		Integer pagekey = (Integer)param("pagekey/i");
 		boolean enableTotalCnt = false;
 		boolean enablePartialQuery = false;
 
-		// support jquery-easyui
-		if (pagesz == null && pagekey == null) {
-			pagesz = (Integer)param("rows/i");
+		if (pagekey == null) {
 			pagekey = (Integer)param("page/i");
 			if (pagekey != null)
 			{
@@ -799,7 +808,7 @@ public class AccessControl extends JDApiBase {
 			enableTotalCnt = true;
 		}
 
-		// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), _pagekey表示该字段的最后值；否则_pagekey表示下一页页码。
+		// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), pagekey表示该字段的最后值；否则pagekey表示下一页页码。
 		String partialQueryCond;
 		if (! enablePartialQuery) {
 			if (regexMatch(orderSql, "^(t0\\.)?id\\b").find()) {
@@ -827,11 +836,14 @@ public class AccessControl extends JDApiBase {
 		StringBuffer sql = (StringBuffer)rv[0];
 		tblSql = (String)rv[1];
 		condSql = (String)rv[2];
+		boolean complexCntSql = false;
 		if (sqlConf.union != null) {
 			sql.append("\nUNION\n").append(sqlConf.union);
+			complexCntSql = true;
 		}
 		if (sqlConf.gres != null) {
 			sql.append(String.format("\nGROUP BY %s", sqlConf.gres));
+			complexCntSql = true;
 		}
 
 		Object totalCnt = null;
@@ -839,9 +851,15 @@ public class AccessControl extends JDApiBase {
 			sql.append(String.format("\nORDER BY %s", orderSql));
 
 			if (enableTotalCnt) {
-				String cntSql = "SELECT COUNT(*) FROM " + tblSql;
-				if (condSql.length() > 0)
-					cntSql += "\nWHERE " + condSql;
+				String cntSql;
+				if (! complexCntSql) {
+					cntSql = "SELECT COUNT(*) FROM " + tblSql;
+					if (condSql.length() > 0)
+						cntSql += "\nWHERE " + condSql;
+				}
+				else {
+					cntSql = "SELECT COUNT(*) FROM (" + sql + ") t0";
+				}
 				totalCnt = queryOne(cntSql);
 			}
 
@@ -884,7 +902,7 @@ public class AccessControl extends JDApiBase {
 				handleSubObj((int)id, (JsObject)mainObj);
 			}
 		}
-		String fmt = (String)param("_fmt");
+		String fmt = (String)param("fmt");
 		JsObject ret = null;
 		if (fmt != null && fmt.equals("list")) {
 			ret = new JsObject("list", objArr);
