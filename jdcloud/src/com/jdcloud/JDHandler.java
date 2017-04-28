@@ -52,7 +52,11 @@ public class JDHandler extends HttpServlet {
 			{
 				response.setHeader("Access-Control-Allow-Origin", origin);
 				response.setHeader("Access-Control-Allow-Credentials", "true");
+				response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 			}
+
+			if (request.getMethod() == "OPTIONS")
+				return;
 
 			Pattern re = Pattern.compile("([\\w|.]+)$");
 			Matcher m = re.matcher(request.getPathInfo());

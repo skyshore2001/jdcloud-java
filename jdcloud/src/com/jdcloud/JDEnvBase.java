@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.*;
 import javax.servlet.http.*;
+import com.google.gson.*;
 
 public class JDEnvBase
 {
@@ -33,7 +34,7 @@ public class JDEnvBase
 	public DbStrategy dbStrategy;
 	protected Properties props;
 	
-	public void init(HttpServletRequest request, HttpServletResponse response, Properties props)
+	public void init(HttpServletRequest request, HttpServletResponse response, Properties props) throws Exception
 	{
 		this.request = request;
 		this.response = response;
@@ -60,7 +61,13 @@ public class JDEnvBase
 					this._POST.put(k, request.getParameter(k));
 			}
 		}
-		
+		// 支持POST为json格式
+		if (this.request.getContentType() != null && this.request.getContentType().indexOf("/json") > 0) {
+			Map m = new Gson().fromJson(this.request.getReader(), Map.class);
+			if (m != null)
+				_POST.putAll(m);
+		}
+
 		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
 		this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "0"));
 		this.dbType = props.getProperty("P_DBTYPE", "mysql");
