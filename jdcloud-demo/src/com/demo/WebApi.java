@@ -226,7 +226,7 @@ class AC1_UserApiLog extends AC_ApiLog
 	{
 		String ac = (String)mparam("ac", "G");
 		JsObject param = new JsObject(
-			"_fmt", "list",
+			"fmt", "list",
 			"cond", "ac=" + Q(ac)
 		);
 
