@@ -63,7 +63,8 @@ public class JDEnvBase
 		}
 		// 支持POST为json格式
 		if (this.request.getContentType() != null && this.request.getContentType().indexOf("/json") > 0) {
-			Map m = new Gson().fromJson(this.request.getReader(), Map.class);
+			@SuppressWarnings("unchecked")
+			Map<String, Object> m = (Map<String, Object>)new Gson().fromJson(this.request.getReader(), Map.class);
 			if (m != null)
 				_POST.putAll(m);
 		}
