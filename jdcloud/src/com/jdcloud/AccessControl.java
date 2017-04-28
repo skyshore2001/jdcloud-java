@@ -109,7 +109,7 @@ public class AccessControl extends JDApiBase {
 	@FunctionalInterface
 	public interface OnAfterAction
 	{
-		void exec();
+		void exec(Object ret);
 	}
 	// 回调函数集。在after中执行（在onAfter回调之后）。
 	protected List<OnAfterAction> onAfterActions = asList();
@@ -495,7 +495,7 @@ public class AccessControl extends JDApiBase {
 
 		this.onAfter(ret);
 		if (this.onAfterActions != null) {
-			this.onAfterActions.forEach(e -> e.exec());
+			this.onAfterActions.forEach(e -> e.exec(ret));
 		}
 	}
 

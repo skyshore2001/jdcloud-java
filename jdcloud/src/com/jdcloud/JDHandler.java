@@ -68,7 +68,12 @@ public class JDHandler extends HttpServlet {
 		}
 		catch (DirectReturn ex) {
 			ok = true;
-			dret = true;
+			if (ex.retVal != null) {
+				ret.set(1, ex.retVal);
+			}
+			else {
+				dret = true;
+			}
 		}
 		catch (MyException ex) {
 			ret.set(0, ex.getCode());

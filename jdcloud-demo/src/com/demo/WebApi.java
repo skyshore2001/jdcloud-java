@@ -128,12 +128,14 @@ class Global extends JDApiBase
 
 class AC_ApiLog extends AccessControl
 {
+	@Override
 	protected void onInit()
 	{
 		this.requiredFields = asList("ac");
 		this.readonlyFields = asList("ac", "tm");
 		this.hiddenFields = asList("ua");
 	}
+	@Override
 	protected void onValidate()
 	{
 		if (this.ac.equals("add"))
@@ -147,6 +149,8 @@ class AC_ApiLog extends AccessControl
 class AC1_UserApiLog extends AC_ApiLog
 {
 	private int uid;
+
+	@Override
 	protected void  onInit()
 	{
 		this.allowedAc = asList("get", "query", "add", "del");
@@ -189,6 +193,7 @@ class AC1_UserApiLog extends AC_ApiLog
 		);
 	}
 
+	@Override
 	protected void onValidate()
 	{
 		super.onValidate();
@@ -198,6 +203,7 @@ class AC1_UserApiLog extends AC_ApiLog
 		}
 	}
 
+	@Override
 	protected void onValidateId() throws Exception
 	{
 		if (this.ac.equals("del"))
@@ -209,6 +215,7 @@ class AC1_UserApiLog extends AC_ApiLog
 		}
 	}
 
+	@Override
 	protected void onQuery() throws Exception
 	{
 		super.onQuery();
