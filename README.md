@@ -1,13 +1,24 @@
 # jdcloud-java - 筋斗云接口开发框架(java版)
 
-筋斗云是一个Web接口开发框架，它不讲MVC，不做对象-数据表映射(OR Mapping)，而是以数据表为核心来开发Web Service（也称为Web API），提出极简化开发的“数据模型即接口”思想。
-它推崇以简约的方式在设计文档中描述数据模型及业务接口，进而自动创建或更新数据库表以及业务接口，称为“一站式数据模型部署”。
+筋斗云是一个Web接口开发框架，它基于模型驱动开发（MDD）的理念，提出极简化开发的“数据模型即接口”思想，用于快速实现基于数据模型的接口（MBI: Model Based Interface）。
+它推崇以简约的方式在设计文档中描述数据模型，进而基于模型自动形成数据库表以及业务接口，称为“一站式数据模型部署”。
 
 筋斗云提供对象型接口和函数型接口两类接口开发模式，前者专为对象的增删改查提供易用强大的编程框架，后者则更为自由。
 
 筋斗云原本使用php语言开发，本项目为筋斗云的java实现版本，支持在java平台进行函数型、对象型接口开发。
 
 注意筋斗云要求最低java 8版本。
+
+筋斗云后端框架项目参考：
+
+- [jdclud-php](https://github.com/skyshore2001/jdcloud-php) (筋斗云后端php版本)
+- [jdclud-java](https://github.com/skyshore2001/jdcloud-java) (筋斗云后端java版本)
+- [jdclud-cs](https://github.com/skyshore2001/jdcloud-cs) (筋斗云后端.net版本)
+
+另外，筋斗云有优雅的前端框架，支持构建模块化的H5单页应用：
+
+- [jdcloud-mui](https://github.com/skyshore2001/jdcloud-mui) 筋斗云移动端单页应用框架，用于创建手机H5应用程序。
+- [jdcloud-wui](https://github.com/skyshore2001/jdcloud-wui) 筋斗云管理端单页应用框架，用于创建运营管理端H5应用程序。
 
 **[对象型接口 - 数据模型即接口]**
 
@@ -126,7 +137,7 @@ public class AC2_ApiLog extends AccessControl
 
 	@ApiLog: id, tm, addr
 
-使用工具就可以自动创建数据表，由于数据模型即接口，也同时生成了相应的对象操作接口。
+使用部署工具就可以自动创建数据表，由于数据模型即接口，也同时生成了相应的对象操作接口。
 工具会根据字段的命名规则来确定字段类型，比如"id"结尾就用整型，"tm"结尾就用日期时间类型等。
 
 当增加了表或字段，同样运行工具，数据库和后端接口也都会相应被更新。
