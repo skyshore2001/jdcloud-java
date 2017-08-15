@@ -62,7 +62,7 @@ public class AccessControl extends JDApiBase {
 		public List<String> res;
 		public List<String> join;
 		public String orderby;
-		public String gres;
+		public String gres, gcond;
 		public HashMap<String, SubobjDef> subobj;
 		public boolean distinct;
 		public String union;
@@ -117,6 +117,7 @@ public class AccessControl extends JDApiBase {
 	// for get/query
 	// 注意：sqlConf.res/.cond[0]分别是传入的res/cond参数, sqlConf.orderby是传入的orderby参数, 为空均表示未传值。
 	private SqlConf sqlConf; // {@cond, @res, @join, orderby, @subobj, @gres}
+	private boolean isAggregationQuery; // 是聚合查询，如带group by或res中有聚合函数
 
 	// virtual columns
 	private HashMap<String, Vcol> vcolMap; // elem: vcol => {def, def0, added?, vcolDefIdx?=-1}
@@ -160,12 +161,14 @@ public class AccessControl extends JDApiBase {
 		sqlConf = new SqlConf();
 		sqlConf.res = asList();
 		sqlConf.gres = gres;
+		sqlConf.gcond = (String)param("gcond", null, null, false);
 		sqlConf.cond = asList((String)param("cond", null, null, false));
 		sqlConf.join = asList();
 		sqlConf.orderby = (String)param("orderby", null, null, false);
 		sqlConf.subobj = new HashMap<String, SubobjDef>();
 		sqlConf.union = (String)param("union", null, null, false);
 		sqlConf.distinct = (boolean)param("distinct/b", false);
+		this.isAggregationQuery = sqlConf.gres != null;
 
 		this.initVColMap();
 
@@ -192,7 +195,6 @@ public class AccessControl extends JDApiBase {
 			this.sqlConf["subobj"] = subobj;
 		}
 		*/
-		this.fixUserQuery();
 		this.onQuery();
 
 		boolean addDefaultCol = false;
@@ -226,6 +228,13 @@ public class AccessControl extends JDApiBase {
 			if (this.sqlConf.orderby != null && this.sqlConf.union == null)
 				this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
 		}
+
+		// fixUserQuery
+		String cond = this.sqlConf.cond.get(0);
+		if (cond != null)
+			this.sqlConf.cond.set(0, fixUserQuery(cond));
+		if (this.sqlConf.gcond != null)
+			this.sqlConf.gcond = fixUserQuery(this.sqlConf.gcond);
 	}
 
 	// for add/set
@@ -317,33 +326,32 @@ public class AccessControl extends JDApiBase {
 	}
 
 	// for query. "field1"=>"t0.field1"
-	private void fixUserQuery()
+	private String fixUserQuery(String q)
 	{
-		if (this.sqlConf.cond.get(0) != null) {
-			if (regexMatch(this.sqlConf.cond.get(0), "(?i)select").find()) {
-				throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
-			}
-			// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null"
-			Matcher m = regexMatch(this.sqlConf.cond.get(0), "(?i)[\\w|.]+(?=(\\s*[=><]|(\\s+(IS|LIKE))))");
-			StringBuffer sb = new StringBuffer();
-			while (m.find()) {
-				// 't0.0' for col, or 'voldef' for vcol
-				String col = m.group();
-				if (col.contains(".")) {
-					m.appendReplacement(sb, col);
-					continue;
-				}
-				if (this.vcolMap.containsKey(col)) {
-					this.addVCol(col, false, "-");
-					m.appendReplacement(sb, this.vcolMap.get(col).def);
-					continue;
-				}
-				m.appendReplacement(sb, "t0." + col);
-			}
-			m.appendTail(sb);
-			this.sqlConf.cond.set(0, sb.toString());
+		if (regexMatch(q, "(?i)select").find()) {
+			throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
 		}
+		// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null"
+		Matcher m = regexMatch(q, "(?i)[\\w|.]+(?=(\\s*[=><]|(\\s+(IS|LIKE))))");
+		StringBuffer sb = new StringBuffer();
+		while (m.find()) {
+			// 't0.0' for col, or 'voldef' for vcol
+			String col = m.group();
+			if (col.contains(".")) {
+				m.appendReplacement(sb, col);
+				continue;
+			}
+			if (this.vcolMap.containsKey(col)) {
+				this.addVCol(col, false, "-");
+				m.appendReplacement(sb, this.vcolMap.get(col).def);
+				continue;
+			}
+			m.appendReplacement(sb, "t0." + col);
+		}
+		m.appendTail(sb);
+		return sb.toString();
 	}
+
 	private void supportEasyui()
 	{
 		if (param("rows") != null) {
@@ -399,6 +407,7 @@ public class AccessControl extends JDApiBase {
 					fn = m.group(1).toUpperCase();
 					if (!fn.equals("COUNT") && !fn.equals("SUM"))
 						throw new MyException(E_FORBIDDEN, String.format("SQL function not allowed: `%s`", fn));
+					this.isAggregationQuery = true;
 				}
 				else 
 					throw new MyException(E_PARAM, String.format("bad property `%s`", col));
@@ -433,7 +442,7 @@ public class AccessControl extends JDApiBase {
 					{
 						col1 += " " + alias;
 					}
-					this.addRes(col1, false);
+					this.addRes(col1);
 				}
 			}
 			// mysql可在group-by中直接用alias, 而mssql要用原始定义
@@ -781,7 +790,7 @@ public class AccessControl extends JDApiBase {
 		Integer pagesz = (Integer)param("pagesz/i");
 		Integer pagekey = (Integer)param("pagekey/i");
 		boolean enableTotalCnt = false;
-		boolean enablePartialQuery = false;
+		boolean enablePartialQuery = true;
 
 		if (pagekey == null) {
 			pagekey = (Integer)param("page/i");
@@ -797,14 +806,14 @@ public class AccessControl extends JDApiBase {
 		else if (pagesz == null || pagesz == 0)
 			pagesz = 20;
 
-		if (sqlConf.gres != null) {
+		if (this.isAggregationQuery) {
 			enablePartialQuery = false;
 		}
 
 		String orderSql = sqlConf.orderby;
 
 		// setup cond for partialQuery
-		if (orderSql == null)
+		if (orderSql == null && !this.isAggregationQuery)
 			orderSql = this.filterOrderby(defaultSort);
 
 		if (enableTotalCnt == false && pagekey != null && pagekey.intValue() == 0)
@@ -814,9 +823,8 @@ public class AccessControl extends JDApiBase {
 
 		// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), pagekey表示该字段的最后值；否则pagekey表示下一页页码。
 		String partialQueryCond;
-		if (! enablePartialQuery) {
+		if (enablePartialQuery) {
 			if (regexMatch(orderSql, "^(t0\\.)?id\\b").find()) {
-				enablePartialQuery = true;
 				if (pagekey != null && pagekey != 0) {
 					if (regexMatch(orderSql, "(?i)\\bid DESC").find()) {
 						partialQueryCond = "t0.id<" + pagekey;
@@ -833,6 +841,9 @@ public class AccessControl extends JDApiBase {
 					}
 				}
 			}
+			else {
+				enablePartialQuery = false;
+			}
 		}
 
 		String tblSql, condSql;
@@ -847,37 +858,39 @@ public class AccessControl extends JDApiBase {
 		}
 		if (sqlConf.gres != null) {
 			sql.append(String.format("\nGROUP BY %s", sqlConf.gres));
+			if (sqlConf.gcond != null)
+				sql.append(String.format("\nHAVING %s", sqlConf.gcond));
 			complexCntSql = true;
 		}
 
 		Object totalCnt = null;
-		if (orderSql != null) {
+
+		if (enableTotalCnt) {
+			String cntSql;
+			if (! complexCntSql) {
+				cntSql = "SELECT COUNT(*) FROM " + tblSql;
+				if (condSql.length() > 0)
+					cntSql += "\nWHERE " + condSql;
+			}
+			else {
+				cntSql = "SELECT COUNT(*) FROM (" + sql + ") t0";
+			}
+			totalCnt = queryOne(cntSql);
+		}
+
+		if (orderSql != null)
 			sql.append(String.format("\nORDER BY %s", orderSql));
 
-			if (enableTotalCnt) {
-				String cntSql;
-				if (! complexCntSql) {
-					cntSql = "SELECT COUNT(*) FROM " + tblSql;
-					if (condSql.length() > 0)
-						cntSql += "\nWHERE " + condSql;
-				}
-				else {
-					cntSql = "SELECT COUNT(*) FROM (" + sql + ") t0";
-				}
-				totalCnt = queryOne(cntSql);
-			}
-
-			if (enablePartialQuery) {
+		if (enablePartialQuery) {
+			sql.append(String.format("\nLIMIT %s", pagesz));
+		}
+		else {
+			if (pagekey == null || pagekey == 0) {
+				pagekey = 1;
 				sql.append(String.format("\nLIMIT %s", pagesz));
 			}
 			else {
-				if (pagekey == null || pagekey == 0) {
-					pagekey = 1;
-					sql.append(String.format("\nLIMIT %s", pagesz));
-				}
-				else {
-					sql.append(String.format("\nLIMIT %s,%s", (pagekey-1)*pagesz, pagesz));
-				}
+				sql.append(String.format("\nLIMIT %s,%s", (pagekey-1)*pagesz, pagesz));
 			}
 		}
 
