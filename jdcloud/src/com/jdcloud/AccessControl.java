@@ -332,7 +332,7 @@ public class AccessControl extends JDApiBase {
 			throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
 		}
 		// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null"
-		Matcher m = regexMatch(q, "(?i)[\\w|.]+(?=(\\s*[=><]|(\\s+(IS|LIKE))))");
+		Matcher m = regexMatch(q, "(?i)[\\w.\\u4E00-\\u9FA5]+(?=(\\s*[=><]|(\\s+(IS|LIKE))))");
 		StringBuffer sb = new StringBuffer();
 		while (m.find()) {
 			// 't0.0' for col, or 'voldef' for vcol
