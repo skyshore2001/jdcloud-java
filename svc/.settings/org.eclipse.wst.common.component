@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?><project-modules id="moduleCoreId" project-version="1.5.0">
-    <wb-module deploy-name="jdcloud-demo">
+    <wb-module deploy-name="svc">
         <wb-resource deploy-path="/" source-path="/WebContent" tag="defaultRootSource"/>
         <wb-resource deploy-path="/WEB-INF/classes" source-path="/src"/>
         <dependent-module archiveName="gson-2.2.4.jar" deploy-path="/WEB-INF/lib" handle="module:/classpath/lib/extlib/gson-2.2.4.jar">
@@ -14,7 +14,7 @@
         <dependent-module archiveName="sqljdbc42.jar" deploy-path="/WEB-INF/lib" handle="module:/classpath/lib/extlib/sqljdbc42.jar">
             <dependency-type>uses</dependency-type>
         </dependent-module>
-        <property name="context-root" value="jdcloud-demo"/>
-        <property name="java-output-path" value="/jdcloud-demo/build/classes"/>
+        <property name="java-output-path" value="/svc/build/classes"/>
+        <property name="context-root" value="svc"/>
     </wb-module>
 </project-modules>

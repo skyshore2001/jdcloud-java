@@ -158,11 +158,14 @@ public class AC2_ApiLog extends AccessControl
 
 如果github访问困难，也可以用这个git仓库： `http://dacatec.com/git/jdcloud-java.git`
 
-下载后，里面有jdcloud, jdcloud-demo和extlib三个目录，打开eclipse，导入这三个目录下的工程。
-其中，jdcloud是可生成jar包的框架库工程，jdcloud-demo是示例web项目，可运行在tomcat上，而extlib就只是依赖到的jar包。
+下载后，里面有jdcloud, svc和extlib三个目录，打开eclipse，导入这三个目录下的工程。
+其中，jdcloud是可生成jar包的框架库工程，svc是示例web项目，可运行在tomcat上，而extlib就只是依赖到的jar包。
 你可以将jdcloud目录直接引入你的工程中，或用编译后的jar包直接在你的工程中引用。
 
-以示例工程jdcloud-demo为例，我们先看如何配置数据库连接等信息。在目录jdcloud-demo/WebContent/WEB-INF下，有个web.properties.template文件，将它复制为web.properties文件。
+以示例工程svc为例，实际项目中我们一般先改个名，在eclipse中右键项目选择`Refactor->Rename`，换成实际工程名，比如`mysvc`。
+因而项目部署到Tomcat后的访问根地址是`http://localhost:8080/mysvc/`.
+
+再看如何配置数据库连接等信息。在目录svc/WebContent/WEB-INF下，有个web.properties.template文件，将它复制为web.properties文件。
 先指定你项目中回调入口类，如：
 
 	JDEnv=com.demo.WebApi
@@ -196,7 +199,7 @@ public class AC2_ApiLog extends AccessControl
 
 参数P_DBTYPE用于提示数据库类型，值为"mssql"或"mysql"。
 
-我们从jdcloud-demo演示工程开始，在这个工程中，为了方便编码，把所有的类都放在文件com/demo/WebApi.java中了（所以那些接口类都没有加public前缀）。
+我们从svc演示工程开始，在这个工程中，为了方便编码，把所有的类都放在文件com/demo/WebApi.java中了（所以那些接口类都没有加public前缀）。
 
 public类com.demo.WebApi就是在web.properties配置文件中指定的入口(JDEnv=com.demo.WebApi)，它必须继承com.jdcloud.JDEnvBase类。为了学习接口编程，我们先清空这个文件，只留下这些代码：
 
@@ -257,10 +260,10 @@ class AC_ApiLog extends AccessControl
 
 接口原型中只描述调用成功时返回数据的数据结构，完整的返回格式是`[0, 返回数据]`；而在调用失败时，统一返回`[非0错误码, 错误信息]`。
 
-在eclipse中启动tomcat，这时默认的服务地址就是`http://localhost:8080/jdcloud-demo/api/{接口名}`.
+在eclipse中启动tomcat，这时默认的服务地址就是`http://localhost:8080/mysvc/api/{接口名}`.
 我们可以直接用curl工具来模拟前端调用，用add接口添加一行数据，使用HTTP POST请求：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.add -d "tm=2016-9-9 10:10" -d "addr=shanghai"
+	curl http://localhost:8080/mysvc/api/ApiLog.add -d "tm=2016-9-9 10:10" -d "addr=shanghai"
 
 curl用"-d"参数指定参数通过HTTP body来传递，由于默认使用HTTP POST谓词和form格式(Content-Type=application/x-www-form-urlencoded)，
 这种参数一般称为POST参数或FORM参数，与通过URL传递的GET参数相区别。
@@ -272,7 +275,7 @@ curl用"-d"参数指定参数通过HTTP body来传递，由于默认使用HTTP P
 
 用get接口取出这个对象出来看看：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.get?id=11338
+	curl http://localhost:8080/mysvc/api/ApiLog.get?id=11338
 
 输出：
 
@@ -281,19 +284,21 @@ curl用"-d"参数指定参数通过HTTP body来传递，由于默认使用HTTP P
 这里参数id是通过URL传递的。
 前面说过，未显式说明时，接口的参数可以通过URL或POST参数方式来传递，所以本例中URL参数id也可以通过POST参数来传递：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.get -d "id=11338"
+	curl http://localhost:8080/mysvc/api/ApiLog.get -d "id=11338"
 
 如果取一个不存在的对象，会得到错误码和错误信息，比如：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.get?id=999999
+	curl http://localhost:8080/mysvc/api/ApiLog.get?id=999999
 
 输出：
 
 	[1,"参数不正确"]
 
+注意: 如果出现中文乱码，可能是Eclipse工作区的默认编码不正确，应该为UTF-8。
+
 再用set接口做一个更新，按接口要求，要将id参数放在URL中，要更新的字段及值用POST参数：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.set?id=11338 -d "addr=beijing"
+	curl http://localhost:8080/mysvc/api/ApiLog.set?id=11338 -d "addr=beijing"
 
 输出：
 
@@ -301,7 +306,7 @@ curl用"-d"参数指定参数通过HTTP body来传递，由于默认使用HTTP P
 
 再看很灵活的query接口，取下列表，默认支持分页，会输出一个nextkey字段：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.query
+	curl http://localhost:8080/mysvc/api/ApiLog.query
 
 返回示例：
 
@@ -315,7 +320,7 @@ curl用"-d"参数指定参数通过HTTP body来传递，由于默认使用HTTP P
 
 query接口也支持常用的数组返回，需要加上`fmt=list`参数：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.query -d "fmt=list"
+	curl http://localhost:8080/mysvc/api/ApiLog.query -d "fmt=list"
 
 返回示例：
 
@@ -332,19 +337,19 @@ query接口也支持常用的数组返回，需要加上`fmt=list`参数：
 
 返回的nextkey字段表示数据未完，可以用pagekey字段来取下一页，还可指定一次取的数据条数，用pagesz字段：
 
-	curl "http://localhost:8080/jdcloud-demo/api/ApiLog.query?pagekey=11349&pagesz=5"
+	curl "http://localhost:8080/mysvc/api/ApiLog.query?pagekey=11349&pagesz=5"
 
 直到返回数据中没有nextkey字段，表示已到最后一页。
 
 不仅支持分页，query接口非常灵活，可以指定返回字段、查询条件、排序方式，
 比如查询2016年1月份的数据(cond参数)，结果只需返回id, addr字段(res参数，也可用于get接口)，按id倒序排列(orderby参数)：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.query -d "res=id,addr" -d "cond=tm>='2016-1-1' and tm<'2016-2-1'" -d "orderby=id desc"
+	curl http://localhost:8080/mysvc/api/ApiLog.query -d "res=id,addr" -d "cond=tm>='2016-1-1' and tm<'2016-2-1'" -d "orderby=id desc"
 
 甚至可以做统计，比如查看2016年1月里，列出访问次数排名前10的地址，以及每个地址访问了多少次服务器，也可以通过query接口直接查出。
 做一个按addr字段的分组统计(gres参数)：
 
-	curl http://localhost:8080/jdcloud-demo/api/ApiLog.query -d "gres=addr" -d "res=count(*) cnt" -d "cond=tm>='2016-1-1' and tm<'2016-2-1'" -d "orderby=cnt desc" -d "pagesz=10"
+	curl http://localhost:8080/mysvc/api/ApiLog.query -d "gres=addr" -d "res=count(*) cnt" -d "cond=tm>='2016-1-1' and tm<'2016-2-1'" -d "orderby=cnt desc" -d "pagesz=10"
 
 输出示例：
 
@@ -434,7 +439,7 @@ public Object api_getPersons() {
 
 访问试试：
 
-	http://localhost:8080/jdcloud-demo/api/getPersons
+	http://localhost:8080/mysvc/api/getPersons
 
 返回的JSON内容为：
 
@@ -898,7 +903,7 @@ public void api_hello() throws Exception
 ```
 前端可以直接使用链接显示图片：
 
-	<img src="http://localhost:8080/jdcloud-demo/api/pic">
+	<img src="http://localhost:8080/mysvc/api/pic">
 
 ### 数据库操作
 
