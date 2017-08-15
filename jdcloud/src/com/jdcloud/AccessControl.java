@@ -151,149 +151,148 @@ public class AccessControl extends JDApiBase {
 		return 0;
 	}
 
-	public void before() throws Exception
+	// for get/query
+	protected void initQuery() throws Exception
 	{
-		if (this.allowedAc != null && stdAc.contains(ac) && !this.allowedAc.contains(ac))
-			throw new MyException(E_FORBIDDEN, String.format("Operation `%s` is not allowed on object `%s`", ac, table));
+		String gres = (String)param("gres", null, null, false);
+		String res = (String)param("res", null, null, false);
 
-		if (ac.equals("get") || ac.equals("set") || ac.equals("del")) {
-			this.onValidateId();
-			this.id = (int)mparam("id");
+		sqlConf = new SqlConf();
+		sqlConf.res = asList();
+		sqlConf.gres = gres;
+		sqlConf.cond = asList((String)param("cond", null, null, false));
+		sqlConf.join = asList();
+		sqlConf.orderby = (String)param("orderby", null, null, false);
+		sqlConf.subobj = new HashMap<String, SubobjDef>();
+		sqlConf.union = (String)param("union", null, null, false);
+		sqlConf.distinct = (boolean)param("distinct/b", false);
+
+		this.initVColMap();
+
+		/* TODO
+		// support internal param res2/join/cond2
+		if ((res2 = param("res2")) != null) {
+			if (! is_array(res2))
+				throw new MyException(E_SERVER, "res2 should be an array: `res2`");
+			for (res2 as e)
+				this.addRes(e);
+		}
+		if ((join=param("join")) != null) {
+			this.addJoin(join);
+		}
+		if ((cond2 = param("cond2")) != null) {
+			if (! is_array(cond2))
+				throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
+			for (cond2 as e)
+				this.addCond(e);
+		}
+		if ((subobj = param("subobj")) != null) {
+			if (! is_array(subobj))
+				throw new MyException(E_SERVER, "subobj should be an array");
+			this.sqlConf["subobj"] = subobj;
+		}
+		*/
+		this.fixUserQuery();
+		this.onQuery();
+
+		boolean addDefaultCol = false;
+		// 确保res/gres参数符合安全限定
+		if (gres != null) {
+			this.filterRes(gres, true);
+		}
+		else if (res == null) {
+			res = this.defaultRes;
+			addDefaultCol = true;
 		}
 
-		// TODO: check fields in metadata
-		// for ($_POST as ($field, $val))
-
-		if (ac.equals("add") || ac.equals("set")) 
+		if (res != null) {
+			this.filterRes(res);
+		}
+		// 设置gres时，不使用default vcols/subobj
+		if (addDefaultCol) {
+			this.addDefaultVCols();
+			if (this.sqlConf.subobj.size() == 0 && this.subobj != null) {
+				for (Map.Entry<String, SubobjDef> kv : this.subobj.entrySet()) {
+					String col = kv.getKey();
+					SubobjDef def = kv.getValue();
+					if (def.isDefault)
+						this.sqlConf.subobj.put(col, def);
+				}
+			}
+		}
+		if (ac.equals("query"))
 		{
-			if (this.readonlyFields != null)
+			this.supportEasyui();
+			if (this.sqlConf.orderby != null && this.sqlConf.union == null)
+				this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
+		}
+	}
+
+	// for add/set
+	protected void validate() throws Exception
+	{
+		// TODO: check fields in metadata
+		// foreach ($_POST as ($field, $val))
+
+		if (this.readonlyFields != null)
+		{
+			for (Object field : this.readonlyFields)
 			{
-				for (Object field : this.readonlyFields)
+				if (env._POST.containsKey(field) && !(ac.equals("add") && this.requiredFields.contains(field)))
 				{
-					if (env._POST.containsKey(field) && !(ac.equals("add") && this.requiredFields.contains(field)))
+					logit(String.format("!!! warn: attempt to chang readonly field `%s`", field));
+					env._POST.remove(field);
+				}
+			}
+		}
+		if (ac.equals("set")) {
+			if (this.readonlyFields2 != null)
+			{
+				for (Object field : this.readonlyFields2)
+				{
+					if (env._POST.containsKey(field))
 					{
-						logit(String.format("!!! warn: attempt to chang readonly field `%s`", field));
+						logit(String.format("!!! warn: attempt to change readonly field `%s`", field));
 						env._POST.remove(field);
 					}
 				}
 			}
-			if (ac.equals("set")) {
-				if (this.readonlyFields2 != null)
-				{
-					for (Object field : this.readonlyFields2)
-					{
-						if (env._POST.containsKey(field))
-						{
-							logit(String.format("!!! warn: attempt to change readonly field `%s`", field));
-							env._POST.remove(field);
-						}
-					}
-				}
-			}
-			if (ac.equals("add")) {
-				if (this.requiredFields != null)
-				{
-					for (Object field : this.requiredFields)
-					{
-						// 					if (! issetval(field, _POST))
-						// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
-						mparam((String)field, "P"); // validate field and type; refer to field/type format for mparam.
-					}
-				}
-			}
-			else { // for set, the fields can not be set null
-				List<String> arr = new ArrayList<>();
-				if (this.requiredFields != null)
-					arr.addAll(this.requiredFields);
-				if (this.requiredFields2 != null)
-					arr.addAll(this.requiredFields2);
-				for (Object field : arr) {
-					/* 
-					if (is_array(field)) // TODO
-						continue;
-					*/
-					Object v = env._POST.get(field);
-					if (v != null && (v.equals("null") || v.equals("") || v.equals("") )) {
-						throw new MyException(E_PARAM, String.format("%s.set: cannot set field `field` to null.", field));
-					}
-				}
-			}
-			this.onValidate();
 		}
-		else if (ac.equals("get") || ac.equals("query")) {
-			String gres = (String)param("gres", null, null, false);
-			String res = (String)param("res", null, null, false);
-
-			sqlConf = new SqlConf();
-			sqlConf.res = asList();
-			sqlConf.gres = gres;
-			sqlConf.cond = asList((String)param("cond", null, null, false));
-			sqlConf.join = asList();
-			sqlConf.orderby = (String)param("orderby", null, null, false);
-			sqlConf.subobj = new HashMap<String, SubobjDef>();
-			sqlConf.union = (String)param("union", null, null, false);
-			sqlConf.distinct = (boolean)param("distinct/b", false);
-
-			this.initVColMap();
-
-			/* TODO
-			// support internal param res2/join/cond2
-			if ((res2 = param("res2")) != null) {
-				if (! is_array(res2))
-					throw new MyException(E_SERVER, "res2 should be an array: `res2`");
-				for (res2 as e)
-					this.addRes(e);
-			}
-			if ((join=param("join")) != null) {
-				this.addJoin(join);
-			}
-			if ((cond2 = param("cond2")) != null) {
-				if (! is_array(cond2))
-					throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
-				for (cond2 as e)
-					this.addCond(e);
-			}
-			if ((subobj = param("subobj")) != null) {
-				if (! is_array(subobj))
-					throw new MyException(E_SERVER, "subobj should be an array");
-				this.sqlConf["subobj"] = subobj;
-			}
-			*/
-			this.fixUserQuery();
-			this.onQuery();
-
-			boolean addDefaultCol = false;
-			// 确保res/gres参数符合安全限定
-			if (gres != null) {
-				this.filterRes(gres, true);
-			}
-			else if (res == null) {
-				res = this.defaultRes;
-				addDefaultCol = true;
-			}
-
-			if (res != null) {
-				this.filterRes(res);
-			}
-			// 设置gres时，不使用default vcols/subobj
-			if (addDefaultCol) {
-				this.addDefaultVCols();
-				if (this.sqlConf.subobj.size() == 0 && this.subobj != null) {
-					for (Map.Entry<String, SubobjDef> kv : this.subobj.entrySet()) {
-						String col = kv.getKey();
-						SubobjDef def = kv.getValue();
-						if (def.isDefault)
-							this.sqlConf.subobj.put(col, def);
-					}
-				}
-			}
-			if (ac.equals("query"))
+		if (ac.equals("add")) {
+			if (this.requiredFields != null)
 			{
-				this.supportEasyui();
-				if (this.sqlConf.orderby != null && this.sqlConf.union == null)
-					this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
+				for (Object field : this.requiredFields)
+				{
+					// 					if (! issetval(field, _POST))
+					// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
+					mparam((String)field, "P"); // validate field and type; refer to field/type format for mparam.
+				}
 			}
 		}
+		else { // for set, the fields can not be set null
+			List<String> arr = new ArrayList<>();
+			if (this.requiredFields != null)
+				arr.addAll(this.requiredFields);
+			if (this.requiredFields2 != null)
+				arr.addAll(this.requiredFields2);
+			for (Object field : arr) {
+				/* 
+				if (is_array(field)) // TODO
+					continue;
+				*/
+				Object v = env._POST.get(field);
+				if (v != null && (v.equals("null") || v.equals("") || v.equals("") )) {
+					throw new MyException(E_PARAM, String.format("%s.set: cannot set field `field` to null.", field));
+				}
+			}
+		}
+		this.onValidate();
+	}
+	
+	public void before() throws Exception
+	{
+		if (this.allowedAc != null && stdAc.contains(ac) && !this.allowedAc.contains(ac))
+			throw new MyException(E_FORBIDDEN, String.format("Operation `%s` is not allowed on object `%s`", ac, table));
 	}
 
 	private void handleRow(JsObject rowData) throws Exception
@@ -498,17 +497,6 @@ public class AccessControl extends JDApiBase {
 			return;
 		afterIsCalled = true;
 
-		if (ac.equals("get")) {
-			JsObject ret1 = (JsObject)ret;
-			this.handleRow(ret1);
-		}
-		else if (ac.equals("query")) {
-			for (Object rowData : (JsArray)ret) {
-				JsObject row = (JsObject)rowData;
-				this.handleRow(row);
-			};
-		}
-
 		this.onAfter(ret);
 		if (this.onAfterActions != null) {
 			this.onAfterActions.forEach(e -> e.exec(ret));
@@ -517,6 +505,8 @@ public class AccessControl extends JDApiBase {
 
 	public Object api_add() throws Exception
 	{
+		this.validate();
+
 		StringBuffer keys = new StringBuffer();
 		StringBuffer values = new StringBuffer();
 
@@ -557,8 +547,12 @@ public class AccessControl extends JDApiBase {
 		return ret;
 	}
 
-	public void api_set() throws SQLException
+	public void api_set() throws Exception
 	{
+		this.onValidateId();
+		this.id = (int)mparam("id");
+		this.validate();
+
 		StringBuffer kv = new StringBuffer();
 		for (String k : env._POST.keySet())
 		{
@@ -593,8 +587,11 @@ public class AccessControl extends JDApiBase {
 		}
 	}
 
-	public void api_del() throws SQLException
+	public void api_del() throws Exception
 	{
+		this.onValidateId();
+		this.id = (int)mparam("id");
+
 		String sql = String.format("DELETE FROM %s WHERE id=%s", table, id);
 		int cnt = execOne(sql);
 		if (cnt != 1)
@@ -690,6 +687,10 @@ public class AccessControl extends JDApiBase {
 	// return: JsObject
 	public Object api_get() throws Exception
 	{
+		this.onValidateId();
+		this.id = (int)mparam("id");
+		this.initQuery();
+
 		this.addCond("t0.id=" + this.id, true);
 		Object[] rv = genQuerySql();
 		StringBuffer sql = (StringBuffer)rv[0];
@@ -699,6 +700,7 @@ public class AccessControl extends JDApiBase {
 
 		JsObject ret1 = (JsObject)ret;
 		this.handleSubObj(this.id, ret1);
+		this.handleRow(ret1);
 		return ret;
 	}
 
@@ -774,6 +776,8 @@ public class AccessControl extends JDApiBase {
 
 	public Object api_query() throws Exception
 	{
+		this.initQuery();
+
 		Integer pagesz = (Integer)param("pagesz/i");
 		Integer pagekey = (Integer)param("pagekey/i");
 		boolean enableTotalCnt = false;
@@ -882,6 +886,10 @@ public class AccessControl extends JDApiBase {
 
 		// Note: colCnt may be changed in after().
 		int fixedColCnt = objArr.size()==0? 0: ((JsObject)objArr.get(0)).size();
+		for (Object rowData : objArr) {
+			JsObject row = (JsObject)rowData;
+			this.handleRow(row);
+		}
 		Object reto = objArr;
 		this.after(reto);
 
