@@ -25,7 +25,7 @@
 假设数据库中已经建好一张记录操作日志的表叫"ApiLog"，包含字段id（主键，整数类型）, tm（日期时间类型）, addr（客户端地址，字符串类型）。
 
 使用筋斗云后端框架，只要创建一个空的类，就可将这个表（或称为对象）通过HTTP接口暴露给前端，提供增删改查各项功能：
-```cs
+```java
 package com.demo;
 import com.jdcloud.*;
 
@@ -769,17 +769,19 @@ class Global extends JDApiBase
 这两个函数返回Object类型，与直接用JDApiBase的`_GET`或`_POST`等属性相比，param/mparam可指定参数类型，如
 
 	// 后缀"/i"要求该参数为整数类型。第二个参数指定缺省值，如果请求中没有该参数就使用缺省值。
-	int svcId = (int)param("svcId/i", 99);  // 请求参数为"svcId=3", 返回3
-	// 或用必选参数
-	int svcId2 = (int)mparam("svcId/i");
+	Integer svcId = (Integer)param("svcId/i");  // 请求参数为"svcId=3", 返回3。注意返回值可能为null，应该用包装类型Integer不宜用int避免转换异常.
+	// 必选参数或指定默认参数
+	Integer svcId2 = (Integer)mparam("svcId/i");
+	Integer svcId3 = (Integer)param("svcId/i", 1);
 
 	// 不指定类型后缀时，默认均为string.
 	String s = (String)param("name");
 
 如果传来的svcId不是整型，则param/mparam可直接报错返回。
-上面前两个例子中用强制转换是安全的（不会抛出异常），因为"/i"标识让param返回整数值或null，而由于给定了缺省值，param不会返回null.
-而在mparam中，一定不会返回null。
-如果值可能为空，则应该用Integer这样的包装类型。
+上面例子中用强制转换是安全的（不会抛出异常），因为"/i"标识让param返回整数值或null(即Integer类型)。
+因为值可能为空，则应该用Integer这样的包装类型。
+
+而使用mparam时或给定缺省值时，一定不会返回null，因而也可以直接转成int类型。
 
 类似地：
 
@@ -789,14 +791,14 @@ class Global extends JDApiBase
 	// 后缀"/b"要求该参数布尔型，为0或1，返回true/false
 	Boolean wantArray = (bool)param("wantArray/b", false); // 请求参数为"wantArray=1", 返回true
 
-	// 后缀"/dt"或"/tm"表示日期时间类型（支持格式可参考strtotime函数）, 返回timestamp类型整数。
-	Date startTm = (Date)param("startTm/dt"); // 请求参数为"startTm=2016-9-10 10:10", 通过DateTime.tryParse()转换
+	// 后缀"/dt"或"/tm"表示日期时间类型，格式如"2011-2-1 8:8:8", 也支持"2010/1/1 10:10", "2010.3.4", "2011-02-01T10:10:10Z"等（参考JDApiBase.parseDate函数）
+	java.util.Date startTm = (java.util.Date)param("startTm/dt"); // 请求参数为"startTm=2016-9-10 10:10"
 	
 	// 后缀"/n"表示数值类型(numeric)，可以是小数，如"qty=3.14"。
-	// 第三个参数为"P"指定从_POST集合中取参数，也可用"G"指定从_GET集合即URL中取参数。
-	//   如果不指定这个参数，则默认先查_GET再查_POST，即客户端既可以用URL参数，也可以用POST参数
+	// 第三个参数为"P"指定从POST集合中取参数，也可用"G"指定从GET集合即URL中取参数。
+	//   如果不指定这个参数，则默认先查GET再查POST，即客户端既可以用URL参数，也可以用POST参数
 	Double qty = (Double)mparam("qty/n", "P");
-	Double qty2 = (Double)param("qty2/n", null, "P") as decimal?;
+	Double qty2 = (Double)param("qty2/n", null, "P");
 
 param/mparam除了检查简单类型，还支持一些复杂类型，比如"/i+"用于整数列表：
 
