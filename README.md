@@ -1068,13 +1068,22 @@ class AC_ApiLog extends AccessControl
 	{
 		if (this.ac.equals("add"))
 		{
-			env._POST.put("tm", new Date());
+			env._POST.put("tm", date());
 		}
 	}
 }
 ```
 例中使用回调onValidate来对tm字段自动填值。
- 
+`date()`函数是JDApiBase类提供的工具方法，返回当前日期字符串，相当于：
+```java
+	String nowStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+```
+还可指定格式或日期，如：
+```java
+	Date dt1 = new Date(now() + 10 * T_DAY); // 工具类中还提供now()方法，返回long类型的毫秒数，以及 T_SEC/T_MIN/T_HOUR/T_DAY 常量
+	String dtStr = date("yyyy-MM-dd", dt1);
+```
+
 如果某些字段是在添加时不是必填，但更新时不可置空，可以用`requiredFields2`来设置；
 类似地，添加时可写，更新时只读的字段，用`readonlyFields2`来设置。
 
@@ -1557,10 +1566,9 @@ class AC1_Ordr extends AccessControl
 		{
 			... 
 
-			this.onAfterActions.add( ()-> {
+			this.onAfterActions.add( (ret)-> {
 				Object orderId = this.id;
-				String dt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-				String sql = String.format("INSERT INTO OrderLog (orderId, action, tm) VALUES (%s,'CR','%s')", orderId, dt);
+				String sql = String.format("INSERT INTO OrderLog (orderId, action, tm) VALUES (%s,'CR','%s')", orderId, date());
 				execOne(sql);
 			});
 		}
@@ -1568,7 +1576,7 @@ class AC1_Ordr extends AccessControl
 }
 
 ```
-属性`onAfterActions`是一个回调函数（lambda表达式）列表，在操作结束时被回调。
+属性`onAfterActions`是一个回调函数（lambda表达式）列表，在操作结束时被回调，在里面可以修改接口的返回对象`ret`。
 属性`id`可用于取add操作结束时的新对象id，或get/set/del操作的id参数。
 
 对象接口调用完后，还会回调onAfter函数，也可以在这个回调里面操作。
