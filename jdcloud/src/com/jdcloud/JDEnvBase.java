@@ -1,4 +1,5 @@
 package com.jdcloud;
+import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
@@ -18,12 +19,32 @@ public class JDEnvBase
 		public boolean asAdmin = false;
 	}
 
+/**<pre>
+%var env.isTestMode
+
+是否为测试模式。
+ */
 	public boolean isTestMode = false;
+
+/**<pre>
+%var env.debugLevel
+
+0-9间的调试等级。
+ */
 	public int debugLevel = 0;
 	public JsArray debugInfo = new JsArray();
+	
+/**<pre>
+%var env.appName
+%var env.appType
+%key getAppType()
+
+获取appName, appType
+ */
 	public String appName, appType;
 	
-	public JDApiBase api = new JDApiBase();
+	// 用于内部调用JDApiBase的工具函数
+	protected JDApiBase api = new JDApiBase();
 
 	public Connection conn;
 	public HttpServletRequest request;
@@ -32,8 +53,16 @@ public class JDEnvBase
 
 	public String dbType = "mysql";
 	public DbStrategy dbStrategy;
-	protected Properties props;
-	
+
+/**<pre>
+%var env.baseDir
+
+应用程序的主目录，用于写文件。默认为 {user.home}/jd-data/{project}.
+ */
+// TODO: use static
+	public String baseDir;
+	Properties props;
+
 	public void init(HttpServletRequest request, HttpServletResponse response, Properties props) throws Exception
 	{
 		this.request = request;
@@ -69,6 +98,9 @@ public class JDEnvBase
 				_POST.putAll(m);
 		}
 
+		this.baseDir = System.getProperty("user.home") + "/jd-data/" + request.getContextPath();
+		new File(this.baseDir).mkdirs();
+		
 		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
 		this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "0"));
 		this.dbType = props.getProperty("P_DBTYPE", "mysql");
@@ -97,7 +129,26 @@ public class JDEnvBase
 		return callSvc(ac, null, null, null);
 	}
 
-	// TODO: asAdmin
+	static class CallInfo {
+		Class<?> cls;
+		Method method;
+	}
+/**<pre>
+%fn callSvc(ac)
+%fn callSvc(ac, param, postParam, opt={backupEnv, isCleanCall, asAdmin})
+
+调用接口，获得返回值。
+如果指定了非空的param, postParam参数，则会并入当前环境的GET, POST参数中。
+通过opt参数可调整行为。
+
+%param opt.backupEnv 如果为true, 调用完成后恢复原先的GET, POST参数等。
+%param opt.isCleanCall 如果为true，不使用原先环境，只用param, postParam作为GET/POST环境。
+%param opt.asAdmin TODO: 以超级管理员权限调用。
+
+	JsObject rv = (JsObject)callSvc("User.get");
+
+它不额外处理事务、不写ApiLog。
+*/
 	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Exception
 	{
 		JsObject[] bak = null;
@@ -128,34 +179,34 @@ public class JDEnvBase
 		m.find();
 		String ac1 = null;
 		String table = null;
-		String clsName = null;
 		String methodName = null;
 		if (m.group(2) != null)
 		{
 			table = m.group(1);
 			ac1 = m.group(2);
-			clsName = onCreateAC(table);
 			methodName = "api_" + ac1;
 		}
 		else
 		{
-			clsName = "Global";
 			methodName = "api_" + m.group(1);
 		}
 
-		JDApiBase api = null;
-		Class<?> t;
-		Method mi = null;
+		CallInfo callInfo = new CallInfo();
 		Object ret = null;
 		try {
-			String pkg = this.getClass().getPackage().getName(); 
-			t = Class.forName(pkg + "." + clsName); // JDApi
+			String[] clsNames = table==null? onCreateApi(): onCreateAC(table);
+			if (! getCallInfo(clsNames, methodName, callInfo)) {
+				if (table == null || callInfo.cls != null)
+					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
 
-			api = this.onGetApi(t);
-			//api = (JDApiBase)t.newInstance();
+				int code = !this.api.hasPerm(JDApiBase.AUTH_LOGIN) ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
+				throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
+			}
+
+			JDApiBase api = (JDApiBase)this.onNewInstance(callInfo.cls);
 			api.env = this;
-			mi = api.getClass().getMethod(methodName);
-			if (clsName == "Global")
+			Method mi = callInfo.method;
+			if (table == null)
 			{
 				//ret = mi.invoke(api);
 				ret = this.onInvoke(mi, api);
@@ -165,7 +216,6 @@ public class JDEnvBase
 				AccessControl accessCtl = (AccessControl)api;
 				accessCtl.init(table, ac1);
 				accessCtl.before();
-				// Object rv = mi.invoke(api);
 				Object rv = this.onInvoke(mi, api);
 				accessCtl.after(rv);
 				ret = rv;
@@ -176,17 +226,8 @@ public class JDEnvBase
 			}
 			if (ret == null)
 				ret = "OK";
-
-		} catch (ClassNotFoundException e) {
-			if (table == null)
-				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no Global)");
-
-			int code = clsName.startsWith("AC_") ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
-			throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
 		}
 		catch (Exception e) {
-			if (mi == null)
-				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
 			if (e instanceof InvocationTargetException && e.getCause() != null)
 				throw (Exception)e.getCause();
 			throw e;
@@ -200,6 +241,30 @@ public class JDEnvBase
 		}
 
 		return ret;
+	}
+
+	private boolean getCallInfo(String[] clsNames, String methodName, CallInfo ci) {
+		for (String clsName: clsNames) {
+			Class<?> cls = null;
+			try {
+				String fullClsName = this.getClass().getPackage().getName() + "." + clsName; 
+				cls = Class.forName(fullClsName);
+			}
+			catch (ClassNotFoundException ex) {}
+			if (cls == null)
+				continue;
+			ci.cls = cls;
+
+			Method method = null;
+			try {
+				method = cls.getMethod(methodName);
+			}catch (NoSuchMethodException e) {}
+			if (method == null)
+				continue;
+			ci.method = method;
+			return true;
+		}
+		return false;
 	}
 
 	public void dbconn() throws MyException
@@ -249,25 +314,48 @@ public class JDEnvBase
 		}
 	}
 	
-	public JDApiBase onGetApi(Class<?> t) throws Exception
+	public Object onNewInstance(Class<?> t) throws Exception
 	{
-		JDApiBase api = (JDApiBase)t.newInstance();
-		return api;
+		return t.newInstance();
 	}
 
-	public Object onInvoke(Method mi, JDApiBase api) throws Exception
+	public Object onInvoke(Method mi, Object arg) throws Exception
 	{
-		return mi.invoke(api);
+		return mi.invoke(arg);
 	}
 
-	public String onCreateAC(String table)
+	public String[] onCreateApi()
 	{
-		return "AC_" + table;
+		return new String[] { "Global" };
+	}
+
+	public String[] onCreateAC(String table)
+	{
+		if (api.hasPerm(JDApiBase.AUTH_USER)) {
+			return new String[] { "AC1_" + table, "AC_" + table };
+		}
+		else if (api.hasPerm(JDApiBase.AUTH_EMP)) {
+			return new String[] { "AC2_" + table };
+		}
+		else if (api.hasPerm(JDApiBase.AUTH_ADMIN)) {
+			return new String[] { "AC0_" + table, "AccessControl" };
+		}
+		return new String[] {"AC_" + table};
 	}
 
 	public int onGetPerms()
 	{
-		return 0;
+		int perms = 0;
+		if (api.getSession("uid") != null) {
+			perms |= JDApiBase.AUTH_USER;
+		}
+		else if (api.getSession("empId") != null) {
+			perms |= JDApiBase.AUTH_EMP;
+		}
+		else if (api.getSession("adminId") != null) {
+			perms |= JDApiBase.AUTH_ADMIN;
+		}
+		return perms;
 	}
 
 	// coll: "G"-GET, "P"-POST, null-BOTH

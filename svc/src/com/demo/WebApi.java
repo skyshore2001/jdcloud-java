@@ -1,49 +1,23 @@
 package com.demo;
 
 import java.lang.reflect.Method;
-import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
+import java.util.*;
 import com.jdcloud.*;
 
 public class WebApi extends JDEnvBase
 {
 	@Override
-	public JDApiBase onGetApi(Class<?> t) throws Exception
+	public Object onNewInstance(Class<?> t) throws Exception
 	{
-		JDApiBase api = (JDApiBase)t.newInstance();
-		return api;
+		return t.newInstance();
 	}
 	
 	@Override
-	public Object onInvoke(Method mi, JDApiBase api) throws Exception
+	public Object onInvoke(Method mi, Object arg) throws Exception
 	{
-		return mi.invoke(api);
-	}
-	
-	@Override
-	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Exception
-	{
-		return super.callSvc(ac, param, postParam, opt);
+		return mi.invoke(arg);
 	}
 
-	@Override
-	public int onGetPerms()
-	{
-		int perms = 0;
-		if (api.getSession("uid") != null)
-			perms |= JDApiBase.AUTH_USER;
-
-		return perms;
-	}
-
-	@Override
-	public String onCreateAC(String table)
-	{
-		if (api.hasPerm(JDApiBase.AUTH_USER))
-			return "AC1_" + table;
-		return "AC_" + table;
-	}
 }
 
 class Global extends JDApiBase
@@ -140,8 +114,7 @@ class AC_ApiLog extends AccessControl
 	{
 		if (this.ac.equals("add"))
 		{
-			String nowStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-			env._POST.put("tm", nowStr);
+			env._POST.put("tm", date());
 		}
 	}
 }

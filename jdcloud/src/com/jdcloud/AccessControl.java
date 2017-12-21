@@ -1,6 +1,5 @@
 package com.jdcloud;
 import java.io.UnsupportedEncodingException;
-import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.*;
 
@@ -109,7 +108,7 @@ public class AccessControl extends JDApiBase {
 	@FunctionalInterface
 	public interface OnAfterAction
 	{
-		void exec(Object ret);
+		void exec(Object ret) throws Exception;
 	}
 	// 回调函数集。在after中执行（在onAfter回调之后）。
 	protected List<OnAfterAction> onAfterActions = asList();
@@ -508,7 +507,10 @@ public class AccessControl extends JDApiBase {
 
 		this.onAfter(ret);
 		if (this.onAfterActions != null) {
-			this.onAfterActions.forEach(e -> e.exec(ret));
+			//this.onAfterActions.forEach(e -> e.exec(ret));
+			for (OnAfterAction e: this.onAfterActions) {
+				e.exec(ret);
+			}
 		}
 	}
 

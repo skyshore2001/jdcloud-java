@@ -1,13 +1,27 @@
 package com.jdcloud;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.sql.*;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Date;
+import java.util.function.BiPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.DESKeySpec;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -26,10 +40,15 @@ public class JDApiBase
 	public static final int PAGE_SZ_LIMIT = 10000;
 
 	// 登录类型定义：
-	public static final int AUTH_USER = 0x1;
-	public static final int AUTH_EMP = 0x2;
-	// 支持8种登录类型 0x1-0x80; 其它权限应从0x100开始定义。
-	public static final int AUTH_LOGIN = 0xff; 
+	// 支持8种登录类型 0x1-0x80; 其它非登录权限应从0x100开始定义，且名称规范为PERM_XXX。
+	public static final int AUTH_USER = 0x1; // 用户登录
+	public static final int AUTH_EMP = 0x2;  // 员工登录
+	public static final int AUTH_ADMIN = 0x4; // 超级管理员登录
+	public static final int AUTH_LOGIN = 0xff; // 任意角色登录
+
+	public static final int KB = 1024;
+	public static final int MB = 1024 * KB;
+	public static final int GB = 1024 * MB;
 
 	public JDEnvBase env;
 	
@@ -87,9 +106,11 @@ public class JDApiBase
 	}
 	
 
-	public static String Q(String s)
+	public static String Q(Object s)
 	{
-		return "'" + s.replace("'", "\\'") + "'";
+		if (s == null)
+			return "null";
+		return "'" + s.toString().replace("'", "\\'") + "'";
 	}
 	
 	public JsArray queryAll(String sql) throws SQLException
@@ -127,11 +148,43 @@ public class JDApiBase
 		return ret;
 	}
 	
-	public Object queryOne(String sql) throws SQLException, MyException
+	public Object queryOne(String sql) throws Exception
 	{
 		return this.queryOne(sql, false);
 	}
-	public Object queryOne(String sql, boolean assoc) throws SQLException, MyException
+
+/**<pre>
+%fn queryOne(sql, assoc?=false) 
+
+执行查询语句，只返回一行数据，如果行中只有一列，则直接返回该列数值。
+如果查询不到，返回false.
+
+示例：查询用户姓名与电话，默认返回值数组(JsArray)：
+
+	Object rv = queryOne("SELECT name,phone FROM User WHERE id=" + id);
+	if (rv.equals(false))
+		throw new MyException(E_PARAM, "bad user id");
+	JsArray row = (JsArray)rv;
+	// row = ["John", "13712345678"]
+
+指定参数assoc=true时，返回关联数组:
+
+	Object rv = queryOne("SELECT name,phone FROM User WHERE id=" + id, true);
+	if (rv.equals(false))
+		throw new MyException(E_PARAM, "bad user id");
+	JsObject row = (JsObject)rv;
+	// row = {"name": "John",  "phone":"13712345678"}
+
+当查询结果只有一列且参数assoc=false时，直接返回该数值。
+
+	Object phone = queryOne("SELECT phone FROM User WHERE id="+id);
+	if (phone.equals(false))
+		throw new MyException(E_PARAM, "bad user id");
+	// phone = "13712345678"
+
+%see queryAll
+ */
+	public Object queryOne(String sql, boolean assoc) throws Exception
 	{
 		sql = env.getSqlForExec(sql);
 		env.dbconn();
@@ -169,7 +222,26 @@ public class JDApiBase
 	public int execOne(String sql) throws SQLException {
 		return execOne(sql, false);
 	}
-	// getNewId?=false
+
+/**<pre>
+%fn execOne(sql, getInsertId?=false)
+
+%param getInsertId?=false 取INSERT语句执行后得到的id. 仅用于INSERT语句。
+
+执行SQL语句，如INSERT, UPDATE等。执行SELECT语句请使用queryOne/queryAll.
+
+	String token = (String)mparam("token");
+	execOne("UPDATE Cinf SET appleDeviceToken=" . Q(token));
+
+注意：在拼接SQL语句时，对于传入的String类型参数，应使用Q函数进行转义，避免SQL注入攻击。
+
+对于INSERT语句，当设置参数getInsertId=true时, 可返回新加入数据行的id. 例：
+
+	String sql = String.format("INSERT INTO Hongbao (userId, createTm, src, expireTm, vdays) VALUES (%s, '%s', '%s', '%s', %s)",
+		userId, createTm, src, expireTm, vdays);
+	int hongbaoId = execOne(sql, true);
+
+ */
 	public int execOne(String sql, boolean getNewId) throws SQLException
 	{
 		sql = env.getSqlForExec(sql);
@@ -188,6 +260,13 @@ public class JDApiBase
 	{
 		return jsonEncode(o, false);
 	}
+/**<pre>
+%fn jsonEncode(o, doFormat=false)
+
+%param doFormat 设置为true则会对JSON输出进行格式化便于调试。
+
+%see jsonDecode
+ */
 	public String jsonEncode(Object o, boolean doFormat)
 	{
 		GsonBuilder gb = new GsonBuilder();
@@ -196,6 +275,23 @@ public class JDApiBase
 			gb.setPrettyPrinting();
 		Gson gson = gb.create();
 		return gson.toJson(o);
+	}
+	
+/**<pre>
+%fn jsonDecode(json, type) -> type
+
+	Map m = jsonDecode(json, Map.class);
+	List m = jsonDecode(json, List.class);
+	User u = jsonDecode(json, User.class);
+
+%see jsonEncode
+ */
+	public <T> T jsonDecode(String json, Class<T> type)
+	{
+		GsonBuilder gb = new GsonBuilder();
+		gb.serializeNulls().disableHtmlEscaping().setDateFormat("yyyy-MM-dd HH:mm:ss");
+		Gson gson = gb.create();
+		return gson.fromJson(json, type);
 	}
 	
 	static final Map<String, String> htmlEntityMapping = asMap(
@@ -317,7 +413,56 @@ public class JDApiBase
 	public Object param(String name, Object defVal, String coll) {
 		return param(name, defVal, coll, true);
 	}
-	// defVal?=null, coll?=null, doHtmlEscape?=true
+
+/**<pre>
+%fn param(name, defVal?, col?, doHtmlEscape=true)
+
+%param col null - (默认)先取URL参数(env._GET)再取POST参数(api._POST)，"G" - 从env.GET中取; "P" - 从env.POST中取
+
+获取名为name的参数。
+name中可以指定类型，返回值根据类型确定。如果该参数未定义或是空串，直接返回缺省值defVal。
+
+name中指定类型的方式如下：
+- 名为"id", 或以"Id"或"/i"结尾: 返回Integer类型
+- 以"/b"结尾: 返回Boolean类型. 可接受的字符串值为: "1"/"true"/"on"/"yes"=>true, "0"/"false"/"off"/"no" => false
+- 以"/dt"或"/tm"结尾: 返回java.util.Date类型
+- 以"/n"结尾: 数值型(numeric)，返回Double类型
+- 以"/s"结尾（缺省）: 返回String类型. 缺省为防止XSS攻击会做html编码，如"a&b"处理成"a&amp;b"，设置参数doHtmlEscape=false可禁用这个功能。
+- 复杂类型：以"/i+"结尾: 整数数组如"82,93,105"，常用于传输id列表，返回ArrayList<Integer>类型。
+- TODO: 复杂类型：以"/js"结尾: json object
+- 复杂类型：List类型（以","分隔行，以":"分隔列），类型定义如"/i:n:b:dt:tm" （列只支持简单类型，不可为复杂类型），返回JsArray类型。
+
+示例：
+
+	Integer id = (Integer)param("id");
+	Integer svcId = (Integer)param("svcId/i", 99);
+	Boolean wantArray = (Boolean)param("wantArray/b", false);
+	Date startTm = (Date)param("startTm/dt", new Date());
+	List<Integer> idList = (List<Integer>)param("idList/i+");
+
+List类型示例。假设参数"items"类型在文档中定义为
+
+	items
+	: list(id/Integer, qty/Double, dscr/String)
+	
+这样取该参数，返回值为JsArray类型，数组中每一项又是JsArray类型（下面用中括号表示JsArray）：
+
+	JsArray items = (JsArray)param("items/i:n:s");
+	// 假设 items="100:1:洗车,101:1:打蜡"
+	// 返回 [ [ 100, 1.0, "洗车"], [101, 1.0, "打蜡"] ]
+
+如果某列可缺省，用"?"表示，如 `param("items/i:n?:s?")` 来获取值 `items=100:1,101::打蜡`
+得到
+
+	[ [ 100, 1.0, null], [101, null, "打蜡"] ]
+
+TODO: 直接支持 param("items/(id,qty?/n,dscr?)"), 添加param_objarr函数，去掉parseList函数。上例将返回
+
+	[
+		[ "id"=>100, "qty"=>1.0, dscr=>null],
+		[ "id"=>101, "qty"=>null, dscr=>"打蜡"]
+	]
+*/
 	public Object param(String name, Object defVal, String coll, boolean doHtmlEscape) {
 		String[] a = parseType(name);
 		String type = a[0];
@@ -418,7 +563,27 @@ public class JDApiBase
 	public Object mparam(String name, String coll) {
 		return mparam(name, coll, true);
 	}
-	// coll?=null, htmlEscape?=true
+
+/** <pre>
+%fn mparam(name, coll?=null, htmlEscape?=true)
+
+必填参数(mandatory param)
+
+参考param函数，查看name如何支持各种类型。
+
+示例：
+
+	String svcId = (String)mparam("svcId");
+	Integer svcId = (Integer)mparam("svcId/i");
+	List<Integer> itts = (List<Integer>)mparam("itts/i+");
+	
+name也可以是一个数组，表示至少有一个参数有值，这时返回每个参数的值。
+
+	JsArray rv = mparam(new String[] {"svcId/i", "itts/i+"}); // require one of the 2 params
+	Integer svcId = rv.get(0);
+	List<Integer> itts = rv.get(1); 
+	
+ */
 	public Object mparam(String name, String coll, boolean htmlEscape) {
 		Object val = param(name, null, coll, htmlEscape);
 		if (val == null)
@@ -426,6 +591,40 @@ public class JDApiBase
 		return val;
 	}
 	
+/** <pre>
+%fn mparam(names, coll?=null)
+
+几个参数，必填其一(mandatory param)
+names是一个数组，表示至少有一个参数有值，返回JsArray，包含每个参数的值，其中有且只有一个非null。
+
+	JsArray rv = mparam(new String[] {"svcId/i", "itts/i+"}); // require one of the 2 params
+	Integer svcId = rv.get(0);
+	List<Integer> itts = rv.get(1); 
+	if (svcId != null) {
+	}
+	else if (itts != null) {
+	}
+ */
+	public JsArray mparam(String[] names, String coll) {
+		JsArray ret = new JsArray();
+		boolean found = false;
+		Object rv = null;
+		for (String name: names) {
+			if (found)
+				rv = null;
+			else {
+				rv = param(name, null, coll);
+				if (rv != null)
+					found = true;
+			}
+			ret.add(rv);
+		}
+		return ret;
+	}
+	public JsArray mparam(String[] names) {
+		return mparam(names, null);
+	}
+
 	class ElemType
 	{
 		public String type; // type
@@ -535,13 +734,43 @@ public class JDApiBase
 			}
 		}
 	}
+/**<pre>
+%fn getSession(name) -> Object
 
+%see setSession
+%see unsetSession
+%see destroySession
+ */
 	public Object getSession(String name) {
 		return env.request.getSession().getAttribute(name);
 	}
+/**<pre>
+%fn setSession(name, value)
+
+%see getSession
+%see unsetSession
+%see destroySession
+ */
 	public void setSession(String name, Object value) {
 		env.request.getSession().setAttribute(name, value);
 	}
+/**<pre>
+%fn unsetSession(name)
+
+%see setSession
+%see getSession
+%see destroySession
+ */
+	public void unsetSession(String name) {
+		env.request.getSession().removeAttribute(name);
+	}
+/**<pre>
+%fn destroySession()
+
+%see getSession
+%see setSession
+%see unsetSession
+ */
 	public void destroySession() {
 		env.request.getSession().invalidate();
 	}
@@ -598,10 +827,56 @@ public class JDApiBase
 		return ret;
 	}
 
+/**<pre>
+%fn regexMatch(str, pat) -> Matcher
+
+正则表达式匹配
+
+	String phone = "13712345678";
+	Matcher m = regexMatch(phone, "...(\\d{4})";
+	if (m.find()) { // 如果要连续匹配可用 while (m.find()) 
+		// m.group(1) 为中间4位数
+	}
+
+ */
 	public static Matcher regexMatch(String str, String pat) {
 		return Pattern.compile(pat).matcher(str);
 	}
 
+/**<pre>
+%fn regexReplace(str, pat, str1) -> String
+%alias regexReplace(str, pat, fn) -> String
+
+用正则表达式替换字符串
+
+%param fn(Matcher m) -> String
+
+	String phone = "13712345678"; // 变成 "137****5678"
+	String phone1 = regexReplace(phone, "(?<=^\\d{3})\\d{4}", "****");
+	或者
+	String phone1 = regexReplace(phone, "^(\\d{3})\\d{4}", m -> { return m.group(1) + "****"; } );
+
+ */
+	public static String regexReplace(String str, String pat, String str1) {
+		Matcher m = regexMatch(str, pat);
+		StringBuffer sb = new StringBuffer();
+		while (m.find()) {
+			m.appendReplacement(sb, str1);
+		}
+		m.appendTail(sb);
+		return sb.toString();
+	}
+	public static String regexReplace(String str, String pat, java.util.function.Function<Matcher, String> fn) {
+		Matcher m = regexMatch(str, pat);
+		StringBuffer sb = new StringBuffer();
+		while (m.find()) {
+			String str1 = fn.apply(m);
+			m.appendReplacement(sb, str1);
+		}
+		m.appendTail(sb);
+		return sb.toString();
+	}
+	
 	public String join(String sep, List<?> ls) {
 		StringBuffer sb = new StringBuffer();
 		for (Object o : ls) {
@@ -610,5 +885,362 @@ public class JDApiBase
 			sb.append(o);
 		}
 		return sb.toString();
+	}
+
+/**<pre>
+%var T_SEC,T_MIN,T_HOUR,T_DAY
+
+	Date dt = new Date();
+	Date dt1 = parseDate(dtStr1);
+	long hours = (dt1.getTime() - dt.getTime()) / T_HOUR;
+	Date dt2 = new Date(dt1.getTime() + 4 * T_DAY);
+	
+%see time
+ */
+	public static final long T_SEC = 1000;
+	public static final long T_MIN = 60*T_SEC;
+	public static final long T_HOUR = 3600*T_SEC;
+	public static final long T_DAY = 24*T_HOUR;
+	
+	public static final String FMT_DT = "yyyy-MM-dd HH:mm:ss";
+/** <pre>
+%fn date(fmt?="yyyy-MM-dd HH:mm:ss", dt?)
+
+生成日期字符串。
+
+	String dtStr1 = date(null, null);
+	Date dt1 = parseDate(dtStr1);
+	String dtStr2 = date("yyyy-MM-dd", dt1);
+	
+%see parseDate
+*/
+	public String date(String fmt, Date dt) {
+		if (fmt == null)
+			fmt = FMT_DT;
+		if (dt == null)
+			dt = new Date();
+		return new java.text.SimpleDateFormat(fmt).format(dt);
+	}
+	public String date(String fmt, long dtval) {
+		if (fmt == null)
+			fmt = FMT_DT;
+		Date dt = new Date(dtval);
+		return new java.text.SimpleDateFormat(fmt).format(dt);
+	}
+	public String date() {
+		return date(null, null);
+	}
+/**<pre>
+%fn time()
+
+系统当前时间（毫秒）。
+
+	long t = time();
+	long unixTimestamp = t / T_SEC
+	Date dt1 = new Date();
+	long diff_ms = dt1.getTime() - t;
+ */
+	public long time() {
+		return System.currentTimeMillis();
+	}
+	
+	public String getenv(String name) {
+		return env.props.getProperty(name);
+	}
+/**<pre>
+%fn getenv(name, defVal?)
+
+取全局设置。
+
+	String cred = getenv("P_ADMIN_CRED");
+	boolean isTestMode = parseBoolean(getenv("P_TEST_MODE", "0")); // 仅用作示例，可以直接用 env.isTestMode
+	int debugLevel = Integer.parseInt(getenv("P_DEBUG", "0"));  // 仅用作示例，可以直接用 env.debugLevel
+
+ */
+	public String getenv(String name, String defVal) {
+		return env.props.getProperty(name, defVal);
+	}
+
+/**<pre>
+%fn md5(s) -> String 
+
+返回md5字符串(32字符)
+*/
+	public String md5(String s)
+	{
+		byte[] rv = md5Bytes(s); 
+		return new java.math.BigInteger(1, rv).toString(16);
+	}
+/**<pre>
+%fn md5Bytes(s) -> byte[] 
+
+返回md5结果(16字节)
+*/
+	public byte[] md5Bytes(String s)
+	{
+		byte[] ret = null;
+		try {
+			java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+			md.update(s.getBytes());
+			ret = md.digest();
+		} catch (NoSuchAlgorithmException e) {
+		}
+		return ret;
+	}
+	
+/**<pre>
+%fn rand(from, to) -> int
+
+生成[from, to]范围内随机整数
+ */
+	public int rand(int from, int to)
+	{
+		return from + (int)(Math.random() * (to-from+1));
+	}
+	
+/**<pre>
+%fn base64Encode(s) -> String
+%param s String/byte[]
+ */
+	public String base64Encode(String s) {
+		// TODO: utf-8
+		return base64Encode(s.getBytes());
+	}
+	public String base64Encode(byte[] bs) {
+		return Base64.getEncoder().encodeToString(bs);
+	}
+/**<pre>
+%fn base64Decode(s) -> String
+%fn base64DecodeBytes(s) -> byte[]
+
+	String text = base64Decode(enc);
+	
+ */
+	public String base64Decode(String s) {
+		return new String(base64DecodeBytes(s));
+	}
+	public byte[] base64DecodeBytes(String s) {
+		return Base64.getDecoder().decode(s);
+	}
+
+
+/** <pre>
+%fn myEncrypt(data, op, key?="jdcloud") -> String
+
+对字符串data加密，生成base64编码的字符串。
+或者反过来，对base64编辑的data解密返回原文。
+出错返回null。
+
+算法：DES加密。
+
+%param op "E"-加密(encrypt); "D"-解密(decrypt)
+ */
+	public String myEncrypt(String data, String op, String key)
+	{
+		boolean isEnc = op.equals("E");
+		byte[] in = null;
+		if (isEnc) {
+			in = data.getBytes(); 
+		}
+		else {
+			in = base64DecodeBytes(data);
+		}
+		if (in == null)
+			return null;
+		
+		if (key == null)
+			key = "jdcloud";
+		byte[] keyBytes = md5Bytes(key); // 注意：仅使用前8个字节
+
+		try {
+			SecureRandom random = new SecureRandom();
+			DESKeySpec desKey = new DESKeySpec(keyBytes);
+			SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("DES");
+			SecretKey secureKey = keyFactory.generateSecret(desKey);
+			Cipher cipher = Cipher.getInstance("DES");
+			cipher.init(isEnc? Cipher.ENCRYPT_MODE: Cipher.DECRYPT_MODE, secureKey, random);
+			byte[] bs = cipher.doFinal(in);
+			if (isEnc)
+				return base64Encode(bs);
+			return new String(bs);
+		} catch (Exception e) {
+			System.out.println(e);
+		}
+		return null;
+	}
+	
+/**<pre>
+%fn getCred(cred) -> [user, pwd]
+
+cred为"{user}:{pwd}"格式，支持使用base64编码。
+返回2元素字符数组，表示user和pwd。
+出错时返回null。
+
+示例：
+
+	String[] cred = getCred(getenv("P_ADMIN_CRED"));
+	if (cred == null) {
+		// 未设置用户名密码
+	}
+	String user = cred[0], pwd = cred[1];
+
+*/
+	public String[] getCred(String cred) {
+		if (cred == null)
+			return null;
+		if (cred.indexOf(':') < 0) {
+			cred = new String(base64Decode(cred));
+		}
+		return cred.split(":", 2);
+	}
+	
+/**<pre>
+%fn hashPwd(pwd) -> pwd1
+
+对密码进行加密处理。如果已加密过，则直接返回。
+ */
+	
+	/*api和ac接口都需要用到，暂时放在此处*/
+	public String hashPwd(String pwd)
+	{
+		if (pwd.length() == 32 || pwd.length() == 0)
+			return pwd;
+		return md5(pwd);
+	}
+
+/**<pre>
+%fn indexOf(map, fn) -> key
+%param fn(key, value) -> boolean
+
+找符合fn条件的第一个key。找不到返回null。
+
+	JsObject map = new JsObject("aa", 100, "bb", 300);
+	String key = indexOf(map, (k,v)->{v>200}); // key="bb"
+	
+ */
+	public static <K,V> K indexOf(Map<K,V> m, BiPredicate<K,V> fn) {
+		K key = null;
+		for (Map.Entry<K, V> e: m.entrySet()) {
+			if (fn.test(e.getKey(), e.getValue())) {
+				key = e.getKey();
+				break;
+			}
+		}
+		return key;
+	}
+	
+/**<pre>
+%fn indexOf(arr, e) -> index
+
+数组查找。返回找到的索引，找不到返回-1。
+
+	JsArray arr = new JsArray("aa", "bbb");
+	int idx = indexOf(arr, "bbb"); // idx =1
+	
+*/
+	public static <T> int indexOf(T[] arr, T e) {
+		int idx = -1;
+		for (int i=0; i<arr.length; ++i	) {
+			if (arr[i].equals(e)) {
+				idx = i;
+				break;
+			}
+		}
+		return idx;
+	}
+
+/**<pre>
+%fn writeFile(in, out, bufSize?)
+
+%param in String/File/InputStream
+%param out String/File/OutputStream
+%param bufSize 指定buffer大小，设置0使用默认值(10K)
+ */
+	public static void writeFile(Object in, Object out, int bufSize) throws IOException
+	{
+		if (bufSize <= 0)
+			bufSize = 10* KB;
+		InputStream in1 = null;
+		boolean closeIn = true;
+		if (in instanceof String) {
+			in1 = new FileInputStream((String)in);
+		}
+		else if (in instanceof File) {
+			in1 = new FileInputStream((File)in);
+		}
+		else if (in instanceof InputStream) {
+			in1 = (InputStream)in;
+			closeIn = false;
+		}
+		else {
+			throw new IllegalArgumentException("writeFile:in");
+		}
+		OutputStream out1 = null;
+		boolean closeOut = true;
+		if (out instanceof String) {
+			out1 = new FileOutputStream((String)out);
+		}
+		else if (out instanceof File) {
+			out1 = new FileOutputStream((File)out);
+		}
+		else if (out instanceof OutputStream) {
+			out1 = (OutputStream)out;
+			closeOut = false;
+		}
+		else {
+			throw new IllegalArgumentException("writeFile:out");
+		}
+
+		byte[] buffer = new byte[bufSize];
+		int len = 0;
+		while ((len = in1.read(buffer)) != -1) {
+			out1.write(buffer, 0, len);
+		}
+		if (closeOut)
+			out1.close();
+		if (closeIn)
+			in1.close();
+	}
+	public static void writeFile(Object in, Object out) throws IOException {
+		writeFile(in, out, 0);
+	}
+
+/**<pre>
+%fn getBaseUrl(wantHost) -> String
+
+返回项目的URL，以"/"结尾。
+
+	String url = getBaseUrl(true); // "http://myserver/myapp/"
+	String url1 = getBaseUrl(false); // "/myapp/"
+	
+ */
+	public String getBaseUrl(boolean wantHost) {
+		String ret = null;
+		if (wantHost) {
+			// "http(s)://server/app/"
+			String s = env.request.getRequestURL().toString();
+			int n = 0, pos = 8;
+			do {
+				pos = s.indexOf('/', pos) +1; 
+			} while (++n < 2 && pos > 0);
+			if (pos > 0)
+				ret = s.substring(0, pos);
+			else
+				ret = s;
+		}
+		else {
+			ret = env.request.getContextPath() + "/";
+		}
+		return ret;
+	}
+	
+/**<pre>
+%fn exit()
+
+立即返回，不再处理。等价于`throw new DirectReturn();`
+如果想退出返回数据，请直接用DirectReturn.
+ */
+	public void exit() {
+		throw new DirectReturn();
 	}
 }
