@@ -110,7 +110,7 @@ public class AC2_ApiLog extends AccessControl
 	}
 }
 ```
-在应用配置中，假定已将类前缀"AC2"绑定到员工角色(AUTH_EMP)，类似地，"AC"前缀表示游客角色，"AC1"前缀表示用户角色（AUTH_USER）。
+框架默认配置为员工角色（登录权限为AUTH_EMP）对应类前缀为"AC2_"的类，类似地，"AC_"前缀表示游客角色，"AC1_"前缀表示用户角色（AUTH_USER）。
 asList是框架提供的工具函数，生成一个列表，与Array.asList类似，类似地还有asMap。
 
 通常权限还控制对同一个表中数据行的可见性，比如即使同是员工登录，普通员工只能看自己的操作日志，经理可以看到所有日志。
@@ -211,16 +211,15 @@ import com.jdcloud.*;
 public class WebApi extends JDEnvBase
 {
 	@Override
-	public JDApiBase onGetApi(Class<?> t) throws Exception
+	public Object onNewInstance(Class<?> t) throws Exception
 	{
-		JDApiBase api = (JDApiBase)t.newInstance();
-		return api;
+		return t.newInstance();
 	}
 	
 	@Override
-	public Object onInvoke(Method mi, JDApiBase api) throws Exception
+	public Object onInvoke(Method mi, Object arg) throws Exception
 	{
-		return mi.invoke(api);
+		return mi.invoke(arg);
 	}
 }
 
@@ -230,8 +229,9 @@ class AC_ApiLog extends AccessControl
 
 ```
 
-在WebApi类中重载了onGetApi/onInvoke函数，以便定义在这个包中的类即使不标识成public也可以被筋斗云框架创建和调用。
-当然你也可以按java的风格将每个实现类放在不同的文件中，但必须在同一个包下，在本示例里必须是放在com.demo包中。
+在WebApi类中重载了onNewInstance和onInvoke函数，它们不是必需的，它们的作用是允许跨包调用非public类的方法，
+以便定义的Global类或AC前缀类即使不标识成public也可以被筋斗云框架创建和调用。
+当然你也可以按java的风格将每个实现类放在不同的文件中，但必须和WebApi在同一个包下，在本示例里必须是放在com.demo包中。
 
 类AC_ApiLog用于将ApiLog表的标准接口暴露出来。这一行代码就提供了对ApiLog对象的标准增删改查(CRUD)接口如下：
 
@@ -543,22 +543,34 @@ public Object api_getPersons()
 对于含义清晰的参数和返回数据，也不必一一说明。
 应用逻辑中应先规定该接口的权限。
 
+在框架中，最重要的是JDEnvBase与JDApiBase两个类。
+在创建应用时，继承JDEnvBase来配置自定义权限等；而JDApiBase类包含大量工具函数如获取参数、数据库查询等，实现接口的AC类和Global类都继承自JDApiBase。
+
 ### 权限定义
 
 在实现接口前，我们先了解如何定义权限。
 
-登录类型是一种特殊的权限，在框架类JDApiBase中已经按位定义了用户登录(AUTH_USER)和员工登录(AUTH_EMP)：
+登录类型是一种特殊的权限，在框架类JDApiBase中已经按位定义了以下登录类型：
 
-		// 登录类型定义：
-		public const int AUTH_USER = 0x1;
-		public const int AUTH_EMP = 0x2;
+	// 支持8种登录类型 0x1-0x80; 其它非登录权限应从0x100开始定义，且名称规范为PERM_XXX。
+	public static final int AUTH_USER = 0x1; // 用户登录
+	public static final int AUTH_EMP = 0x2;  // 员工登录
+	public static final int AUTH_ADMIN = 0x4; // 超级管理员登录
 
+还有一个特别地任意登录权限：
+
+	public static final int AUTH_LOGIN = 0xff; // 任意角色登录
+	
 由于AC类和Global类都继承自JDApiBase，在接口类实现时可直接使用如：
 
 	checkAuth(AUTH_USER);
 	if (hasPerm(AUTH_USER)) {
 		...
 	}
+
+要检查非游客（即任意身份登录），可以用
+
+	checkAuth(AUTH_LOGIN);
 
 权限应按位定义，即用`0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80, 0x100, 0x200, ...`这些来定义。
 其中0x1到0x80这8个权限预留给登录类型。
@@ -569,7 +581,7 @@ public Object api_getPersons()
 ```java
 public class WebApi ...
 {
-	public static final int AUTH_DOCTOR = 0x4; // 自定义登录类型，从0x4开始。
+	public static final int AUTH_DOCTOR = 0x8; // 自定义登录类型，在0x8与0x80间定义。
 
 	public static final int PERM_MGR = 0x100; // 自定义权限，从0x100开始。
 	public static final int PERM_TEST_MODE = 0x200;
@@ -593,24 +605,23 @@ public class WebApi ...
 ```java
 public class WebApi extends JDEnvBase
 {
-	public static final int AUTH_DOCTOR = 0x4; // 自定义登录类型，从0x4开始。
+	public static final int AUTH_DOCTOR = 0x8; // 自定义登录类型，从0x8开始。
 
 	public static final int PERM_MGR = 0x100; // 自定义权限，从0x100开始。
 	public static final int PERM_TEST_MODE = 0x200;
 
 	@Override
-	public JDApiBase onGetApi(Class<?> t) throws Exception
+	public Object onNewInstance(Class<?> t) throws Exception
 	{
-		JDApiBase api = (JDApiBase)t.newInstance();
-		return api;
+		return t.newInstance();
 	}
 	
 	@Override
-	public Object onInvoke(Method mi, JDApiBase api) throws Exception
+	public Object onInvoke(Method mi, Object arg) throws Exception
 	{
-		return mi.invoke(api);
+		return mi.invoke(arg);
 	}
-	
+
 	@Override
 	public int onGetPerms()
 	{
@@ -634,7 +645,7 @@ public class WebApi extends JDEnvBase
 }
 ```
 
-在JDApiBase类中，常常用属性"api"来调用JDApiBase中的成员（AC_xxx或Global类中则可直接使用），比如api.getSession用来获取一个会话变量。
+在JDEnvBase的子类中，常常用属性"api"来调用JDApiBase中的工具函数，比如api.getSession用来获取一个会话变量。
 
 在登录成功时，我们应设置相应的session变量，如用户登录成功设置`uid`，员工登录成功设置`empId`，等等。
 
@@ -646,12 +657,12 @@ public class WebApi extends JDEnvBase
 ```java
 public Object api_login()
 {
-	type = getAppType();
+	String type = env.appType;
 	if (type.equals("user")) {
 		... 验证成功 ...
 		setSession("uid", ...);
 	}
-	else if (type == "emp") {
+	else if (type.equals("emp")) {
 		... 验证成功 ...
 		setSession("empId", ...);
 	}
@@ -665,26 +676,25 @@ public Object api_login()
 ```java
 public class WebApi extends JDEnvBase
 {
-	// 自定义登录类型，从0x4开始。
-	public static final int AUTH_DOCTOR = 0x4; // 自定义登录类型，从0x4开始。
+	// 自定义登录类型，从0x8开始。
+	public static final int AUTH_DOCTOR = 0x8;
 
 	// 自定义权限，从0x100开始。
-	public static final int PERM_MGR = 0x100; // 自定义权限，从0x100开始。
+	public static final int PERM_MGR = 0x100;
 	public static final int PERM_TEST_MODE = 0x200;
 
 	@Override
-	public JDApiBase onGetApi(Class<?> t) throws Exception
+	public Object onNewInstance(Class<?> t) throws Exception
 	{
-		JDApiBase api = (JDApiBase)t.newInstance();
-		return api;
+		return t.newInstance();
 	}
 	
 	@Override
-	public Object onInvoke(Method mi, JDApiBase api) throws Exception
+	public Object onInvoke(Method mi, Object arg) throws Exception
 	{
-		return mi.invoke(api);
+		return mi.invoke(arg);
 	}
-	
+
 	@Override
 	public int onGetPerms()
 	{
@@ -761,7 +771,8 @@ class Global extends JDApiBase
 应用标识中的主干部分称为应用类型(app type)，例如有三个应用分别标识为"emp"（员工端）, "emp2"（经理端）和"emp-store"（商户管理端），
 它们的主干部分(去除尾部数字，去除"-"及后面部分)是相同的，都是"emp"，即它们具有相同的应用类型"emp"。
 
-函数getAppType就是用来根据URL参数`_app`取应用类型，不同的应用如果是相同的应用类型，则登录方式相同，比如上例中都是用员工登录。
+在接口实现时，用env.appName, env.appType来获取应用标识和应用类型，它们是根据URL参数`_app`得到的。
+不同的应用如果是相同的应用类型，则登录方式相同，比如上例中都是用员工登录。
 
 ### 获取参数
 
@@ -870,14 +881,14 @@ E_FORBIDDEN=5; // 无操作权限，不允许访问
 
 **[立即返回]**
 
-接口除了通过return来返回数据，还可以抛出DirectReturn异常，立即中断执行并返回结果，例如：
+接口可以用exit函数（或抛出DirectReturn异常），立即中断执行并返回结果，例如：
 ```java
 public Object api_hello()
 {
 	// env.response.setContentType("application/json");
 	// header("Content-Type", "application/json");
 	echo("[0, {\"id\":100, \"_isNew\": true}]");
-	throw new DirectReturn();
+	exit(); // 等价于 throw new DirectReturn();
 }
 ```
 可以通过env.request和env.response来获得HttpServletRequest和HttpServletResponse对象。
@@ -1100,7 +1111,17 @@ class AC2_ApiLog extends AccessControl
 }
 ```
 
-那么为什么AC2前缀对应员工权限呢？这需要实现一个重要回调函数`JDEnvBase.onCreateAC`，由它来实现类与权限的绑定：
+那么为什么AC2前缀对应员工权限呢？
+这是因为框架定义默认权限-类名绑定逻辑为：
+
+- 访客(AUTH_GUEST): 对应AC前缀类
+- 用户(AUTH_USER): 对应AC1/AC类，即优先用AC1类，当AC1类不存在时，使用AC类
+- 员工(AUTH_EMP): 对应AC2类
+- 超级管理员(AUTH_ADMIN): 对应AC0/AccessControl类，即优先用AC0类，如果不存在，则使用AccessControl类；
+ 由于AccessControl是框架提供的，因而对于超级管理员，不创建任何类也可以调用任何对象接口。
+
+如果要重写这些规则，需要重载回调函数`JDEnvBase.onCreateAC`，由它来实现类与权限的绑定。
+下面示例就是默认规则的实现，返回类名数组，表示依次找这些类：
 ```java
 
 public class WebApi extends JDEnvBase
@@ -1108,23 +1129,18 @@ public class WebApi extends JDEnvBase
 	...
 
 	@Override
-	public String onCreateAC(String table)
+	public String[] onCreateAC(String table)
 	{
-		if (api.hasPerm(JDApiBase.AUTH_USER))
-		{
-			String cls = "AC1_" + table;
-			try { 
-				Class.forName("com.demo." + cls); 
-			} catch (Exception ex) {
-				cls = "AC_" + table;
-			}
-			return cls;
+		if (api.hasPerm(JDApiBase.AUTH_USER)) {
+			return new String[] { "AC1_" + table, "AC_" + table };
 		}
-		else if (api.hasPerm(JDApiBase.AUTH_EMP))
-		{
-			return "AC2_" + table;
+		else if (api.hasPerm(JDApiBase.AUTH_EMP)) {
+			return new String[] { "AC2_" + table };
 		}
-		return "AC_" + table;
+		else if (api.hasPerm(JDApiBase.AUTH_ADMIN)) {
+			return new String[] { "AC0_" + table, "AccessControl" };
+		}
+		return new String[] {"AC_" + table};
 	}
 }
 ```
@@ -1134,8 +1150,6 @@ public class WebApi extends JDEnvBase
 
 在该段代码中，定义了用户登录后用"AC1"前缀的类，如果类不存在，可以再尝试用"AC"前缀的类，如果再不存在则不允许访问接口；
 如果是员工登录，则只用"AC2"前缀的类，如果类不存在，则不允许访问接口。
-
-TODO: 返回数组？
 
 关于hasPerm的用法及权限定义，可以参考前面章节“权限定义”及“登录与退出”。
 
