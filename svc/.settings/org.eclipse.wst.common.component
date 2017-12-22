@@ -11,9 +11,6 @@
         <dependent-module archiveName="jdcloud.jar" deploy-path="/WEB-INF/lib" handle="module:/resource/jdcloud/jdcloud">
             <dependency-type>uses</dependency-type>
         </dependent-module>
-        <dependent-module archiveName="sqljdbc42.jar" deploy-path="/WEB-INF/lib" handle="module:/classpath/lib/extlib/sqljdbc42.jar">
-            <dependency-type>uses</dependency-type>
-        </dependent-module>
         <property name="java-output-path" value="/svc/build/classes"/>
         <property name="context-root" value="svc"/>
     </wb-module>
