@@ -7,17 +7,16 @@ import com.jdcloud.*;
 public class WebApi extends JDEnvBase
 {
 	@Override
-	public Object onNewInstance(Class<?> t) throws Exception
+	protected Object onNewInstance(Class<?> t) throws Exception
 	{
 		return t.newInstance();
 	}
 	
 	@Override
-	public Object onInvoke(Method mi, Object arg) throws Exception
+	protected Object onInvoke(Method mi, Object arg) throws Exception
 	{
 		return mi.invoke(arg);
 	}
-
 }
 
 class Global extends JDApiBase

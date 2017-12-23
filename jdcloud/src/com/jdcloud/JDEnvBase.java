@@ -62,10 +62,10 @@ public class JDEnvBase
  */
 // TODO: use static
 	public String baseDir;
-	Properties props;
+	public Properties props;
 
-	String X_RET_STR;
-	JsArray X_RET;
+	public String X_RET_STR;
+	public JsArray X_RET;
 
 	private void init(HttpServletRequest request, HttpServletResponse response, Properties props) throws Exception
 	{
@@ -159,6 +159,8 @@ public class JDEnvBase
 			}
 			// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 
+			this.onApiInit();
+
 			Pattern re = Pattern.compile("([\\w|.]+)$");
 			Matcher m = re.matcher(request.getPathInfo());
 			if (! m.find()) {
@@ -166,9 +168,11 @@ public class JDEnvBase
 			}
 			String ac = m.group(1);
 
-			apiLog = new ApiLog(this, ac);
-			apiLog.logBefore();
-			
+			if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
+				apiLog = new ApiLog(this, ac);
+				apiLog.logBefore();
+			}
+
 			this.beginTrans();
 			Object rv = this.callSvc(ac);
 			if (rv == null)
@@ -214,12 +218,8 @@ public class JDEnvBase
 		this.X_RET_STR = api.jsonEncode(ret, this.isTestMode);;
 		this.X_RET = ret;
 
-		try {
-			if (apiLog != null)
-				apiLog.logAfter();
-		} catch (Exception e) {
-			e.printStackTrace();
-		};
+		if (apiLog != null)
+			apiLog.logAfter();
 		try {
 			if (this.conn != null)
 				this.conn.close();
@@ -422,22 +422,22 @@ public class JDEnvBase
 		}
 	}
 	
-	public Object onNewInstance(Class<?> t) throws Exception
+	protected Object onNewInstance(Class<?> t) throws Exception
 	{
 		return t.newInstance();
 	}
 
-	public Object onInvoke(Method mi, Object arg) throws Exception
+	protected Object onInvoke(Method mi, Object arg) throws Exception
 	{
 		return mi.invoke(arg);
 	}
 
-	public String[] onCreateApi()
+	protected String[] onCreateApi()
 	{
 		return new String[] { "Global" };
 	}
 
-	public String[] onCreateAC(String table)
+	protected String[] onCreateAC(String table)
 	{
 		if (api.hasPerm(JDApiBase.AUTH_USER)) {
 			return new String[] { "AC1_" + table, "AC_" + table };
@@ -451,7 +451,7 @@ public class JDEnvBase
 		return new String[] {"AC_" + table};
 	}
 
-	public int onGetPerms()
+	protected int onGetPerms()
 	{
 		int perms = 0;
 		if (api.getSession("uid") != null) {
@@ -464,6 +464,18 @@ public class JDEnvBase
 			perms |= JDApiBase.AUTH_ADMIN;
 		}
 		return perms;
+	}
+
+/**<pre>
+%fn env.onApiInit()
+
+API调用前的回调函数。例如设置选项、检查客户版本等。
+示例：关闭ApiLog
+
+	this.props.setProperty("enableApiLog", "0");	
+
+ */
+	protected void onApiInit() {
 	}
 
 	// coll: "G"-GET, "P"-POST, null-BOTH

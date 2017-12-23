@@ -211,13 +211,13 @@ import com.jdcloud.*;
 public class WebApi extends JDEnvBase
 {
 	@Override
-	public Object onNewInstance(Class<?> t) throws Exception
+	protected Object onNewInstance(Class<?> t) throws Exception
 	{
 		return t.newInstance();
 	}
 	
 	@Override
-	public Object onInvoke(Method mi, Object arg) throws Exception
+	protected Object onInvoke(Method mi, Object arg) throws Exception
 	{
 		return mi.invoke(arg);
 	}
@@ -605,25 +605,27 @@ public class WebApi ...
 ```java
 public class WebApi extends JDEnvBase
 {
+	// 自定义登录类型，从0x8开始。
 	public static final int AUTH_DOCTOR = 0x8; // 自定义登录类型，从0x8开始。
 
-	public static final int PERM_MGR = 0x100; // 自定义权限，从0x100开始。
+	// 自定义权限，从0x100开始。
+	public static final int PERM_MGR = 0x100;
 	public static final int PERM_TEST_MODE = 0x200;
 
 	@Override
-	public Object onNewInstance(Class<?> t) throws Exception
+	protected Object onNewInstance(Class<?> t) throws Exception
 	{
 		return t.newInstance();
 	}
 	
 	@Override
-	public Object onInvoke(Method mi, Object arg) throws Exception
+	protected Object onInvoke(Method mi, Object arg) throws Exception
 	{
 		return mi.invoke(arg);
 	}
 
 	@Override
-	public int onGetPerms()
+	protected int onGetPerms()
 	{
 		int perms = 0;
 		if (api.getSession("uid") != null)
@@ -674,49 +676,6 @@ public Object api_login()
 在接口实现时，一般应根据接口中的权限说明，使用checkAuth函数进行权限检查。
 
 ```java
-public class WebApi extends JDEnvBase
-{
-	// 自定义登录类型，从0x8开始。
-	public static final int AUTH_DOCTOR = 0x8;
-
-	// 自定义权限，从0x100开始。
-	public static final int PERM_MGR = 0x100;
-	public static final int PERM_TEST_MODE = 0x200;
-
-	@Override
-	public Object onNewInstance(Class<?> t) throws Exception
-	{
-		return t.newInstance();
-	}
-	
-	@Override
-	public Object onInvoke(Method mi, Object arg) throws Exception
-	{
-		return mi.invoke(arg);
-	}
-
-	@Override
-	public int onGetPerms()
-	{
-		int perms = 0;
-		if (api.getSession("uid") != null)
-		{
-			perms |= JDApiBase.AUTH_USER;
-		}
-		else if (api.getSession("doctorId") != null)
-		{
-			perms |= AUTH_DOCTOR;
-			if (api.getSession("perms").toString().contains("mgr"))
-				perms |= PERM_MGR;
-		}
-		if (this.isTestMode) {
-			perms |= PERM_TEST_MODE;
-		}
-
-		return perms;
-	}
-}
-
 class Global extends JDApiBase
 {
 	public Object api_login() throws Exception
