@@ -24,99 +24,25 @@ public class JDHandler extends HttpServlet {
 	 * @see HttpServlet#service(HttpServletRequest request, HttpServletResponse response)
 	 */
 	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		JsArray ret = new JsArray(0, null);
-		response.setContentType("text/plain; charset=utf-8");
-		JDEnvBase env = null;
-		boolean ok = false;
-		boolean dret = false;
+		Properties props = null;
 		try {
-			Properties props = null;
-			try {
-				props = new Properties();
-				InputStream is = request.getServletContext().getResourceAsStream("/WEB-INF/web.properties");
-				props.load(is);
-			} catch (Exception e) {
-			}
-			
-			try {
-				String clsEnv = props.getProperty("JDEnv");
-				if (clsEnv == null)
-					throw null; 
-				env = (JDEnvBase)Class.forName(clsEnv).newInstance();
-			} catch (Exception ex) {
-				throw new MyException(JDApiBase.E_SERVER, "JDEnv is not defined");
-			}
-			env.init(request, response, props);
-			String origin = request.getHeader("Origin");
-			if (env.isTestMode && origin != null)
-			{
-				response.setHeader("Access-Control-Allow-Origin", origin);
-				response.setHeader("Access-Control-Allow-Credentials", "true");
-				response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-			}
-
-			if (request.getMethod() == "OPTIONS")
-				return;
-
-			Pattern re = Pattern.compile("([\\w|.]+)$");
-			Matcher m = re.matcher(request.getPathInfo());
-			if (! m.find()) {
-				throw new MyException(JDApiBase.E_PARAM, "bad ac");
-			}
-			String ac = m.group(1);
-			Object rv = env.callSvc(ac);
-			if (rv == null)
-				rv = "OK";
-			ok = true;
-			ret.set(1, rv);
-		}
-		catch (DirectReturn ex) {
-			ok = true;
-			if (ex.retVal != null) {
-				ret.set(1, ex.retVal);
-			}
-			else {
-				dret = true;
-			}
-		}
-		catch (MyException ex) {
-			ret.set(0, ex.getCode());
-			ret.set(1, ex.getMessage());
-			ret.add(ex.getDebugInfo());
-		}
-		catch (Exception ex)
-		{
-			int code = ex instanceof SQLException? JDApiBase.E_DB: JDApiBase.E_SERVER;
-			ret.set(0, code);
-			ret.set(1, JDApiBase.GetErrInfo(code));
-			if (env.isTestMode) 
-			{
-				String msg = ex.getMessage();
-				if (msg == null)
-					msg = ex.getClass().getName();
-				ret.add(msg);
-				ret.add(ex.getStackTrace());
-				ex.printStackTrace();
-			}
-		}
-
-		if (env != null) {
-			if (env.debugInfo.size() > 0)
-				ret.add(env.debugInfo);
-		}
-		else {
-			env = new JDEnvBase();
+			props = new Properties();
+			InputStream is = request.getServletContext().getResourceAsStream("/WEB-INF/web.properties");
+			props.load(is);
+		} catch (Exception e) {
 		}
 		
-		String retStr = null;
-		if (! dret) {
-			retStr = env.api.jsonEncode(ret, env.isTestMode);
-			response.getWriter().write(retStr);
+		JDEnvBase env = null;
+		try {
+			String clsEnv = props.getProperty("JDEnv");
+			if (clsEnv == null) {
+				throw null; 
+			}
+			env = (JDEnvBase)Class.forName(clsEnv).newInstance();
+		} catch (Exception ex) {
+			response.getWriter().format("[%d, \"%s\", \"%s\"]", JDApiBase.E_SERVER, "服务器错误", "Fail to create JDEnv");
+			return;
 		}
-		env.X_RET_STR = retStr;
-		env.X_RET = ret;
-		env.close(ok);
+		env.service(request, response, props);
 	}
-
 }
-

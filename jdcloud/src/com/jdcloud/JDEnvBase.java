@@ -65,12 +65,10 @@ public class JDEnvBase
 	public String baseDir;
 	Properties props;
 
-	public String X_RET_STR;
-	public JsArray X_RET;
+	String X_RET_STR;
+	JsArray X_RET;
 
-	private ApiLog apiLog;
-	
-	public void init(HttpServletRequest request, HttpServletResponse response, Properties props) throws Exception
+	private void init(HttpServletRequest request, HttpServletResponse response, Properties props) throws Exception
 	{
 		this.request = request;
 		this.response = response;
@@ -123,14 +121,108 @@ public class JDEnvBase
 			throw new MyException(JDApiBase.E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
 		
 		this.dbStrategy.init(this);
-
-		if (this.isTestMode)
-		{
-			api.header("X-Daca-Test-Mode", "1");
-		}
-		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 	}
 	
+	public void service(HttpServletRequest request, HttpServletResponse response, Properties props) {
+		JsArray ret = new JsArray(0, null);
+		boolean ok = false;
+		boolean dret = false;
+		ApiLog apiLog = null;
+		try {
+			init(request, response, props);
+			String origin = request.getHeader("Origin");
+			if (this.isTestMode && origin != null)
+			{
+				response.setHeader("Access-Control-Allow-Origin", origin);
+				response.setHeader("Access-Control-Allow-Credentials", "true");
+				response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+			}
+
+			if (request.getMethod() == "OPTIONS")
+				return;
+
+			response.setContentType("text/plain; charset=utf-8");
+			if (this.isTestMode)
+			{
+				api.header("X-Daca-Test-Mode", "1");
+			}
+			// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
+
+			Pattern re = Pattern.compile("([\\w|.]+)$");
+			Matcher m = re.matcher(request.getPathInfo());
+			if (! m.find()) {
+				throw new MyException(JDApiBase.E_PARAM, "bad ac");
+			}
+			String ac = m.group(1);
+
+			apiLog = new ApiLog(this, ac);
+			apiLog.logBefore();
+			
+			this.beginTrans();
+			Object rv = this.callSvc(ac);
+			if (rv == null)
+				rv = "OK";
+			ok = true;
+			ret.set(1, rv);
+		}
+		catch (DirectReturn ex) {
+			ok = true;
+			if (ex.retVal != null) {
+				ret.set(1, ex.retVal);
+			}
+			else {
+				dret = true;
+			}
+		}
+		catch (MyException ex) {
+			ret.set(0, ex.getCode());
+			ret.set(1, ex.getMessage());
+			ret.add(ex.getDebugInfo());
+		}
+		catch (Exception ex)
+		{
+			int code = ex instanceof SQLException? JDApiBase.E_DB: JDApiBase.E_SERVER;
+			ret.set(0, code);
+			ret.set(1, JDApiBase.GetErrInfo(code));
+			if (this.isTestMode) 
+			{
+				String msg = ex.getMessage();
+				if (msg == null)
+					msg = ex.getClass().getName();
+				ret.add(msg);
+				ret.add(ex.getStackTrace());
+				ex.printStackTrace();
+			}
+		}
+
+		this.endTrans(ok);
+		if (this.debugInfo.size() > 0) {
+			ret.add(this.debugInfo);
+		}
+
+		this.X_RET_STR = api.jsonEncode(ret, this.isTestMode);;
+		this.X_RET = ret;
+
+		try {
+			if (apiLog != null)
+				apiLog.logAfter();
+		} catch (Exception e) {
+			e.printStackTrace();
+		};
+		try {
+			if (this.conn != null)
+				this.conn.close();
+		}
+		catch (SQLException e) {
+			e.printStackTrace();
+		}
+		this.conn = null;
+
+		if (! dret) {
+			api.echo(this.X_RET_STR);
+		}
+	}
+
 	public Object callSvc(String ac) throws Exception
 	{
 		return callSvc(ac, null, null, null);
@@ -158,9 +250,6 @@ public class JDEnvBase
 */
 	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Exception
 	{
-		apiLog = new ApiLog(this, ac);
-		apiLog.logBefore();
-		
 		JsObject[] bak = null;
 		if (opt != null)
 		{
@@ -294,21 +383,21 @@ public class JDEnvBase
 			}
 			try {
 				this.conn = DriverManager.getConnection(url, user, pwd);
-				// start transaction
-				this.conn.setAutoCommit(false);
 			} catch (SQLException e) {
 				api.addLog(e.getMessage());
 				throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
 			}
 		}
 	}
-	
-	public void close(boolean ok)
-	{
-		this.onAfter(ok);
+
+	protected void beginTrans() throws SQLException {
 		if (this.conn == null)
 			return;
-		
+		this.conn.setAutoCommit(false);
+	}
+	protected void endTrans(boolean ok) {
+		if (this.conn == null)
+			return;
 		try {
 			if (ok) {
 				this.conn.commit();
@@ -316,9 +405,7 @@ public class JDEnvBase
 			else {
 				this.conn.rollback();
 			}
-			this.conn.setAutoCommit(false);
-			this.conn.close();
-			this.conn = null;
+			this.conn.setAutoCommit(true);
 		}
 		catch (SQLException e) {
 		}
@@ -507,14 +594,6 @@ public class JDEnvBase
 			return false;
 		}
 	}
-	
-	public void onAfter(boolean ok) {
-		try {
-			apiLog.logAfter();
-		} catch (Exception e) {
-			e.printStackTrace();
-		};
-	}
 }
 
 class ApiLog
@@ -531,8 +610,8 @@ class ApiLog
 		this.ac = ac;
 	}
 
-	// var: String/InputStream
-	private String myVarExport(Object var, int maxLength /*=200*/) throws Exception
+	// var: String/JsObject/InputStream
+	private String myVarExport(Object var, int maxLength) throws Exception
 	{
 		if (var instanceof String) {
 			String var1 = JDApiBase.regexReplace((String)var, "\\s+", " ");
@@ -597,11 +676,16 @@ class ApiLog
 		String content = myVarExport(env._GET, 2000);
 		String content2 = null;
 		String ct = env.request.getContentType();
-		if (ct != null && ! JDApiBase.regexMatch(ct, "(?i:x-www-form-urlencoded|form-data)").find()) {
-			content2 = myVarExport(env.request.getInputStream(), 2000);
+		if (ct != null)
+			ct = ct.toLowerCase();
+		int maxLen = 2000;
+		if (ct == null || ct.contains("x-www-form-urlencoded")) {
+			content2 = myVarExport(env._POST, maxLen);
 		}
 		else {
-			content2 = myVarExport(env._POST, 2000);
+			if (! (ct.contains("/json") || ct.contains("/xml")))
+				maxLen = 50;
+			content2 = myVarExport(env.request.getInputStream(), maxLen);
 		}
 		if (content2 != null && content2.length() > 0)
 			content += ";\n" + content2;
