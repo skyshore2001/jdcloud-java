@@ -2,10 +2,7 @@ package com.jdcloud;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.sql.SQLException;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -40,6 +37,7 @@ public class JDHandler extends HttpServlet {
 			}
 			env = (JDEnvBase)Class.forName(clsEnv).newInstance();
 		} catch (Exception ex) {
+			response.setContentType("text/plain; charset=utf-8");
 			response.getWriter().format("[%d, \"%s\", \"%s\"]", JDApiBase.E_SERVER, "服务器错误", "Fail to create JDEnv");
 			return;
 		}

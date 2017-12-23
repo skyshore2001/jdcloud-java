@@ -131,14 +131,14 @@ public class JDEnvBase
 		try {
 			init(request, response, props);
 			String origin = request.getHeader("Origin");
-			if (this.isTestMode && origin != null)
+			if (origin != null)
 			{
 				response.setHeader("Access-Control-Allow-Origin", origin);
 				response.setHeader("Access-Control-Allow-Credentials", "true");
 				response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 			}
 
-			if (request.getMethod() == "OPTIONS")
+			if (request.getMethod().equals("OPTIONS"))
 				return;
 
 			response.setContentType("text/plain; charset=utf-8");
@@ -610,8 +610,8 @@ class ApiLog
 		this.ac = ac;
 	}
 
-	// var: String/JsObject/InputStream
-	private String myVarExport(Object var, int maxLength) throws Exception
+	// var: String/JsObject
+	private String myVarExport(Object var, int maxLength)
 	{
 		if (var instanceof String) {
 			String var1 = JDApiBase.regexReplace((String)var, "\\s+", " ");
@@ -645,17 +645,10 @@ class ApiLog
 			}
 			return sb.toString();
 		}
-		if (var instanceof InputStream) {
-			InputStream var1 = (InputStream)var;
-			byte[] bs = new byte[maxLength];
-			var1.read(bs);
-			return new String(bs);
-		}
-		
 		return var.toString();
 	}
 
-	void logBefore() throws Exception
+	void logBefore()
 	{
 		this.startTm = env.api.time();
 
@@ -678,14 +671,8 @@ class ApiLog
 		String ct = env.request.getContentType();
 		if (ct != null)
 			ct = ct.toLowerCase();
-		int maxLen = 2000;
-		if (ct == null || ct.contains("x-www-form-urlencoded")) {
-			content2 = myVarExport(env._POST, maxLen);
-		}
-		else {
-			if (! (ct.contains("/json") || ct.contains("/xml")))
-				maxLen = 50;
-			content2 = myVarExport(env.request.getInputStream(), maxLen);
+		if (!env._POST.isEmpty()) {
+			content2 = myVarExport(env._POST, 2000);
 		}
 		if (content2 != null && content2.length() > 0)
 			content += ";\n" + content2;
@@ -699,10 +686,14 @@ class ApiLog
 			api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(env.appName), 
 			JDApiBase.Q(env.request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(ver)
 		);
-		this.id = api.execOne(sql, true);
+		try {
+			this.id = api.execOne(sql, true);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
 	}
 
-	void logAfter() throws Exception
+	void logAfter()
 	{
 		if (env.conn == null)
 			return;
@@ -715,6 +706,11 @@ class ApiLog
 		}
 		String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
 				iv, env.X_RET.get(0), env.X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
-		int rv = api.execOne(sql);
+		try {
+			@SuppressWarnings("unused")
+			int rv = api.execOne(sql);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
 	}
 }
