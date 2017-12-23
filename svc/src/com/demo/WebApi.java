@@ -75,7 +75,8 @@ class Global extends JDApiBase
 		@SuppressWarnings("unused")
 		String pwd = (String)mparam("pwd");
 
-		String sql = String.format("SELECT id FROM User WHERE uname=%s", Q(uname));
+		String key = Character.isDigit(uname.charAt(0))? "phone": "uname";
+		String sql = String.format("SELECT id FROM User WHERE %s=%s", key, Q(uname));
 		Object id = queryOne(sql);
 		if (id.equals(false))
 			throw new MyException(E_AUTHFAIL, "bad uname or pwd");

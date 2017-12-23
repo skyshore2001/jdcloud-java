@@ -1,5 +1,7 @@
 package com.jdcloud;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
@@ -63,6 +65,11 @@ public class JDEnvBase
 	public String baseDir;
 	Properties props;
 
+	public String X_RET_STR;
+	public JsArray X_RET;
+
+	private ApiLog apiLog;
+	
 	public void init(HttpServletRequest request, HttpServletResponse response, Properties props) throws Exception
 	{
 		this.request = request;
@@ -151,6 +158,9 @@ public class JDEnvBase
 */
 	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Exception
 	{
+		apiLog = new ApiLog(this, ac);
+		apiLog.logBefore();
+		
 		JsObject[] bak = null;
 		if (opt != null)
 		{
@@ -295,9 +305,9 @@ public class JDEnvBase
 	
 	public void close(boolean ok)
 	{
+		this.onAfter(ok);
 		if (this.conn == null)
 			return;
-
 		
 		try {
 			if (ok) {
@@ -496,5 +506,131 @@ public class JDEnvBase
 		{
 			return false;
 		}
+	}
+	
+	public void onAfter(boolean ok) {
+		try {
+			apiLog.logAfter();
+		} catch (Exception e) {
+			e.printStackTrace();
+		};
+	}
+}
+
+class ApiLog
+{
+	private JDEnvBase env;
+	private JDApiBase api;
+	long startTm;
+	String ac;
+	int id;
+
+	public ApiLog(JDEnvBase env, String ac) {
+		this.env = env;
+		this.api = env.api;
+		this.ac = ac;
+	}
+
+	// var: String/InputStream
+	private String myVarExport(Object var, int maxLength /*=200*/) throws Exception
+	{
+		if (var instanceof String) {
+			String var1 = JDApiBase.regexReplace((String)var, "\\s+", " ");
+			if (var1.length() > maxLength)
+				var1 = var1.substring(0, maxLength) + "...";
+			return var1;
+		}
+		if (var instanceof JsObject) {
+			JsObject var1 = (JsObject)var;
+			StringBuffer sb = new StringBuffer();
+			int maxKeyLen = 30;
+			for (Map.Entry<String, Object> e: var1.entrySet()) {
+				String k = e.getKey();
+				Object v = e.getValue();
+				int klen = k.length();
+				// 注意：有时raw http内容被误当作url-encoded编码，会导致所有内容成为key. 例如API upload.
+				if (klen > maxKeyLen)
+					return k.substring(0, maxKeyLen) + "...";
+				int len = sb.length();
+				if (len >= maxLength) {
+					sb.append(k).append("=...");
+					break;
+				}
+				if (k.contains("pwd")) {
+					v = "?";
+				}
+				if (len > 0) {
+					sb.append(", ");
+				}
+				sb.append(k).append("=").append(v);
+			}
+			return sb.toString();
+		}
+		if (var instanceof InputStream) {
+			InputStream var1 = (InputStream)var;
+			byte[] bs = new byte[maxLength];
+			var1.read(bs);
+			return new String(bs);
+		}
+		
+		return var.toString();
+	}
+
+	void logBefore() throws Exception
+	{
+		this.startTm = env.api.time();
+
+		String type = env.appType;
+		Object userId = null;
+		// TODO: hard code
+		if (type.equals("user")) {
+			userId = api.getSession("uid");
+		}
+		else if (type.equals("emp")) {
+			userId = api.getSession("empId");
+		}
+		else if (type.equals("admin")) {
+			userId = api.getSession("adminId");
+		}
+		if (userId == null)
+			userId = "NULL";
+		String content = myVarExport(env._GET, 2000);
+		String content2 = null;
+		String ct = env.request.getContentType();
+		if (ct != null && ! JDApiBase.regexMatch(ct, "(?i:x-www-form-urlencoded|form-data)").find()) {
+			content2 = myVarExport(env.request.getInputStream(), 2000);
+		}
+		else {
+			content2 = myVarExport(env._POST, 2000);
+		}
+		if (content2 != null && content2.length() > 0)
+			content += ";\n" + content2;
+		String remoteAddr = env.request.getRemoteAddr();
+		int reqsz = env.request.getRequestURI().length() + env.request.getQueryString().length() + env.request.getContentLength();
+		String ua = env.request.getHeader("User-Agent");
+		// TODO: ver = getClientVersion();
+		String ver = "web";
+
+		String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
+			api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(env.appName), 
+			JDApiBase.Q(env.request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(ver)
+		);
+		this.id = api.execOne(sql, true);
+	}
+
+	void logAfter() throws Exception
+	{
+		if (env.conn == null)
+			return;
+		long iv = api.time() - this.startTm;
+		String content = myVarExport(env.X_RET_STR, 200);
+
+		String userIdStr = "";
+		if (this.ac.equals("login") && env.X_RET.get(1) instanceof JsObject) {
+			userIdStr = ", userId=" + ((JsObject)env.X_RET.get(1)).get("id");
+		}
+		String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
+				iv, env.X_RET.get(0), env.X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
+		int rv = api.execOne(sql);
 	}
 }

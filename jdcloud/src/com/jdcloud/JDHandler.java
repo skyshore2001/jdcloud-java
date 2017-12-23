@@ -101,7 +101,6 @@ public class JDHandler extends HttpServlet {
 		}
 
 		if (env != null) {
-			env.close(ok);
 			if (env.debugInfo.size() > 0)
 				ret.add(env.debugInfo);
 		}
@@ -109,11 +108,14 @@ public class JDHandler extends HttpServlet {
 			env = new JDEnvBase();
 		}
 		
-		if (dret)
-			return;
-		
-		String retStr = env.api.jsonEncode(ret, env.isTestMode);
-		response.getWriter().write(retStr);
+		String retStr = null;
+		if (! dret) {
+			retStr = env.api.jsonEncode(ret, env.isTestMode);
+			response.getWriter().write(retStr);
+		}
+		env.X_RET_STR = retStr;
+		env.X_RET = ret;
+		env.close(ok);
 	}
 
 }
