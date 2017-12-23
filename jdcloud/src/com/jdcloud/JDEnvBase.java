@@ -1,7 +1,5 @@
 package com.jdcloud;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
@@ -44,6 +42,7 @@ public class JDEnvBase
 获取appName, appType
  */
 	public String appName, appType;
+	public String clientVer;
 	
 	// 用于内部调用JDApiBase的工具函数
 	protected JDApiBase api = new JDApiBase();
@@ -112,6 +111,18 @@ public class JDEnvBase
 
 		this.appName = (String)api.param("_app", "user", "G");
 		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
+
+		this.clientVer = (String)api.param("_ver", null, "G");
+		if (this.clientVer == null) {
+			// Mozilla/5.0 (Linux; U; Android 4.1.1; zh-cn; MI 2S Build/JRO03L) AppleWebKit/533.1 (KHTML, like Gecko)Version/4.0 MQQBrowser/5.4 TBS/025440 Mobile Safari/533.1 MicroMessenger/6.2.5.50_r0e62591.621 NetType/WIFI Language/zh_CN
+			Matcher m;
+			if ((m=JDApiBase.regexMatch(this.request.getHeader("User-Agent"), "MicroMessenger\\/([0-9.]+)")).find()) {
+				this.clientVer = "wx/" + m.group(1);
+			}
+			else {
+				this.clientVer = "web";
+			}
+		}
 
 		if (this.dbType.equals("mysql"))
 			this.dbStrategy = new MySQLStrategy();
@@ -679,12 +690,10 @@ class ApiLog
 		String remoteAddr = env.request.getRemoteAddr();
 		int reqsz = env.request.getRequestURI().length() + env.request.getQueryString().length() + env.request.getContentLength();
 		String ua = env.request.getHeader("User-Agent");
-		// TODO: ver = getClientVersion();
-		String ver = "web";
 
 		String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
 			api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(env.appName), 
-			JDApiBase.Q(env.request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(ver)
+			JDApiBase.Q(env.request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(env.clientVer)
 		);
 		try {
 			this.id = api.execOne(sql, true);
