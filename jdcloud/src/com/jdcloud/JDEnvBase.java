@@ -202,8 +202,8 @@ public class JDEnvBase
 					msg = ex.getClass().getName();
 				ret.add(msg);
 				ret.add(ex.getStackTrace());
-				ex.printStackTrace();
 			}
+			ex.printStackTrace();
 		}
 
 		this.endTrans(ok);
@@ -661,43 +661,47 @@ class ApiLog
 
 	void logBefore()
 	{
-		this.startTm = env.api.time();
-
-		String type = env.appType;
-		Object userId = null;
-		// TODO: hard code
-		if (type.equals("user")) {
-			userId = api.getSession("uid");
-		}
-		else if (type.equals("emp")) {
-			userId = api.getSession("empId");
-		}
-		else if (type.equals("admin")) {
-			userId = api.getSession("adminId");
-		}
-		if (userId == null)
-			userId = "NULL";
-		String content = myVarExport(env._GET, 2000);
-		String content2 = null;
-		String ct = env.request.getContentType();
-		if (ct != null)
-			ct = ct.toLowerCase();
-		if (!env._POST.isEmpty()) {
-			content2 = myVarExport(env._POST, 2000);
-		}
-		if (content2 != null && content2.length() > 0)
-			content += ";\n" + content2;
-		String remoteAddr = env.request.getRemoteAddr();
-		int reqsz = env.request.getRequestURI().length() + env.request.getQueryString().length() + env.request.getContentLength();
-		String ua = env.request.getHeader("User-Agent");
-
-		String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
-			api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(env.appName), 
-			JDApiBase.Q(env.request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(env.clientVer)
-		);
 		try {
+			this.startTm = env.api.time();
+	
+			String type = env.appType;
+			Object userId = null;
+			// TODO: hard code
+			if (type.equals("user")) {
+				userId = api.getSession("uid");
+			}
+			else if (type.equals("emp")) {
+				userId = api.getSession("empId");
+			}
+			else if (type.equals("admin")) {
+				userId = api.getSession("adminId");
+			}
+			if (userId == null)
+				userId = "NULL";
+			String content = myVarExport(env._GET, 2000);
+			String content2 = null;
+			String ct = env.request.getContentType();
+			if (ct != null)
+				ct = ct.toLowerCase();
+			if (!env._POST.isEmpty()) {
+				content2 = myVarExport(env._POST, 2000);
+			}
+			if (content2 != null && content2.length() > 0)
+				content += ";\n" + content2;
+			String remoteAddr = env.request.getRemoteAddr();
+			int reqsz = env.request.getRequestURI().length() + env.request.getContentLength();
+			String query = env.request.getQueryString();
+			if (query != null)
+				reqsz += query.length();
+	
+			String ua = env.request.getHeader("User-Agent");
+	
+			String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
+				api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(env.appName), 
+				JDApiBase.Q(env.request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(env.clientVer)
+			);
 			this.id = api.execOne(sql, true);
-		} catch (SQLException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
@@ -706,19 +710,20 @@ class ApiLog
 	{
 		if (env.conn == null)
 			return;
-		long iv = api.time() - this.startTm;
-		String content = myVarExport(env.X_RET_STR, 200);
-
-		String userIdStr = "";
-		if (this.ac.equals("login") && env.X_RET.get(1) instanceof JsObject) {
-			userIdStr = ", userId=" + ((JsObject)env.X_RET.get(1)).get("id");
-		}
-		String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
-				iv, env.X_RET.get(0), env.X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
 		try {
+			long iv = api.time() - this.startTm;
+			String content = myVarExport(env.X_RET_STR, 200);
+	
+			String userIdStr = "";
+			if (this.ac.equals("login") && env.X_RET.get(1) instanceof JsObject) {
+				userIdStr = ", userId=" + ((JsObject)env.X_RET.get(1)).get("id");
+			}
+			String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
+					iv, env.X_RET.get(0), env.X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
+
 			@SuppressWarnings("unused")
 			int rv = api.execOne(sql);
-		} catch (SQLException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
