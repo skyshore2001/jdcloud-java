@@ -62,6 +62,50 @@ public class JDEnvBase
  */
 // TODO: use static
 	public String baseDir;
+
+/**<pre>
+%var env.props
+%key web.properties
+%key jdcloud-config
+
+配置选项。从WEB-INF/web.properties中加载，也可以在env.onApiInit回调函数中修改。
+
+## 应用入口 JDEnv
+
+- JDEnv: 类名。应继承于com.jdcloud.JDEnvBase。
+
+作为WebApi应用程序入口。
+所有的接口实现都应与该类在同一个包中。
+
+## 数据库连接
+
+- P_DBTYPE: String. 默认为"mysql"。还支持mssql
+- P_DB_DRIVER: 类名. 驱动程序库。
+- P_DB: String. 数据库连接字符串
+- P_DBCRED: String. 数据库用户密码，格式为 "{用户名:密码}"
+
+示例：连接mysql, 使用库mysql-connector-java-5.1.34.jar
+
+	P_DBTYPE=mysql
+	P_DB_DRIVER=com.mysql.jdbc.Driver
+	P_DB=jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8
+	P_DBCRED=demo:demo123
+
+示例：连接sqlserver(mssql)，使用库sqljdbc42.jar
+
+	P_DBTYPE=mssql
+	P_DB_DRIVER=com.microsoft.sqlserver.jdbc.SQLServerDriver
+	P_DB=jdbc:sqlserver://localhost:1433;instanceName=MSSQL1;databaseName=jdcloud;integratedSecurity=false;
+	P_DBCRED=sa:demo123
+
+## 应用程序选项
+
+- P_TEST_MODE: Boolean. 默认为0。测试模式。可用env.isTestMode获取。
+- P_DEBUG: Integer. 0-9之间，默认为0. 调试等级。为9时输出SQL日志。可用env.debugLevel获取。
+
+- enableApiLog: Boolean. 默认为1。记录ApiLog。
+- baseDir: String. 应用数据目录。在写文件时可用env.baseDir作为目录。注意目录分隔符用"/"，注意以"/"结尾。
+ */
 	public Properties props;
 
 	public String X_RET_STR;
@@ -102,7 +146,8 @@ public class JDEnvBase
 				_POST.putAll(m);
 		}
 
-		this.baseDir = System.getProperty("user.home") + "/jd-data/" + request.getContextPath();
+		// TODO: static
+		this.baseDir = props.getProperty("baseDir", System.getProperty("user.home") + "/jd-data/" + request.getContextPath());
 		new File(this.baseDir).mkdirs();
 		
 		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
@@ -432,11 +477,46 @@ public class JDEnvBase
 		return mi.invoke(arg);
 	}
 
+/**<pre>
+%fn env.onCreateApi() -> String[]
+
+对于函数型调用，返回接口实现类(应继承JDApiBase)列表。默认为"Global"：
+
+	return new String[] { "Global" };
+
+也可以从多个类加载，常用于添加插件，如：
+
+	return new String[] { "Global", "JDLogin", "JDUpload" };
+
+*/
 	protected String[] onCreateApi()
 	{
 		return new String[] { "Global" };
 	}
 
+/**<pre>
+%fn env.onCreateAC(table) -> String[]
+
+对于对象型调用，根据对象名(table)返回一个类名数组，用于绑定权限与AC类。注意类名不带包名。
+默认逻辑作为示例：
+
+		if (api.hasPerm(JDApiBase.AUTH_USER)) {
+			return new String[] { "AC1_" + table, "AC_" + table };
+		}
+		else if (api.hasPerm(JDApiBase.AUTH_EMP)) {
+			return new String[] { "AC2_" + table };
+		}
+		else if (api.hasPerm(JDApiBase.AUTH_ADMIN)) {
+			return new String[] { "AC0_" + table, "AccessControl" };
+		}
+		return new String[] {"AC_" + table};
+
+它表示：
+
+- 用户登录(AUTH_USER)尝试AC1和AC类
+- 员工登录(AUTH_EMP)尝试AC2类
+- 超级管理员登录(AUTH_ADMIN)尝试AC0类和AccessControl类。
+ */
 	protected String[] onCreateAC(String table)
 	{
 		if (api.hasPerm(JDApiBase.AUTH_USER)) {
@@ -451,6 +531,23 @@ public class JDEnvBase
 		return new String[] {"AC_" + table};
 	}
 
+/**<pre>
+%fn env.onGetPerms() -> perms/i
+
+返回权限集合。一般根据session来设置。默认检查uid, empId, adminId三个session变量，如果存在则认为具有用户、员工、超级管理员登录权限。
+
+		int perms = 0;
+		if (api.getSession("uid") != null) {
+			perms |= JDApiBase.AUTH_USER;
+		}
+		else if (api.getSession("empId") != null) {
+			perms |= JDApiBase.AUTH_EMP;
+		}
+		else if (api.getSession("adminId") != null) {
+			perms |= JDApiBase.AUTH_ADMIN;
+		}
+		return perms;
+*/
 	protected int onGetPerms()
 	{
 		int perms = 0;
