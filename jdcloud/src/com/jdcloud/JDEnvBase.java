@@ -104,7 +104,7 @@ public class JDEnvBase
 - P_DEBUG: Integer. 0-9之间，默认为0. 调试等级。为9时输出SQL日志。可用env.debugLevel获取。
 
 - enableApiLog: Boolean. 默认为1。记录ApiLog。
-- baseDir: String. 应用数据目录。在写文件时可用env.baseDir作为目录。注意目录分隔符用"/"，注意以"/"结尾。
+- baseDir: String. 应用数据目录，默认为 {user.home}/jd-data/{project}。在写文件时可用env.baseDir作为目录。注意目录分隔符用"/"，注意以"/"结尾。
  */
 	public Properties props;
 
