@@ -8,10 +8,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.*;
 import javax.servlet.http.*;
-
-import org.apache.tomcat.util.http.fileupload.FileUtils;
 
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
@@ -335,34 +334,29 @@ public class JDEnvBase
 
 		JsArray ret = new JsArray();
 		int retCode = 0;
+		@SuppressWarnings("unchecked")
 		List<CallCtx> ctxList = (List<CallCtx>)this.postData;
-		for (CallCtx ctx1 : ctxList) {
+		for (CallCtx ctx : ctxList) {
 			if (useTrans && retCode != 0) {
 				ret.add(new JsArray(JDApiBase.E_ABORT, "事务失败，取消执行", "batch call cancelled."));
 				continue;
 			}
-			if (ctx1.ac == null) {
+			if (ctx.ac == null) {
 				ret.add(new JsArray(JDApiBase.E_PARAM, "参数错误", "bad batch request: require `ac'"));
 				continue;
 			}
 
-			_GET = ctx1.get;
+			_GET = ctx.get;
 			if (_GET == null)
 				_GET = new JsObject();
-			_POST = ctx1.post;
+			_POST = ctx.post;
 			if (_POST == null)
 				_POST = new JsObject();
-			/* TODO: handle ref
-			if (ctx1.ref != null) {
-				if (! is_array($call["ref"])) {
-					$retVal[] = [E_PARAM, "参数错误", "batch `ref' should be array"];
-					continue;
-				}
-				// TODO: handleBatchRef($call["ref"], $retVal);
+			if (ctx.ref != null) {
+				handleBatchRef(ctx.ref, ret);
 			}
-			*/
 
-			JsArray rv = callSvcSafe(ctx1.ac, !useTrans);
+			JsArray rv = callSvcSafe(ctx.ac, !useTrans);
 
 			retCode = (int)rv.get(0);
 			ret.add(rv);
@@ -511,6 +505,100 @@ public class JDEnvBase
 			return true;
 		}
 		return false;
+	}
+
+	private void handleBatchRef(String[] ref, JsArray retArr)
+	{
+		for (String k: ref) {
+			if (_GET.containsKey(k)) {
+				_GET.put(k, calcRefValue(_GET.get(k).toString(), retArr));
+			}
+			if (_POST.containsKey(k)) {
+				_POST.put(k, calcRefValue(_POST.get(k).toString(), retArr));
+			}
+		}
+	}
+
+	/*
+	 * 计算"{$1}", "{$1.id}", "{$-1[0]}", "{$-1[0].id}"
+	 * 如果计算错误，则以null填充
+	 * retArr为筋斗云接口调用返回值数组，如 [ [0, ret1], [0, ret2], ... ]
+	 */
+	public static String calcRefValue(String val, JsArray retArr)
+	{
+		class RetArrayAccess {
+			private Object val = retArr;
+
+			private void myAssert(boolean cond) {
+				if (! cond) {
+					val = null;
+					throw new RuntimeException("assert fail");
+				}
+			}
+			@SuppressWarnings("rawtypes")
+			void prop(String name) {
+				myAssert(val instanceof Map);
+				Map m = (Map)val;
+				myAssert(m.containsKey(name));
+				val = m.get(name);
+			}
+			// isRoot: true为$引用, 如$1, $-1; false为数组引用，如[0],[1]
+			@SuppressWarnings("rawtypes")
+			void index(int idx, boolean isRoot) {
+				myAssert(val instanceof List);
+				List arr = (List)val;
+				if (idx < 0) {
+					idx = arr.size() + idx;
+					myAssert(idx >= 0);
+					val = arr.get(idx);
+				}
+				else {
+					if (isRoot) {
+						-- idx; // $1 -> [0]
+					}
+					myAssert(idx < arr.size());
+					val = arr.get(idx);
+				}
+				if (isRoot) {
+					myAssert(val instanceof List);
+					List val1 = (List)val;
+					myAssert(val1.size() >= 2); // && Integer.parseInt(val1.get(0).toString()) == 0);
+					val = val1.get(1);
+				}
+			}
+			public String toString() {
+				if (val == null)
+					return "null";
+				return val.toString();
+			}
+		}
+
+		String v1 = JDApiBase.regexReplace(val, "\\{(.+?)\\}", m -> {
+			String expr = m.group(1);
+			RetArrayAccess a = new RetArrayAccess(); 
+			JDApiBase.regexReplace(expr, "\\$(-?\\d+)|\\[(\\d+)\\]|\\.(\\w+)", m1 -> {
+				try {
+					if (m1.group(1) != null) {
+						int idx = Integer.parseInt(m1.group(1));
+						a.index(idx, true);
+					}
+					else if (m1.group(2) != null) {
+						int idx = Integer.parseInt(m1.group(2));
+						a.index(idx, false);
+					}
+					else if (m1.group(3) != null) {
+						String name = m1.group(3);
+						a.prop(name);
+					}
+				} catch (Exception ex) {
+					// bad access
+				}
+				return "";
+			});
+			return a.toString();
+		});
+		// TODO: addLog("### batch ref: `{$val}' -> `{$v1}'");
+		return v1;
 	}
 
 	public void dbconn() throws MyException
