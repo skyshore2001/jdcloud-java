@@ -254,7 +254,7 @@ public class JDEnvBase
 			if (ac == null) {
 				ac = init();
 				if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
-					apiLog = new ApiLog(this, ac);
+					apiLog = new ApiLog(ac);
 					apiLog.logBefore();
 				}
 			}
@@ -809,126 +809,123 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 			return false;
 		}
 	}
-}
 
-class ApiLog
-{
-	private JDEnvBase env;
-	private JDApiBase api;
-	long startTm;
-	String ac;
-	int id;
-
-	public ApiLog(JDEnvBase env, String ac) {
-		this.env = env;
-		this.api = env.api;
-		this.ac = ac;
-	}
-
-	// var: String/JsObject
-	private String myVarExport(Object var, int maxLength)
+	class ApiLog
 	{
-		if (var instanceof String) {
-			String var1 = JDApiBase.regexReplace((String)var, "\\s+", " ");
-			if (var1.length() > maxLength)
-				var1 = var1.substring(0, maxLength) + "...";
-			return var1;
+		long startTm;
+		String ac;
+		int id;
+
+		public ApiLog(String ac) {
+			this.ac = ac;
 		}
-		if (var instanceof JsObject) {
-			JsObject var1 = (JsObject)var;
-			StringBuffer sb = new StringBuffer();
-			int maxKeyLen = 30;
-			for (Map.Entry<String, Object> e: var1.entrySet()) {
-				String k = e.getKey();
-				Object v = e.getValue();
-				int klen = k.length();
-				// 注意：有时raw http内容被误当作url-encoded编码，会导致所有内容成为key. 例如API upload.
-				if (klen > maxKeyLen)
-					return k.substring(0, maxKeyLen) + "...";
-				int len = sb.length();
-				if (len >= maxLength) {
-					sb.append(k).append("=...");
-					break;
-				}
-				if (k.contains("pwd")) {
-					v = "?";
-				}
-				if (len > 0) {
-					sb.append(", ");
-				}
-				sb.append(k).append("=").append(v);
+
+		// var: String/JsObject
+		private String myVarExport(Object var, int maxLength)
+		{
+			if (var instanceof String) {
+				String var1 = JDApiBase.regexReplace((String)var, "\\s+", " ");
+				if (var1.length() > maxLength)
+					var1 = var1.substring(0, maxLength) + "...";
+				return var1;
 			}
-			return sb.toString();
+			if (var instanceof JsObject) {
+				JsObject var1 = (JsObject)var;
+				StringBuffer sb = new StringBuffer();
+				int maxKeyLen = 30;
+				for (Map.Entry<String, Object> e: var1.entrySet()) {
+					String k = e.getKey();
+					Object v = e.getValue();
+					int klen = k.length();
+					// 注意：有时raw http内容被误当作url-encoded编码，会导致所有内容成为key. 例如API upload.
+					if (klen > maxKeyLen)
+						return k.substring(0, maxKeyLen) + "...";
+					int len = sb.length();
+					if (len >= maxLength) {
+						sb.append(k).append("=...");
+						break;
+					}
+					if (k.contains("pwd")) {
+						v = "?";
+					}
+					if (len > 0) {
+						sb.append(", ");
+					}
+					sb.append(k).append("=").append(v);
+				}
+				return sb.toString();
+			}
+			return var.toString();
 		}
-		return var.toString();
+
+		void logBefore()
+		{
+			try {
+				this.startTm = api.time();
+		
+				String type = appType;
+				Object userId = null;
+				// TODO: hard code
+				if (type.equals("user")) {
+					userId = api.getSession("uid");
+				}
+				else if (type.equals("emp")) {
+					userId = api.getSession("empId");
+				}
+				else if (type.equals("admin")) {
+					userId = api.getSession("adminId");
+				}
+				if (userId == null)
+					userId = "NULL";
+				String content = myVarExport(_GET, 2000);
+				String content2 = null;
+				String ct = request.getContentType();
+				if (ct != null)
+					ct = ct.toLowerCase();
+				if (!_POST.isEmpty()) {
+					content2 = myVarExport(_POST, 2000);
+				}
+				if (content2 != null && content2.length() > 0)
+					content += ";\n" + content2;
+				String remoteAddr = request.getRemoteAddr();
+				int reqsz = request.getRequestURI().length() + request.getContentLength();
+				String query = request.getQueryString();
+				if (query != null)
+					reqsz += query.length();
+		
+				String ua = request.getHeader("User-Agent");
+		
+				String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
+					api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(appName), 
+					JDApiBase.Q(request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(clientVer)
+				);
+				this.id = api.execOne(sql, true);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+
+		void logAfter()
+		{
+			if (conn == null)
+				return;
+			try {
+				long iv = api.time() - this.startTm;
+				String content = myVarExport(X_RET_STR, 200);
+		
+				String userIdStr = "";
+				if (this.ac.equals("login") && X_RET.get(1) instanceof JsObject) {
+					userIdStr = ", userId=" + ((JsObject)X_RET.get(1)).get("id");
+				}
+				String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
+						iv, X_RET.get(0), X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
+
+				@SuppressWarnings("unused")
+				int rv = api.execOne(sql);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
 	}
 
-	void logBefore()
-	{
-		try {
-			this.startTm = env.api.time();
-	
-			String type = env.appType;
-			Object userId = null;
-			// TODO: hard code
-			if (type.equals("user")) {
-				userId = api.getSession("uid");
-			}
-			else if (type.equals("emp")) {
-				userId = api.getSession("empId");
-			}
-			else if (type.equals("admin")) {
-				userId = api.getSession("adminId");
-			}
-			if (userId == null)
-				userId = "NULL";
-			String content = myVarExport(env._GET, 2000);
-			String content2 = null;
-			String ct = env.request.getContentType();
-			if (ct != null)
-				ct = ct.toLowerCase();
-			if (!env._POST.isEmpty()) {
-				content2 = myVarExport(env._POST, 2000);
-			}
-			if (content2 != null && content2.length() > 0)
-				content += ";\n" + content2;
-			String remoteAddr = env.request.getRemoteAddr();
-			int reqsz = env.request.getRequestURI().length() + env.request.getContentLength();
-			String query = env.request.getQueryString();
-			if (query != null)
-				reqsz += query.length();
-	
-			String ua = env.request.getHeader("User-Agent");
-	
-			String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
-				api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(env.appName), 
-				JDApiBase.Q(env.request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(env.clientVer)
-			);
-			this.id = api.execOne(sql, true);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	void logAfter()
-	{
-		if (env.conn == null)
-			return;
-		try {
-			long iv = api.time() - this.startTm;
-			String content = myVarExport(env.X_RET_STR, 200);
-	
-			String userIdStr = "";
-			if (this.ac.equals("login") && env.X_RET.get(1) instanceof JsObject) {
-				userIdStr = ", userId=" + ((JsObject)env.X_RET.get(1)).get("id");
-			}
-			String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
-					iv, env.X_RET.get(0), env.X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
-
-			@SuppressWarnings("unused")
-			int rv = api.execOne(sql);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
 }
