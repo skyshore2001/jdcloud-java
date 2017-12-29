@@ -1243,4 +1243,18 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 	public void exit() {
 		throw new DirectReturn();
 	}
+	
+/**<pre>
+%fn safeClose(o)
+
+Close without exception.
+ */
+	public void safeClose(AutoCloseable o) {
+		try {
+			if (o != null)
+				o.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
 }

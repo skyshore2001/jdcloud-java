@@ -19,6 +19,12 @@ public class JDEnvBase
 		public boolean asAdmin = false;
 	}
 
+	public class CallCtx {
+		public boolean useTrans;
+		public String ac;
+		public JsObject get;
+		public JsObject post;
+	}
 /**<pre>
 %var env.isTestMode
 
@@ -51,6 +57,9 @@ public class JDEnvBase
 	public HttpServletRequest request;
 	public HttpServletResponse response;
 	public JsObject _GET, _POST;
+
+	// JSON对象序列化后
+	protected Object postData;
 
 	public String dbType = "mysql";
 	public DbStrategy dbStrategy;
@@ -111,17 +120,23 @@ public class JDEnvBase
 	public String X_RET_STR;
 	public JsArray X_RET;
 
-	private void init(HttpServletRequest request, HttpServletResponse response, Properties props) throws Exception
+	@SuppressWarnings("unchecked")
+	private CallCtx init() throws Exception
 	{
-		this.request = request;
-		this.response = response;
-		this.props = props;
-		
-		this.api = new JDApiBase();
-		this.api.env = this;
-		
-		this._GET = new JsObject();
-		this._POST = new JsObject();
+		String origin = request.getHeader("Origin");
+		if (origin != null)
+		{
+			response.setHeader("Access-Control-Allow-Origin", origin);
+			response.setHeader("Access-Control-Allow-Credentials", "true");
+			response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+		}
+
+		if (request.getMethod().equals("OPTIONS"))
+			api.exit();
+
+		CallCtx ctx = new CallCtx();
+		this._GET = ctx.get = new JsObject();
+		this._POST = ctx.post = new JsObject();
 		String q = this.request.getQueryString();
 		if (q != null) {
 			Set<String> set = new HashSet<String>();
@@ -133,17 +148,17 @@ public class JDEnvBase
 			while (em.hasMoreElements()) {
 				String k = em.nextElement();
 				if (set.contains(k))
-					this._GET.put(k, request.getParameter(k));
+					ctx.get.put(k, request.getParameter(k));
 				else
-					this._POST.put(k, request.getParameter(k));
+					ctx.post.put(k, request.getParameter(k));
 			}
 		}
 		// 支持POST为json格式
 		if (this.request.getContentType() != null && this.request.getContentType().indexOf("/json") > 0) {
-			@SuppressWarnings("unchecked")
-			Map<String, Object> m = (Map<String, Object>)new Gson().fromJson(this.request.getReader(), Map.class);
-			if (m != null)
-				_POST.putAll(m);
+			this.postData = new Gson().fromJson(this.request.getReader(), Object.class);
+			if (this.postData instanceof Map) {
+				ctx.post.putAll((Map<String, Object>)this.postData);
+			}
 		}
 
 		// TODO: static
@@ -177,49 +192,56 @@ public class JDEnvBase
 			throw new MyException(JDApiBase.E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
 		
 		this.dbStrategy.init(this);
+
+		response.setContentType("text/plain; charset=utf-8");
+		if (this.isTestMode)
+		{
+			api.header("X-Daca-Test-Mode", "1");
+		}
+		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
+
+		this.onApiInit();
+
+		Pattern re = Pattern.compile("([\\w|.]+)$");
+		Matcher m = re.matcher(request.getPathInfo());
+		if (! m.find()) {
+			throw new MyException(JDApiBase.E_PARAM, "bad ac");
+		}
+		ctx.ac = m.group(1);
+
+		return ctx;
 	}
 	
 	public void service(HttpServletRequest request, HttpServletResponse response, Properties props) {
+		this.request = request;
+		this.response = response;
+		this.props = props;
+		
+		this.api = new JDApiBase();
+		this.api.env = this;
+		
+		callSvcSafe(null);
+	}
+	
+	public JsArray callSvcSafe(CallCtx ctx) {
 		JsArray ret = new JsArray(0, null);
 		boolean ok = false;
 		boolean dret = false;
 		ApiLog apiLog = null;
+		boolean isDefaultCall = ctx == null;
 		try {
-			init(request, response, props);
-			String origin = request.getHeader("Origin");
-			if (origin != null)
-			{
-				response.setHeader("Access-Control-Allow-Origin", origin);
-				response.setHeader("Access-Control-Allow-Credentials", "true");
-				response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+			if (ctx == null) {
+				ctx = init();
+				if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
+					apiLog = new ApiLog(this, ctx.ac);
+					apiLog.logBefore();
+				}
 			}
 
-			if (request.getMethod().equals("OPTIONS"))
-				return;
+			if (ctx.useTrans)
+				this.beginTrans();
 
-			response.setContentType("text/plain; charset=utf-8");
-			if (this.isTestMode)
-			{
-				api.header("X-Daca-Test-Mode", "1");
-			}
-			// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
-
-			this.onApiInit();
-
-			Pattern re = Pattern.compile("([\\w|.]+)$");
-			Matcher m = re.matcher(request.getPathInfo());
-			if (! m.find()) {
-				throw new MyException(JDApiBase.E_PARAM, "bad ac");
-			}
-			String ac = m.group(1);
-
-			if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
-				apiLog = new ApiLog(this, ac);
-				apiLog.logBefore();
-			}
-
-			this.beginTrans();
-			Object rv = this.callSvc(ac);
+			Object rv = this.callSvc(ctx.ac);
 			if (rv == null)
 				rv = "OK";
 			ok = true;
@@ -255,7 +277,8 @@ public class JDEnvBase
 			ex.printStackTrace();
 		}
 
-		this.endTrans(ok);
+		if (ctx != null && ctx.useTrans)
+			this.endTrans(ok);
 		if (this.debugInfo.size() > 0) {
 			ret.add(this.debugInfo);
 		}
@@ -265,18 +288,14 @@ public class JDEnvBase
 
 		if (apiLog != null)
 			apiLog.logAfter();
-		try {
-			if (this.conn != null)
-				this.conn.close();
-		}
-		catch (SQLException e) {
-			e.printStackTrace();
-		}
+
+		api.safeClose(this.conn);
 		this.conn = null;
 
-		if (! dret) {
+		if (! dret && isDefaultCall) {
 			api.echo(this.X_RET_STR);
 		}
+		return ret;
 	}
 
 	public Object callSvc(String ac) throws Exception
