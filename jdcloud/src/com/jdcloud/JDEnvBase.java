@@ -1,14 +1,20 @@
 package com.jdcloud;
 import java.io.File;
+import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.*;
 import javax.servlet.http.*;
+
+import org.apache.tomcat.util.http.fileupload.FileUtils;
+
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
 
 public class JDEnvBase
 {
@@ -19,11 +25,12 @@ public class JDEnvBase
 		public boolean asAdmin = false;
 	}
 
-	public class CallCtx {
-		public boolean useTrans;
+	// used by batch call
+	public static class CallCtx {
 		public String ac;
 		public JsObject get;
 		public JsObject post;
+		public String[] ref;
 	}
 /**<pre>
 %var env.isTestMode
@@ -121,7 +128,7 @@ public class JDEnvBase
 	public JsArray X_RET;
 
 	@SuppressWarnings("unchecked")
-	private CallCtx init() throws Exception
+	private String init() throws Exception
 	{
 		String origin = request.getHeader("Origin");
 		if (origin != null)
@@ -134,9 +141,16 @@ public class JDEnvBase
 		if (request.getMethod().equals("OPTIONS"))
 			api.exit();
 
-		CallCtx ctx = new CallCtx();
-		this._GET = ctx.get = new JsObject();
-		this._POST = ctx.post = new JsObject();
+		// parse ac
+		Pattern re = Pattern.compile("([\\w|.]+)$");
+		Matcher m = re.matcher(request.getPathInfo());
+		if (! m.find()) {
+			throw new MyException(JDApiBase.E_PARAM, "bad ac");
+		}
+		String ac = m.group(1);
+
+		this._GET = new JsObject();
+		this._POST = new JsObject();
 		String q = this.request.getQueryString();
 		if (q != null) {
 			Set<String> set = new HashSet<String>();
@@ -148,16 +162,30 @@ public class JDEnvBase
 			while (em.hasMoreElements()) {
 				String k = em.nextElement();
 				if (set.contains(k))
-					ctx.get.put(k, request.getParameter(k));
+					this._GET.put(k, request.getParameter(k));
 				else
-					ctx.post.put(k, request.getParameter(k));
+					this._POST.put(k, request.getParameter(k));
 			}
 		}
+
 		// 支持POST为json格式
 		if (this.request.getContentType() != null && this.request.getContentType().indexOf("/json") > 0) {
-			this.postData = new Gson().fromJson(this.request.getReader(), Object.class);
+			Type type = null;
+			if (ac.equals("batch")) {
+				type = new TypeToken<List<CallCtx>>() {}.getType();
+			}
+			else {
+				type = Object.class;
+			}
+			try {
+				Reader rd = this.request.getReader();
+				this.postData = new Gson().fromJson(rd, type);
+			}
+			catch (Exception e) {
+				throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
+			}
 			if (this.postData instanceof Map) {
-				ctx.post.putAll((Map<String, Object>)this.postData);
+				this._POST.putAll((Map<String, Object>)this.postData);
 			}
 		}
 
@@ -175,7 +203,6 @@ public class JDEnvBase
 		this.clientVer = (String)api.param("_ver", null, "G");
 		if (this.clientVer == null) {
 			// Mozilla/5.0 (Linux; U; Android 4.1.1; zh-cn; MI 2S Build/JRO03L) AppleWebKit/533.1 (KHTML, like Gecko)Version/4.0 MQQBrowser/5.4 TBS/025440 Mobile Safari/533.1 MicroMessenger/6.2.5.50_r0e62591.621 NetType/WIFI Language/zh_CN
-			Matcher m;
 			if ((m=JDApiBase.regexMatch(this.request.getHeader("User-Agent"), "MicroMessenger\\/([0-9.]+)")).find()) {
 				this.clientVer = "wx/" + m.group(1);
 			}
@@ -202,14 +229,7 @@ public class JDEnvBase
 
 		this.onApiInit();
 
-		Pattern re = Pattern.compile("([\\w|.]+)$");
-		Matcher m = re.matcher(request.getPathInfo());
-		if (! m.find()) {
-			throw new MyException(JDApiBase.E_PARAM, "bad ac");
-		}
-		ctx.ac = m.group(1);
-
-		return ctx;
+		return ac;
 	}
 	
 	public void service(HttpServletRequest request, HttpServletResponse response, Properties props) {
@@ -220,28 +240,36 @@ public class JDEnvBase
 		this.api = new JDApiBase();
 		this.api.env = this;
 		
-		callSvcSafe(null);
+		callSvcSafe(null, true);
 	}
 	
-	public JsArray callSvcSafe(CallCtx ctx) {
+	// ac=null: auto init
+	public JsArray callSvcSafe(String ac, boolean useTrans) {
 		JsArray ret = new JsArray(0, null);
 		boolean ok = false;
 		boolean dret = false;
 		ApiLog apiLog = null;
-		boolean isDefaultCall = ctx == null;
+		boolean isDefaultCall = ac == null;
 		try {
-			if (ctx == null) {
-				ctx = init();
+			if (ac == null) {
+				ac = init();
 				if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
-					apiLog = new ApiLog(this, ctx.ac);
+					apiLog = new ApiLog(this, ac);
 					apiLog.logBefore();
 				}
 			}
 
-			if (ctx.useTrans)
+			if (useTrans)
 				this.beginTrans();
 
-			Object rv = this.callSvc(ctx.ac);
+			Object rv = null;
+			if (! ac.equals("batch")) {
+				rv = this.callSvc(ac);
+			}
+			else {
+				boolean batchUseTrans = (boolean)api.param("useTrans/b", false, "G");
+				rv = this.batchCall(batchUseTrans);
+			}
 			if (rv == null)
 				rv = "OK";
 			ok = true;
@@ -277,7 +305,7 @@ public class JDEnvBase
 			ex.printStackTrace();
 		}
 
-		if (ctx != null && ctx.useTrans)
+		if (useTrans)
 			this.endTrans(ok);
 		if (this.debugInfo.size() > 0) {
 			ret.add(this.debugInfo);
@@ -294,6 +322,50 @@ public class JDEnvBase
 
 		if (! dret && isDefaultCall) {
 			api.echo(this.X_RET_STR);
+		}
+		return ret;
+	}
+
+	private JsArray batchCall(boolean useTrans) {
+		if (! request.getMethod().equals("POST"))
+			throw new MyException(JDApiBase.E_PARAM, "batch MUST use `POST' method");
+
+		if (! (this.postData instanceof List))
+			throw new MyException(JDApiBase.E_PARAM, "bad batch request");
+
+		JsArray ret = new JsArray();
+		int retCode = 0;
+		List<CallCtx> ctxList = (List<CallCtx>)this.postData;
+		for (CallCtx ctx1 : ctxList) {
+			if (useTrans && retCode != 0) {
+				ret.add(new JsArray(JDApiBase.E_ABORT, "事务失败，取消执行", "batch call cancelled."));
+				continue;
+			}
+			if (ctx1.ac == null) {
+				ret.add(new JsArray(JDApiBase.E_PARAM, "参数错误", "bad batch request: require `ac'"));
+				continue;
+			}
+
+			_GET = ctx1.get;
+			if (_GET == null)
+				_GET = new JsObject();
+			_POST = ctx1.post;
+			if (_POST == null)
+				_POST = new JsObject();
+			/* TODO: handle ref
+			if (ctx1.ref != null) {
+				if (! is_array($call["ref"])) {
+					$retVal[] = [E_PARAM, "参数错误", "batch `ref' should be array"];
+					continue;
+				}
+				// TODO: handleBatchRef($call["ref"], $retVal);
+			}
+			*/
+
+			JsArray rv = callSvcSafe(ctx1.ac, !useTrans);
+
+			retCode = (int)rv.get(0);
+			ret.add(rv);
 		}
 		return ret;
 	}
@@ -474,6 +546,9 @@ public class JDEnvBase
 		if (this.conn == null)
 			return;
 		try {
+			// NOT in trans
+			if (conn.getAutoCommit())
+				return;
 			if (ok) {
 				this.conn.commit();
 			}
@@ -483,6 +558,7 @@ public class JDEnvBase
 			this.conn.setAutoCommit(true);
 		}
 		catch (SQLException e) {
+			e.printStackTrace();
 		}
 	}
 	
