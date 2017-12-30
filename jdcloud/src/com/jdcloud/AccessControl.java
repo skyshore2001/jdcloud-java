@@ -683,7 +683,7 @@ public class AccessControl extends JDApiBase {
 				if (opt.sql == null)
 					continue;
 				String sql1 = String.format(opt.sql, id); // e.g. "select * from OrderItem where orderId=%d"
-				boolean tryCache = sql1 == opt.sql;
+				boolean tryCache = sql1.equals(opt.sql);
 				JsArray ret1 = queryAll(sql1, true, tryCache);
 				if (opt.wantOne) 
 				{
