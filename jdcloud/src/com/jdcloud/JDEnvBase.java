@@ -7,6 +7,7 @@ import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.function.Function;
 import java.util.regex.*;
@@ -569,6 +570,10 @@ public class JDEnvBase
 			public String toString() {
 				if (val == null)
 					return "null";
+				if (val instanceof Double) {
+					DecimalFormat fmt = new DecimalFormat("#");
+					val = fmt.format((Double)val);
+				}
 				return val.toString();
 			}
 		}
