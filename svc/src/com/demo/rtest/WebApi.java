@@ -150,7 +150,7 @@ class AC1_UserApiLog extends AC_ApiLog
 ") last3LogAc");
 		}
 	
-		this.vcolDefs = Arrays.asList(
+		this.vcolDefs = asList(
 			new VcolDef().res("u.name userName")
 				.join("INNER JOIN User u ON u.id=t0.userId")
 				.isDefault(true),

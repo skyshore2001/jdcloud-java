@@ -18,6 +18,10 @@ public class AccessControl extends JDApiBase {
 			this.res = JDApiBase.asList(val);
 			return this;
 		}
+		public VcolDef res(List<String> val) {
+			this.res = val;
+			return this;
+		}
 		public VcolDef join(String val) {
 			this.join = val;
 			return this;

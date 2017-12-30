@@ -554,6 +554,9 @@ TODO: 直接支持 param("items/(id,qty?/n,dscr?)"), 添加param_objarr函数，
 				throw new MyException(E_SERVER, String.format("unknown type `%s` for param `%s`", type, name));
 			}
 		}
+		else if (ret instanceof Double && type.equals("i")) {
+			ret = ((Double)ret).intValue();
+		}
 		return ret;
 	}
 
@@ -1256,5 +1259,48 @@ Close without exception.
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+/**
+%fn tmCols(fieldName = "t0.tm")
+
+为查询添加时间维度单位: y,m,w,d,wd,h (年，月，周，日，周几，时)。
+
+- wd: 1-7表示周一到周日
+- w: 一年中第一周，从该年第一个周一开始(mysql week函数模式7).
+
+示例：
+
+		$this->vcolDefs[] = [ "res" => tmCols() ];
+		$this->vcolDefs[] = [ "res" => tmCols("t0.createTm") ];
+		$this->vcolDefs[] = [ "res" => tmCols("log_cr.tm"), "require" => "createTm" ];
+
+ */
+	public List<String> tmCols(String fieldName) {
+		return asList("year(" + fieldName + ") y",
+				"month(" + fieldName + ") m",
+				"week(" + fieldName + ",7) w",
+				"day(" + fieldName + ") d", 
+				"weekday(" + fieldName + ")+1 wd",
+				"hour(" + fieldName + ") h");
+	}
+	public List<String> tmCols() {
+		return tmCols("t0.tm");
+	}
+	
+/**
+%fn issetval(fieldName)
+
+判断POST内容中是否对该字段设置值，示例：
+(在onValidate回调中)
+
+	if (issetval("pwd")) {
+		String pwd = (String)env._POST.get("pwd");
+		env._POST.put("pwd", hashPwd(pwd));
+	}
+
+*/
+	public boolean issetval(String field) {
+		return env._POST.containsKey(field) && env._POST.get(field) != null;
 	}
 }
