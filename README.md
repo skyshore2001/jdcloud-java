@@ -1589,19 +1589,113 @@ class AC1_Ordr extends AccessControl
 
 ## 框架功能
 
-### TODO: 会话管理
+### 服务配置
+
+服务端配置文件为`WEB-INF/web.properties`。一般习惯上提交web.properties.template文件到代码库中，在部署时，手工复制修改它来创建web.properties文件。
+
+在配置文件中应通过JDEnv指定服务入口类，如：
+
+	JDEnv=com.demo.WebApi
+
+在参考文档中搜索web.properties查看所有配置选项。
+
+配置选项还可以通过在JDEnv的onApiInit回调函数来初始化，如
+
+	// class WebApi extends JDEnvBase
+	protected void onApiInit() {
+		// 关闭ApiLog
+		this.props.setProperty("enableApiLog", "0");	
+	}
+
+### 会话管理
 
 筋斗云使用cookie机制来维持与客户端的会话。
-按DACA规范，默认使用的cookie名称是"userid"，但可以由客户端请求中URL参数`_app`来修改，比如`_app=emp`，则使用cookie名称为"empid"。
+按DACA规范，后端服务应支持多种前端应用（appType不同）同时访问，例如在浏览器中同时登录客户端(appType="user")和管理端(appType="emp")，两者应互不干扰，比如一个应用退出登录不会造成另一应用退出。
+前端通过URL参数`_app`传递appName（隐含了appType，如appName="emp-adm"时其appType为"emp"），服务在实现时需要对不同的appType进行会话隔离。
 
-在tomcat中，可在server.xml中设置会话使用的cookie名称，比如：
+在jdcloud-php版本中，通过不同appType使用不同的cookie名来实现应用类型隔离。
+例如客户端应用和管理端应用使用的cookie名称为"userid"和"empid"。
 
-	<Context path="/" docBase="webapp" sessionCookieName="yoursessionname"></Context>
+受限于javaweb机制，session使用的cookie名称(JSESSIONID)无法根据请求参数动态设置。因而不同的应用可能会共享同一session的，框架在实现时确保不同应用的session不重名且一个应用退出不影响其它应用。
+开发者应调用getSession/setSession/unsetSession/destroySession这些方法来操作session，避免使用Servlet原生的 env.request.getSession 来操作。
 
-受限于java机制，cookie名称无法动态设置。这将导致如果在同一浏览器中打开多个不同应用，比如同时打开用户端和员工端，可能会有会话冲突。
-例如用户端退出(logout)导致员工端也被退出，如果在实现时不同应用使用了同名的session，也会出现不可预料的问题。
+如果想修改默认的session名称（JSESSIONID）或超时时间（30分钟），可在WEB-INF/web.xml中配置：
 
-在开发时，应确保不同使用不要使用同名的session项。手工测试时，应避免在同一浏览器中打开多个应用。
+	<session-config>  
+	  <session-timeout>30</session-timeout>  
+	  <cookie-config>  
+		<name>jdcloudId</name>  
+	  </cookie-config>  
+	</session-config>
+
+### API调用监控
+
+筋斗云php框架默认将接口调用记录到表ApiLog中供分析。
+可通过配置选项`enableApiLog=0`关闭该特性。
+
+### 批量请求
+
+DACA协议定义了批量请求，即在一次请求中，包含多条接口调用，并可指定是否在一个事务中执行。
+
+示例：
+
+	POST api/batch
+	
+	[
+		{
+			"ac": "User.get",
+			"get": {"res": "name,phone"}
+		},
+		{
+			"ac": "ActionLog.add",
+			"post": {"page": "home", "ver": "android", "userId": "{$-1.id}"},
+			"ref": ["userId"]
+		}
+	]
+
+主要特性：
+
+- 一次请求包含多个调用。通过POST请求中的JSON数组指定，数组中每一项为一个调用，其格式为: `{ac, %get?, %post?, @ref?}`, 只有ac参数必须，其它均可省略。
+- 事务。可通过URL参数useTrans来指定多个调用是否在一个事务中，即可指定一个调用失败是否回滚前面调用的改动。
+- 前向引用。后面调用可引用前面调用的结果，如"{$-1}"就是一个前向引用，每个引用包含在`{}`中，含有引用的参数通过ref数组指定。
+
+get
+: URL请求参数。
+
+post
+: POST请求参数。
+
+ref
+: 使用了batch引用的参数列表。
+
+如果使用事务，只是URL上加个参数：
+
+	POST api/batch?useTrans=1
+
+batch的返回内容是多条调用返回内容组成的数组，样例如下：
+
+	[0, [
+		[ 0, {id: 1, name: "用户1", phone: "13712345678"} ],  // 调用User.get的返回结果
+		[ 0, "OK" ]  // 调用ActionLog.add的返回结果
+	]]
+
+具体可参考筋斗云前端文档及DACA协议文档。
+
+### 筋斗云插件
+
+目前在演示程序中提供了系统支持JDLogin和JDUpload两个插件。
+
+插件类应以JD为前缀，应包括接口文档，具有独立的函数接口和对象接口。
+
+使用插件时，先将插件源码复制入口类(JDEnv)相同包中。为了调用其中函数接口，应配置onCreateApi回调：
+
+	// class WebApi extends JDEnvBase
+	protected String[] onCreateApi()
+	{
+		return new String[] { "Global", "JDLogin", "JDUpload" };
+	}
+
+TODO: 插件工具
 
 ### 其它未实现功能
 
@@ -1621,18 +1715,7 @@ logit - 调试输出到文件。
 
 参考 X-Daca-Server-Rev.
 
-- 批量请求
-
-DACA协议定义了批量请求，即在一次请求中，包含多条接口调用，并可指定是否在一个事务中执行。
-筋斗云.NET框架暂不支持批量请求。
-
 - 后台定时任务框架
 
-- API调用监控
-
-筋斗云php框架默认将接口调用记录到表ApiLog中供分析。
-
 - 模拟模式与第三方扩展接口
-
-- 筋斗云插件
 

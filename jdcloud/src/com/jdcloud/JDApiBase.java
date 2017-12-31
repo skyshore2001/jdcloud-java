@@ -22,6 +22,7 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.DESKeySpec;
+import javax.servlet.http.HttpSession;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -745,7 +746,8 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 %see destroySession
  */
 	public Object getSession(String name) {
-		return env.request.getSession().getAttribute(name);
+		String name1 = env.appType + "-" + name;
+		return env.request.getSession().getAttribute(name1);
 	}
 /**<pre>
 %fn setSession(name, value)
@@ -755,7 +757,8 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 %see destroySession
  */
 	public void setSession(String name, Object value) {
-		env.request.getSession().setAttribute(name, value);
+		String name1 = env.appType + "-" + name;
+		env.request.getSession().setAttribute(name1, value);
 	}
 /**<pre>
 %fn unsetSession(name)
@@ -765,7 +768,8 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 %see destroySession
  */
 	public void unsetSession(String name) {
-		env.request.getSession().removeAttribute(name);
+		String name1 = env.appType + "-" + name;
+		env.request.getSession().removeAttribute(name1);
 	}
 /**<pre>
 %fn destroySession()
@@ -775,7 +779,25 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 %see unsetSession
  */
 	public void destroySession() {
-		env.request.getSession().invalidate();
+		HttpSession ses = env.request.getSession();
+		boolean allRemoved = true;
+		Enumeration<String> it = ses.getAttributeNames();
+		List<String> toDel = new ArrayList<String>();
+		String prefix = env.appType + "-";
+		while (it.hasMoreElements()) {
+			String key = it.nextElement();
+			if (! key.startsWith(prefix)) {
+				allRemoved = false;
+				continue;
+			}
+			toDel.add(key);
+		}
+		if (allRemoved) {
+			ses.invalidate();
+		}
+		else {
+			toDel.forEach(e -> ses.removeAttribute(e));
+		}
 	}
 
 	public void checkAuth(int perms)
