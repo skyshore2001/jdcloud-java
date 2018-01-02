@@ -333,14 +333,17 @@ public class JDApiBase
 		//TODO
 	}
 
-	public static boolean parseBoolean(String s)
+	public static boolean parseBoolean(Object o)
 	{
 		boolean val = false;
-		if (s == null)
-		{
+		if (o == null) {
 			return val;
 		}
-		s = s.toLowerCase();
+		if (o instanceof Double) {
+			double d = (double)o;
+			return d != 0.0;
+		}
+		String s = ((String)o).toLowerCase();
 		if (s.equals("0") || s.equals("false") || s.equals("off") || s.equals("no"))
 			val = false;
 		else if (s.equals("1") || s.equals("true") || s.equals("on") || s.equals("yes"))
@@ -555,8 +558,13 @@ TODO: 直接支持 param("items/(id,qty?/n,dscr?)"), 添加param_objarr函数，
 				throw new MyException(E_SERVER, String.format("unknown type `%s` for param `%s`", type, name));
 			}
 		}
-		else if (ret instanceof Double && type.equals("i")) {
-			ret = ((Double)ret).intValue();
+		else if (ret instanceof Double) {
+			if (type.equals("i")) {
+				ret = ((Double)ret).intValue();
+			}
+			else if (type.equals("b")) {
+				ret = parseBoolean(ret);
+			}
 		}
 		return ret;
 	}
