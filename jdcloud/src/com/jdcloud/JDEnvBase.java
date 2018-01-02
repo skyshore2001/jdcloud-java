@@ -251,7 +251,7 @@ public class JDEnvBase
 		ApiLog apiLog = null;
 		boolean isDefaultCall = ac == null;
 		try {
-			if (ac == null) {
+			if (isDefaultCall) {
 				ac = init();
 				if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
 					apiLog = new ApiLog(ac);
@@ -259,15 +259,18 @@ public class JDEnvBase
 				}
 			}
 
-			if (useTrans)
-				this.beginTrans();
-
 			Object rv = null;
 			if (! ac.equals("batch")) {
+				if (useTrans)
+					this.beginTrans();
 				rv = this.callSvc(ac);
 			}
 			else {
 				boolean batchUseTrans = (boolean)api.param("useTrans/b", false, "G");
+				if (useTrans && batchUseTrans)
+					this.beginTrans();
+				else
+					useTrans = false;
 				rv = this.batchCall(batchUseTrans);
 			}
 			if (rv == null)
@@ -281,6 +284,7 @@ public class JDEnvBase
 				ret.set(1, ex.retVal);
 			}
 			else {
+				ret.set(1, "OK");
 				dret = true;
 			}
 		}
@@ -314,14 +318,16 @@ public class JDEnvBase
 		this.X_RET_STR = api.jsonEncode(ret, this.isTestMode);;
 		this.X_RET = ret;
 
-		if (apiLog != null)
-			apiLog.logAfter();
+		if (isDefaultCall) {
+			if (apiLog != null)
+				apiLog.logAfter();
 
-		api.safeClose(this.conn);
-		this.conn = null;
+			api.safeClose(this.conn);
+			this.conn = null;
 
-		if (! dret && isDefaultCall) {
-			api.echo(this.X_RET_STR);
+			if (! dret) {
+				api.echo(this.X_RET_STR);
+			}
 		}
 		return ret;
 	}
@@ -361,6 +367,7 @@ public class JDEnvBase
 
 			retCode = (int)rv.get(0);
 			ret.add(rv);
+			this.debugInfo = new JsArray();
 		}
 		return ret;
 	}
