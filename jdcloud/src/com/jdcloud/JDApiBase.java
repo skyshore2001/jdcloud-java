@@ -1301,9 +1301,13 @@ Close without exception.
 
 示例：
 
-		$this->vcolDefs[] = [ "res" => tmCols() ];
-		$this->vcolDefs[] = [ "res" => tmCols("t0.createTm") ];
-		$this->vcolDefs[] = [ "res" => tmCols("log_cr.tm"), "require" => "createTm" ];
+	this.vcolDefs = asList(
+		new VcolDef().res(tmCols())
+	);
+
+	this.vcolDefs = asList(
+		new VcolDef().res(tmCols("log_cr.tm")).require("createTm")
+	);
 
  */
 	public List<String> tmCols(String fieldName) {
