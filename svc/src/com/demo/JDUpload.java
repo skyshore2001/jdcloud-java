@@ -36,18 +36,20 @@ public class JDUpload extends JDApiBase {
 		"store", new PicSize(200, 150)
 	);
 
-	// 设置允许上传的文件类型。设置为空表示允许所有。
-	static String[] ALLOWED_EXTS = {"jpeg", "jpg", "gif", "png", "txt", "docx", "doc"}; // ["pdf"];
-
-	// 如果扩展名未知，则使用MIME类型限制上传：
+	// 设置允许上传的文件类型。以及下载时的MIME信息
 	static Map<String, String> ALLOWED_MIME = asMap(
 		"jpg", "image/jpeg",
+		"jpeg", "image/jpeg",
 		"png", "image/png",
 		"gif", "image/gif",
 		"txt", "text/plain",
 		"pdf", "application/pdf",
-		"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-		//"xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"doc", "application/msword",
+		"xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"xls", "application/vnd.ms-excel",
+		"zip", "application/zip",
+		"rar", "application/x-rar-compressed"
 	);
 
 	// generate image/jpeg output. if out=null, output to stdout
@@ -89,6 +91,11 @@ public class JDUpload extends JDApiBase {
 		}
 		if (rv == false)
 			throw new MyException(E_PARAM, "cannot create image from: " + in.getName(), "写图片文件失败");
+	}
+	
+	boolean isPic(String ext)
+	{
+		return ext.equals("jpg") || ext.equals("jpeg") || ext.equals("png");
 	}
 
 	@FunctionalInterface
@@ -167,14 +174,15 @@ public class JDUpload extends JDApiBase {
 			void apply(String fname, String type, String mimeType, Consumer<File> writeFile, JsObject ret) throws Exception
 			{
 				// 检查文件类型
-				String ext = FilenameUtils.getExtension(fname);
+				String ext = FilenameUtils.getExtension(fname).toLowerCase();
+				String orgName = FilenameUtils.getName(fname);
 				if (ext.length() == 0 && mimeType != null) {
 					ext = indexOf(ALLOWED_MIME, (k,v)->v.equals(mimeType));
 					if (ext == null)
 						throw new MyException(E_PARAM, String.format("MIME type not supported: `%s`", mimeType), String.format("文件类型`%s`不支持.", mimeType));
 				}
 				
-				if (ALLOWED_EXTS.length > 0 && (ext.length() == 0 || indexOf(ALLOWED_EXTS, ext) < 0)) {
+				if (ext.length() == 0 || !ALLOWED_MIME.containsKey(ext)) {
 					throw new MyException(E_PARAM, String.format("unsupported extention name: `%s`", ext), String.format("文件扩展名`%s`不支持", ext));
 				}
 	
@@ -199,15 +207,16 @@ public class JDUpload extends JDApiBase {
 	
 				writeFile.accept(mainFile);
 				
-				if (autoResize && mainFile.length() > 500*KB) {
+				if (autoResize && isPic(ext) && mainFile.length() > 500*KB) {
 					resizeImage(mainFile, 1920, 1920, mainFile);
 				}
 
-				String sql = String.format("INSERT INTO Attachment (path, exif, tm) VALUES (%s, %s, now())",
-						Q(fileName), Q(exif));
+				String sql = String.format("INSERT INTO Attachment (path, exif, tm, orgName) VALUES (%s, %s, now(), %s)",
+						Q(fileName), Q(exif), Q(orgName));
 				int id = execOne(sql, true);
 
 				ret.put("id", id);
+				ret.put("orgName", orgName);
 
 				if (genThumb) {
 					if (! UploadType.containsKey(type))	
@@ -314,10 +323,10 @@ public class JDUpload extends JDApiBase {
 		}
 		String sql = null;
 		if (id != null)
-			sql = "SELECT path FROM Attachment WHERE id=" + id;
+			sql = "SELECT path, orgName FROM Attachment WHERE id=" + id;
 		else {
-			// a1: original, a2: thumb
-			sql = "SELECT a1.path FROM Attachment a1 INNER JOIN Attachment a2 ON a1.id=a2.orgPicId WHERE a2.id=" + thumbId;
+			// t0: original, a2: thumb
+			sql = "SELECT t0.path, t0.orgName FROM Attachment t0 INNER JOIN Attachment a2 ON t0.id=a2.orgPicId WHERE a2.id=" + thumbId;
 		}
 		Object rv = queryOne(sql);
 		if (rv.equals(false))
@@ -325,7 +334,9 @@ public class JDUpload extends JDApiBase {
 			env.response.setStatus(404);
 			exit();
 		}
-		String file = (String)rv;
+		JsArray rv1 = (JsArray)rv;
+		String file = (String)rv1.get(0);
+		String orgName = (String)rv1.get(1);
 		if (regexMatch(file, "https?:").find()) {
 			env.response.sendRedirect(file);
 			exit();
@@ -347,7 +358,16 @@ public class JDUpload extends JDApiBase {
 			header("Etag", etag);
 			//header("Expires: Thu, 3 Sep 2020 08:52:00 GMT");
 			//header("Content-length: " . filesize(file));
-			//header("Content-Disposition: attachment; filename=".basename(file));
+			if (orgName == null)
+				orgName = FilenameUtils.getName(file);
+			String disp = null;
+			if (isPic(ext)) {
+				disp = "filename=" + java.net.URLEncoder.encode(orgName, "UTF-8");
+			}
+			else {
+				disp = "attachment; filename=" + java.net.URLEncoder.encode(orgName, "UTF-8");
+			}
+			header("Content-Disposition", disp);
 			writeFile(fileAbs, env.response.getOutputStream());
 		}
 		else {
