@@ -2,6 +2,7 @@ package com.jdcloud;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -326,11 +327,32 @@ public class JDApiBase
 	}
 
 	public void logit(String s) {
-		logit(s, "trace");
+		logit(s, true, "trace");
 	}
+	public void logit(String s, boolean addHeader) {
+		logit(s, addHeader, "trace");
+	}
+/**
+%fn logit(str, addHeader?=true, type?="trace")
+
+记录日志到文件。type参数指定日志文件名，例如默认为trace，则日志写到trace.log。
+
+ */
 	// which?="trace"
-	public void logit(String s, String which) {
-		//TODO
+	public void logit(String s, boolean addHeader, String type) {
+		String fname = env.baseDir + "/" + type + ".log";
+		try (OutputStream out = new FileOutputStream(fname, true)) {
+			if (addHeader) {
+				String hdr = String.format("[%s] ", date());
+				out.write(hdr.getBytes("utf-8"));
+			}
+			out.write(s.getBytes("utf-8"));
+			out.write('\n');
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	public static boolean parseBoolean(Object o)
@@ -1185,6 +1207,8 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 /**<pre>
 %fn writeFile(in, out, bufSize?)
 
+复制输入到输出。输入、输出可以是文件或流。
+
 %param in String/File/InputStream
 %param out String/File/OutputStream
 %param bufSize 指定buffer大小，设置0使用默认值(10K)
@@ -1236,6 +1260,31 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 	}
 	public static void writeFile(Object in, Object out) throws IOException {
 		writeFile(in, out, 0);
+	}
+
+/**<pre>
+%fn getPath(path, withSep) -> path
+
+用于获得以"/"结尾或不以"/"结尾的路径。
+
+	String path = getPath("dir1/dir2/", true); // "dir1/dir2/"
+	String path = getPath("dir1/dir2", true); // "dir1/dir2/"
+	String path = getPath("dir1/dir2", false); // "dir1/dir2"
+	String path = getPath("dir1/dir2/", false); // "dir1/dir2"
+
+*/
+	public static String getPath(String path, boolean withSep) throws IOException {
+		if (withSep) {
+			if (! (path.endsWith("/") || path.endsWith("\\"))) {
+				return path + "/";
+			}
+		}
+		else {
+			if (path.endsWith("/") || path.endsWith("\\")) {
+				return path.substring(0, path.length()-1);
+			}
+		}
+		return path;
 	}
 
 /**<pre>

@@ -1,5 +1,6 @@
 package com.jdcloud;
 import java.io.UnsupportedEncodingException;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.regex.*;
 
@@ -719,6 +720,7 @@ public class AccessControl extends JDApiBase {
 		return ret;
 	}
 
+	static DecimalFormat numberFormat = new DecimalFormat("#");
 	void outputCsvLine(JsArray row, String enc)
 	{
 		boolean firstCol = true;
@@ -728,16 +730,29 @@ public class AccessControl extends JDApiBase {
 				firstCol = false;
 			else
 				echo(',');
-			String s = e==null? "": e.toString().replace("\"", "\"\"");
-			if (enc != null)
-			{
-				try {
-					byte[] bs = s.getBytes(enc);
-					s = new String(bs, enc);
-				} catch (UnsupportedEncodingException e1) {
+			String s = null;
+			if (e == null) {
+				s = "";
+			}
+			else if (e instanceof Number) {
+				s = numberFormat.format(e);
+			}
+			else {
+				s = e.toString().replace("\"", "\"\"");
+				if (enc != null)
+				{
+					try {
+						byte[] bs = s.getBytes(enc);
+						s = new String(bs, enc);
+					} catch (UnsupportedEncodingException e1) {
+					}
 				}
 			}
-			echo('"', s, '"');
+			// 避免excel将大数字显示为科学计数法
+			String tag = "";
+			if (s.matches("^[\\d\\.]{5,}$"))
+				tag = "\t";
+			echo('"', s, tag, '"');
 		}
 		echo("\n");
 	}
@@ -761,9 +776,10 @@ public class AccessControl extends JDApiBase {
 		}
 	}
 
-	void handleExportFormat(String fmt, JsObject ret, String fname)
+	void handleExportFormat(String fmt, JsObject ret, String fname) throws UnsupportedEncodingException
 	{
 		boolean handled = false;
+		fname = java.net.URLEncoder.encode(fname, "UTF-8");
 		if (fmt.equals("csv")) 
 		{
 			header("Content-Type", "application/csv; charset=UTF-8");
@@ -789,6 +805,11 @@ public class AccessControl extends JDApiBase {
 			throw new DirectReturn();
 	}
 
+	public int getMaxPageSz()
+	{
+		return this.maxPageSz <0? PAGE_SZ_LIMIT: Math.min(this.maxPageSz, PAGE_SZ_LIMIT);
+	}
+
 	public Object api_query() throws Exception
 	{
 		this.initQuery();
@@ -806,7 +827,7 @@ public class AccessControl extends JDApiBase {
 				enablePartialQuery = false;
 			}
 		}
-		int maxPageSz = Math.min(this.maxPageSz, PAGE_SZ_LIMIT);
+		int maxPageSz = getMaxPageSz();
 		if (pagesz != null && (pagesz < 0 || pagesz > maxPageSz))
 			pagesz = maxPageSz;
 		else if (pagesz == null || pagesz == 0)
@@ -944,7 +965,7 @@ public class AccessControl extends JDApiBase {
 			ret.put("total", totalCnt);
 		}
 		if (fmt != null && !fmt.equals("list"))
-			handleExportFormat(fmt, ret, this.table);
+			handleExportFormat(fmt, ret, (String)param("fname", this.table));
 		return ret;
 	}
 

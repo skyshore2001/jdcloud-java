@@ -120,7 +120,8 @@ public class JDEnvBase
 - P_DEBUG: Integer. 0-9之间，默认为0. 调试等级。为9时输出SQL日志。可用env.debugLevel获取。
 
 - enableApiLog: Boolean. 默认为1。记录ApiLog。
-- baseDir: String. 应用数据目录，默认为 {user.home}/jd-data/{project}。在写文件时可用env.baseDir作为目录。注意目录分隔符用"/"，注意以"/"结尾。
+- baseDir: String. 应用数据目录，默认为 {user.home}/jd-data/{project}。在写文件时可用env.baseDir作为目录。注意目录分隔符用"/"，注意不以"/"结尾。
+ 一般用绝对路径，如"/home/data/myproject", "c:\data"等；也可以使用相对路径，如"data"，将以项目servlet目录作为当前路径。
  */
 	public Properties props;
 
@@ -190,7 +191,15 @@ public class JDEnvBase
 		}
 
 		// TODO: static
-		this.baseDir = props.getProperty("baseDir", System.getProperty("user.home") + "/jd-data/" + request.getContextPath());
+		this.baseDir = props.getProperty("baseDir");
+		if (this.baseDir == null) {
+			this.baseDir = System.getProperty("user.home") + "/jd-data/" + request.getContextPath();
+		}
+		// 支持相对路径, 以项目servlet路径作为当前路径。
+		else if (! this.baseDir.matches("^([/\\\\]|\\w:)")) { // /dir1 c:/dir1
+			this.baseDir = JDApiBase.getPath(this.request.getServletContext().getRealPath(""), true) + this.baseDir;
+		}
+		this.baseDir = JDApiBase.getPath(this.baseDir, false);
 		new File(this.baseDir).mkdirs();
 		
 		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
