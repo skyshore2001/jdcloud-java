@@ -1,9 +1,10 @@
-# JDEnv=com.demo.WebApi
+JDEnv=com.demo.WebApi
 
 P_DBTYPE=mysql
 P_DB_DRIVER=com.mysql.jdbc.Driver
 P_DB=jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8
 P_DBCRED=demo:demo123
+P_ADMIN_CRED=admin:admin123
 
 # P_TEST_MODE=1
 # P_DEBUG=9
