@@ -4,6 +4,17 @@ P_DBTYPE=mysql
 P_DB_DRIVER=com.mysql.jdbc.Driver
 P_DB=jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8
 P_DBCRED=demo:demo123
+
+# 使用连接池：需在web.xml中定义resource-ref, 在context中定义resource, 名为"jdbc/jdcloud".
+#P_DBTYPE=mysql
+#P_DB_DRIVER=DataSource
+#P_DB=jdbc/jdcloud
+
+#P_DBTYPE=mssql
+#P_DB_DRIVER=com.microsoft.sqlserver.jdbc.SQLServerDriver
+#P_DB=jdbc:sqlserver://localhost:1433;instanceName=MSSQL;databaseName=jdcloud;integratedSecurity=false;
+#P_DBCRED=sa:demo123
+
 P_ADMIN_CRED=admin:admin123
 
 # P_TEST_MODE=1

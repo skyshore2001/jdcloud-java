@@ -11,7 +11,12 @@ import java.text.DecimalFormat;
 import java.util.*;
 import java.util.function.Function;
 import java.util.regex.*;
+
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.servlet.http.*;
+import javax.sql.DataSource;
 
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
@@ -96,7 +101,7 @@ public class JDEnvBase
 ## 数据库连接
 
 - P_DBTYPE: String. 默认为"mysql"。还支持mssql
-- P_DB_DRIVER: 类名. 驱动程序库。
+- P_DB_DRIVER: 类名. 驱动程序库。特别地，"DataSource"表示jdbc数据源及连接池（在context及web.xml中定义连接池资源）。
 - P_DB: String. 数据库连接字符串
 - P_DBCRED: String. 数据库用户密码，格式为 "{用户名:密码}"
 
@@ -113,6 +118,25 @@ public class JDEnvBase
 	P_DB_DRIVER=com.microsoft.sqlserver.jdbc.SQLServerDriver
 	P_DB=jdbc:sqlserver://localhost:1433;instanceName=MSSQL1;databaseName=jdcloud;integratedSecurity=false;
 	P_DBCRED=sa:demo123
+
+示例：连接mysql, 且使用连接池，在web.properties中设置：
+
+	P_DBTYPE=mysql
+	P_DB_DRIVER=DataSource
+	P_DB=jdbc/jdcloud
+	
+	在web.xml的<web-app>标签中增加：
+
+	<resource-ref> 
+	  <res-ref-name>jdbc/jdcloud</res-ref-name>  
+	  <res-type>javax.sql.DataSource</res-type>  
+	  <res-auth>Container</res-auth> 
+	</resource-ref>
+
+	在<Context>标签中增加Resource定义：
+	
+	<Resource name="jdbc/jdcloud" auth="Container" driverClassName="com.mysql.jdbc.Driver" factory="org.apache.tomcat.jdbc.pool.DataSourceFactory" 
+	  maxActive="100" username="demo" password="demo123" type="javax.sql.DataSource" url="jdbc:mysql://server-pc:3306/jdcloud?characterEncoding=utf8"/> 
 
 ## 应用程序选项
 
@@ -627,6 +651,22 @@ public class JDEnvBase
 		if (this.conn == null) {
 			String dbDriver = props.getProperty("P_DB_DRIVER", "com.mysql.jdbc.Driver");
 			String url = props.getProperty("P_DB", "jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8");
+			
+			// 连接池
+			if (dbDriver.equalsIgnoreCase("DataSource")) {
+				try {
+					Context initContext = new InitialContext();
+					Context envContext=(Context)initContext.lookup("java:comp/env");
+					DataSource ds=(DataSource)envContext.lookup(url); // e.g. "jdbc/jdcloud"
+					Connection connection=ds.getConnection();
+					this.conn = connection;
+				} catch (NamingException | SQLException e) {
+					api.addLog(e.getMessage());
+					throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
+				}
+				return;
+			}
+		
 			String dbcred = props.getProperty("P_DBCRED", "");
 			String[] arr = dbcred.split(":");
 			String user = arr[0];
