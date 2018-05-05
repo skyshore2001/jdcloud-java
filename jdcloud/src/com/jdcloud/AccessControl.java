@@ -708,16 +708,24 @@ public class AccessControl extends JDApiBase {
 		this.id = (int)mparam("id");
 		this.initQuery();
 
+		JsObject ret;
 		this.addCond("t0.id=" + this.id, true);
-		Object[] rv = genQuerySql();
-		StringBuffer sql = (StringBuffer)rv[0];
-		Object ret = queryOne(sql.toString(), true);
-		if (ret.equals(false))
-			throw new MyException(E_PARAM, String.format("not found `%s.id`=`%s`", table, id));
+		boolean hasFields = this.sqlConf.res.size() > 0;
+		if (hasFields) {
+			Object[] rv = genQuerySql();
+			StringBuffer sql = (StringBuffer)rv[0];
+			Object rv1 = queryOne(sql.toString(), true);
+			if (rv1.equals(false))
+				throw new MyException(E_PARAM, String.format("not found `%s.id`=`%s`", table, id));
+			ret = (JsObject)rv1;
+		}
+		else {
+			// 如果get接口用res字段指定只取子对象，则不必多次查询。e.g. callSvr('Ordr.get', {res: orderLog});
+			ret = new JsObject("id", this.id);
+		}
 
-		JsObject ret1 = (JsObject)ret;
-		this.handleSubObj(this.id, ret1);
-		this.handleRow(ret1);
+		this.handleSubObj(this.id, ret);
+		this.handleRow(ret);
 		return ret;
 	}
 
