@@ -375,12 +375,19 @@ public class JDApiBase
 		return val;
 	}
 
+	public static java.util.Date parseDate(String s) {
+		return parseDate(s, false);
+	}
+
 	// "2010/1/1 10:10", "2011-2-1 8:8:8", "2010.3.4", "2011-02-01T10:10:10Z"
 	// return null if fails
-	public static java.util.Date parseDate(String s) {
+	public static java.util.Date parseDate(String s, boolean onlyDatePart) {
 		String fmt;
+		if (onlyDatePart) {
+			fmt = "yyyy-MM-dd";
+		}
 		//s = "2010-10-10T10:10:10Z";
-		if (s.indexOf('T') > 0) {
+		else if (s.indexOf('T') > 0) {
 			if (s.endsWith("Z")) {
 				s = s.replaceFirst("Z$", "+0000");
 			}
@@ -451,7 +458,7 @@ name中可以指定类型，返回值根据类型确定。如果该参数未定�
 name中指定类型的方式如下：
 - 名为"id", 或以"Id"或"/i"结尾: 返回Integer类型
 - 以"/b"结尾: 返回Boolean类型. 可接受的字符串值为: "1"/"true"/"on"/"yes"=>true, "0"/"false"/"off"/"no" => false
-- 以"/dt"或"/tm"结尾: 返回java.util.Date类型
+- 以"/dt"或"/tm"结尾: 返回java.util.Date类型。如果是"/dt"则只有日期部分。
 - 以"/n"结尾: 数值型(numeric)，返回Double类型
 - 以"/s"结尾（缺省）: 返回String类型. 缺省为防止XSS攻击会做html编码，如"a&b"处理成"a&amp;b"，设置参数doHtmlEscape=false可禁用这个功能。
 - 复杂类型：以"/i+"结尾: 整数数组如"82,93,105"，常用于传输id列表，返回ArrayList<Integer>类型。
@@ -553,7 +560,7 @@ TODO: 直接支持 param("items/(id,qty?/n,dscr?)"), 添加param_objarr函数，
 			}
 			else if (type.equals("dt") || type.equals("tm"))
 			{
-				java.util.Date dt = parseDate(val);
+				java.util.Date dt = parseDate(val, type.equals("dt"));
 				if (dt == null)
 					throw new MyException(E_PARAM, String.format("Bad Request - invalid datetime param `%s`=`%s`.", name, val));
 				ret = dt;
