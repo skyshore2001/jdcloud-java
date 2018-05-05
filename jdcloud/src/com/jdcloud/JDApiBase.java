@@ -381,13 +381,11 @@ public class JDApiBase
 
 	// "2010/1/1 10:10", "2011-2-1 8:8:8", "2010.3.4", "2011-02-01T10:10:10Z"
 	// return null if fails
+	@SuppressWarnings("deprecation")
 	public static java.util.Date parseDate(String s, boolean onlyDatePart) {
 		String fmt;
-		if (onlyDatePart) {
-			fmt = "yyyy-MM-dd";
-		}
 		//s = "2010-10-10T10:10:10Z";
-		else if (s.indexOf('T') > 0) {
+		if (s.indexOf('T') > 0) {
 			if (s.endsWith("Z")) {
 				s = s.replaceFirst("Z$", "+0000");
 			}
@@ -411,6 +409,11 @@ public class JDApiBase
 		java.util.Date dt = null;
 		try {
 			dt = ofmt.parse(s);
+			if (onlyDatePart) {
+				dt.setSeconds(0);
+				dt.setMinutes(0);
+				dt.setHours(0);
+			}
 		} catch (ParseException e) {
 		}
 		return dt;
@@ -745,7 +748,7 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 					row1.add(v);
 				}
 				else if (t.type.equals("dt") || t.type.equals("tm")) {
-					java.util.Date dt = parseDate(v);
+					java.util.Date dt = parseDate(v, t.type.equals("dt"));
 					if (dt == null)
 						throw new MyException(E_PARAM, String.format("Bad Request - param `%s`: list(%s). require datetime col: `%s`[%s]=`%s`.", name, t.type, row0, i, v));
 					row1.add(dt);
