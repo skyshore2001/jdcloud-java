@@ -275,11 +275,11 @@ public class JDEnvBase
 		
 		callSvcSafe(null, true);
 	}
-	
+
 	// ac=null: auto init
 	public JsArray callSvcSafe(String ac, boolean useTrans) {
 		JsArray ret = new JsArray(0, null);
-		boolean ok = false;
+		boolean ok = false; // commit or rollback trans
 		boolean dret = false;
 		ApiLog apiLog = null;
 		boolean isDefaultCall = ac == null;
@@ -297,6 +297,7 @@ public class JDEnvBase
 				if (useTrans)
 					this.beginTrans();
 				rv = this.callSvc(ac);
+				ok = true;
 			}
 			else {
 				boolean batchUseTrans = (boolean)api.param("useTrans/b", false, "G");
@@ -304,11 +305,12 @@ public class JDEnvBase
 					this.beginTrans();
 				else
 					useTrans = false;
-				rv = this.batchCall(batchUseTrans);
+				boolean[] ref_ok = new boolean[] {false};
+				rv = this.batchCall(batchUseTrans, ref_ok);
+				ok = ref_ok[0];
 			}
 			if (rv == null)
 				rv = "OK";
-			ok = true;
 			ret.set(1, rv);
 		}
 		catch (DirectReturn ex) {
@@ -365,7 +367,8 @@ public class JDEnvBase
 		return ret;
 	}
 
-	private JsArray batchCall(boolean useTrans) {
+	// ref_ok[0]: 是否提交事务
+	private JsArray batchCall(boolean useTrans, boolean[] ref_ok) {
 		if (! request.getMethod().equals("POST"))
 			throw new MyException(JDApiBase.E_PARAM, "batch MUST use `POST' method");
 
@@ -402,6 +405,7 @@ public class JDEnvBase
 			ret.add(rv);
 			this.debugInfo = new JsArray();
 		}
+		ref_ok[0] = ! (useTrans && retCode != 0);
 		return ret;
 	}
 
