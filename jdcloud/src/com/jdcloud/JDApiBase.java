@@ -258,6 +258,138 @@ public class JDApiBase
 		return rv;
 	}
 
+/**<pre>
+@fn dbInsert(table, kv) -> newId
+
+字段值可以是数值、日期、字符串等类型的变量。
+如果值为null或空串会被忽略。
+e.g. 
+
+	int orderId = dbInsert("Ordr", new JsObject(
+		"tm", new Date(), // 支持Date类型
+		"tm1", "=now()", // "="开头，表示是SQL表达式
+		"amount", 100,
+		"dscr", null // null字段会被忽略
+	));
+
+*/
+	public int dbInsert(String table, Map<String,Object> kv) throws SQLException
+	{
+		StringBuffer keys = new StringBuffer();
+		StringBuffer values = new StringBuffer();
+
+		for (String k : kv.keySet())
+		{
+			if (!k.matches("\\w+"))
+				throw new MyException(E_PARAM, String.format("bad property `%s`", k));
+
+			Object oval = kv.get(k);
+			String val = oval.toString();
+			if (oval == null || val.length() == 0)
+				continue;
+			if (keys.length() > 0)
+			{
+				keys.append(", ");
+				values.append(", ");
+			}
+			keys.append(k);
+			if (oval instanceof Number || val.matches("^[\\+-]?[0-9.]+$")) {
+				values.append(val);
+			}
+			else if (oval instanceof Date) {
+				values.append("'")
+					.append(date(null, (Date)oval))
+					.append("'");
+			}
+			else {
+				val = htmlEscape(val);
+				values.append(Q(val));
+			}
+		}
+		
+		if (keys.length() == 0)
+			throw new MyException(E_PARAM, "no field found to be added");
+
+		String sql = String.format("INSERT INTO %s (%s) VALUES (%s)", table, keys, values);
+		int ret = execOne(sql, true);
+		return ret;
+	}
+	
+/**<pre>
+@fn dbUpdate(table, kv, id_or_cond?) -> cnt
+
+@param id_or_cond 查询条件，如果是数值比如100或"100"，则当作条件"id=100"处理；否则直接作为查询表达式，比如"qty<0"；如果未指定则无查询条件。
+
+e.g.
+
+	// UPDATE Ordr SET ... WHERE id=100
+	int cnt = dbUpdate("Ordr", new JsObject(
+		"amount", 30,
+		"dscr", "test dscr",
+		"tm", "null", // 用""或"null"对字段置空；用"empty"对字段置空串。
+		"tm1", null // null会被忽略
+	), 100);
+
+	// UPDATE Ordr SET tm=now() WHERE tm IS NULL
+	int cnt = dbUpdate("Ordr", new JsObject(
+		"tm", "=now()"  // "="开头，表示是SQL表达式
+	), "tm IS NULL);
+*/
+	public int dbUpdate(String table, Map<String,Object> kv, Object cond) throws SQLException
+	{
+		if (cond != null && cond instanceof Integer)
+			cond = String.format("id=%s", cond);
+		int cnt = 0;
+		StringBuffer kvstr = new StringBuffer();
+		for (String k : kv.keySet())
+		{
+			if (k.equals("id"))
+				continue;
+			// ignore non-field param
+			//if (substr($k,0,2) == "p_")
+				//continue;
+			// TODO: check meta
+			if (!k.matches("\\w+"))
+				throw new MyException(E_PARAM, String.format("bad property `%s`" + k));
+
+			Object val = kv.get(k);
+			if (val == null)
+				continue;
+
+			if (kvstr.length() > 0)
+				kvstr.append(", ");
+			// 空串或null置空；empty设置空字符串
+			if (val.equals("") || val.equals("null")) {
+				kvstr.append(k).append("=null");
+			}
+			else if (val.equals("empty")) {
+				kvstr.append(k).append("=''");
+			}
+			else if (val instanceof Number) {
+				kvstr.append(k).append("=").append(val);
+			}
+			else if (val instanceof String && val.toString().startsWith("=")) {
+				kvstr.append(k).append(val);
+			}
+			else {
+				kvstr.append(k).append("=").append(Q(htmlEscape(val.toString())));
+			}
+		}
+		if (kvstr.length() == 0) 
+		{
+			addLog("no field found to be set");
+		}
+		else {
+			String sql = null;
+			if (cond != null)
+				sql = String.format("UPDATE %s SET %s WHERE %s", table, kvstr, cond);
+			else
+				sql = String.format("UPDATE %s SET %s", table, kvstr);
+			cnt = execOne(sql);
+		}
+		return cnt;
+	}
+
 	public String jsonEncode(Object o)
 	{
 		return jsonEncode(o, false);

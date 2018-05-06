@@ -523,34 +523,14 @@ public class AccessControl extends JDApiBase {
 	public Object api_add() throws Exception
 	{
 		this.validate();
-
-		StringBuffer keys = new StringBuffer();
-		StringBuffer values = new StringBuffer();
-
-		for (String k : env._POST.keySet())
-		{
-			if (k.equals("id"))
-				continue;
-			String val = env._POST.get(k).toString();
-			if (val.length() == 0)
-				continue;
-			if (!k.matches("\\w+"))
-				throw new MyException(E_PARAM, String.format("bad property `%s`" + k));
-			if (keys.length() > 0)
-			{
-				keys.append(", ");
-				values.append(", ");
-			}
-			keys.append(k);
-			val = htmlEscape(val);
-			values.append(Q(val));
+		this.id = this.onGenId();
+		if (this.id != 0)
+			env._POST.put("id", this.id);
+		else if (env._POST.containsKey("id")) {
+			env._POST.remove("id");
 		}
-		
-		if (keys.length() == 0)
-			throw new MyException(E_PARAM, "no field found to be added");
 
-		String sql = String.format("INSERT INTO %s (%s) VALUES (%s)", table, keys, values);
-		this.id = execOne(sql, true);
+		this.id = dbInsert(this.table, env._POST);
 
 		String res = (String)param("res");
 		Object ret = null;
@@ -570,38 +550,8 @@ public class AccessControl extends JDApiBase {
 		this.id = (int)mparam("id");
 		this.validate();
 
-		StringBuffer kv = new StringBuffer();
-		for (String k : env._POST.keySet())
-		{
-			if (k.equals("id"))
-				continue;
-			// ignore non-field param
-			//if (substr($k,0,2) == "p_")
-				//continue;
-			// TODO: check meta
-			if (!k.matches("\\w+"))
-				throw new MyException(E_PARAM, String.format("bad property `%s`" + k));
-
-			if (kv.length() > 0)
-				kv.append(", ");
-			// 空串或null置空；empty设置空字符串
-			Object val = env._POST.get(k);
-			if (val.equals("") || val.equals("null"))
-				kv.append(k + "=null");
-			else if (val.equals("empty"))
-				kv.append(k + "=''");
-			else
-				kv.append(k + "=" + Q(htmlEscape(val.toString())));
-		}
-		if (kv.length() == 0) 
-		{
-			addLog("no field found to be set");
-		}
-		else {
-			String sql = String.format("UPDATE %s SET %s WHERE id=%s", table, kv, id);
-			@SuppressWarnings("unused")
-			int cnt = execOne(sql);
-		}
+		@SuppressWarnings("unused")
+		int cnt = dbUpdate(this.table, env._POST, this.id);
 	}
 
 	public void api_del() throws Exception
