@@ -1528,4 +1528,27 @@ Close without exception.
 	public boolean issetval(String field) {
 		return env._POST.containsKey(field) && env._POST.get(field) != null;
 	}
+
+/**<pre>
+@fn parseKvList(kvListStr, sep, sep2)
+
+解析key-value列表字符串。如果出错抛出异常。
+注意：sep, sep2为行、列分隔符的正则式。
+
+示例：
+
+	Map<String, Object> map = parseKvList("CR:新创建;PA:已付款", ";", ":");
+	// map: {"CR": "新创建", "PA":"已付款"}
+*/
+	public static Map<String, Object> parseKvList(String str, String sep, String sep2)
+	{
+		Map<String, Object> map = new JsObject();
+		for (String ln : str.split(sep)) {
+			String[] kv = ln.split(sep2, 2);
+			if (kv.length != 2)
+				throw new MyException(E_PARAM, String.format("bad kvList: `%s'", str));
+			map.put(kv[0], kv[1]);
+		}
+		return map;
+	}
 }

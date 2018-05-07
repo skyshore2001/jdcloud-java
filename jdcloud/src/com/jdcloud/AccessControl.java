@@ -99,6 +99,42 @@ public class AccessControl extends JDApiBase {
 	protected List<String> requiredFields2;
 	// for get/query
 	protected List<String> hiddenFields;
+
+/**<pre>
+
+@var AccessControl.enumFields 枚举支持及自定义字段处理
+
+(版本v1.1)
+
+格式为{field => map/fn(val) }
+
+作为比onHandleRow/onAfterActions等更易用的工具，enumFields可对返回字段做修正。例如，想要对返回的status字段做修正，如"CR"显示为"Created"，可设置：
+
+	Map<String, Object> map = asMap("CR","Created", "CA","Cancelled");
+	this.enumFields = asMap(
+		"status", map
+	);
+
+(TODO:暂不支持)也可以设置为自定义函数，如：
+
+	map = asMap(...);
+	this.enumFields.asMap("status", v -> {
+		if (map.containsKey(v))
+			return String.format("%s-%s", v, map.get(v));
+		return v;
+	});
+
+此外，枚举字段可直接由请求方通过res参数指定描述值，如：
+
+	Ordr.query(res="id, status =CR:Created;CA:Cancelled")
+	或指定alias:
+	Ordr.query(res="id 编号, status 状态=CR:Created;CA:Cancelled")
+
+更多地，设置enumFields也支持逗号分隔的枚举列表，比如字段值为"CR,CA"，实际可返回"Created,Cancelled"。
+ */
+
+	protected Map<String, Object> enumFields; // elem: {field => {key=>val}} 或 {field => fn(val)}，与onHandleRow类似地去修改数据。TODO: 目前只支持map，不支持
+
 	// for query
 	protected String defaultRes = "t0.*"; // 缺省为 "t0.*" 加  default=true的虚拟字段
 	protected String defaultSort = "t0.id";
@@ -307,6 +343,41 @@ public class AccessControl extends JDApiBase {
 		if (this.allowedAc != null && stdAc.contains(ac) && !this.allowedAc.contains(ac))
 			throw new MyException(E_FORBIDDEN, String.format("Operation `%s` is not allowed on object `%s`", ac, table));
 	}
+	
+	private void handleEnumFields(JsObject rowData)
+	{
+		if (this.enumFields != null) {
+			// 处理enum/enumList字段返回
+			Iterator<Map.Entry<String, Object>> it = this.enumFields.entrySet().iterator();
+			while (it.hasNext()) {
+				Map.Entry<String, Object> e = it.next();
+				String k = e.getKey();
+				if (! rowData.containsKey(k))
+					return;
+				Object v = rowData.get(k);
+				Map map = (Map)e.getValue();
+				String SEP = ",";
+				if (map instanceof Map) {
+					if (map.containsKey(v)) {
+						v = map.get(v);
+					}
+					else if (v.toString().contains(SEP)) {
+						StringBuffer v1 = new StringBuffer();
+						for (String ve: v.toString().split(SEP)) {
+							if (v1.length() > 0)
+								v1.append(SEP);
+							if (map.containsKey(ve))
+								v1.append(map.get(ve));
+							else
+								v1.append(ve);
+						}
+						v = v1.toString();
+					}
+				}
+				rowData.put(k, v);
+			}
+		}
+	}
 
 	private void handleRow(JsObject rowData) throws Exception
 	{
@@ -317,16 +388,12 @@ public class AccessControl extends JDApiBase {
 				rowData.remove(field);
 			}
 		}
-		Iterator<Map.Entry<String, Object>> it = rowData.entrySet().iterator();
-		while (it.hasNext()) {
-			Map.Entry<String, Object> e = it.next();
-			String k = e.getKey();
-			if (k.equals("pwd") || k.charAt(0) == '_')
-				it.remove();
-		}
+		rowData.remove("pwd");
 		
 		// TODO: flag_handleResult(rowData);
 		this.onHandleRow(rowData);
+
+		this.handleEnumFields(rowData);
 	}
 
 	// for query. "field1"=>"t0.field1"
@@ -382,6 +449,21 @@ public class AccessControl extends JDApiBase {
 		}
 	}
 	
+	// 因为java不能对alias参数传址修改，只能返回它
+	protected String handleAlias(String col, String alias)
+	{
+		// support enum
+		String[] a = alias.split("=", 2);
+		if (a.length != 2)
+			return alias;
+
+		alias = a[0].length() == 0? null: a[0];
+		if (this.enumFields == null)
+			this.enumFields = asMap();
+		this.enumFields.put(alias==null?col:alias, parseKvList(a[1], ";", ":"));
+		return alias;
+	}
+
 	private void filterRes(String res) {
 		filterRes(res, false);
 	}
@@ -429,6 +511,9 @@ public class AccessControl extends JDApiBase {
 				this.addRes(col);
 				continue;
 			}
+
+			if (alias!=null)
+				alias = handleAlias(col, alias);
 
 // 			if (! ctype_alnum(col))
 // 				throw new MyException(E_PARAM, "bad property `col`");
