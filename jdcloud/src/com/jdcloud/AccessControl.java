@@ -460,7 +460,10 @@ public class AccessControl extends JDApiBase {
 		alias = a[0].length() == 0? null: a[0];
 		if (this.enumFields == null)
 			this.enumFields = asMap();
-		this.enumFields.put(alias==null?col:alias, parseKvList(a[1], ";", ":"));
+		String k = alias==null?col:alias;
+		if (k.charAt(0) == '"') // remove ""
+			k = k.substring(1, k.length()-1);
+		this.enumFields.put(k, parseKvList(a[1], ";", ":"));
 		return alias;
 	}
 
