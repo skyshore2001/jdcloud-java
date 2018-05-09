@@ -150,6 +150,12 @@ public class AC2_ApiLog extends AccessControl
 
 用筋斗云框架创建一个Web接口项目叫mysvc，创建数据库，提供对ApiLog对象的操作接口。
 
+开发环境：
+
+- JDK8及以上版本
+- Tomcat7及以上版本（框架开发目前用的是Tomcat8.5）
+- 开发工具默认使用Eclipse，也可以换成InteliJ IDEA.
+
 先从github上下载开源的筋斗云后端框架及示例应用：`https://github.com/skyshore2001/jdcloud-java`
 
 建议安装git工具直接下载，便于以后更新，例如直接创建Web接口项目叫mysvc：
@@ -158,15 +164,35 @@ public class AC2_ApiLog extends AccessControl
 
 如果github访问困难，也可以用这个git仓库： `http://dacatec.com/git/jdcloud-java.git`
 
-下载后，里面有jdcloud, svc和extlib三个目录，打开eclipse，导入这三个目录下的工程。
-其中，jdcloud是可生成jar包的框架库工程，svc是示例web项目，可运行在tomcat上，而extlib就只是依赖到的jar包。
-你可以将jdcloud目录直接引入你的工程中，或用编译后的jar包直接在你的工程中引用。
+下载后，里面有jdcloud, svc两个目录：
 
-以示例工程svc为例，实际项目中我们一般先改个名，在eclipse中右键项目选择`Refactor->Rename`，换成实际工程名，比如`mysvc`。
-因而项目部署到Tomcat后的访问根地址是`http://localhost:8080/mysvc/`.
+- jdcloud目录是应用框架（jar包项目）。可以将jdcloud目录以源码方式直接导入你的工程中，或用编译后的jar包在你的工程中引用。
+- svc目录为示例java web项目（war包项目），它依赖jdcloud库，运行在tomcat上。
+- svc/WebContent目录对应最终部署目录（Java web artifacts）中的内容。在WebContent/WEB-INF目录下，包含Java web项目配置文件web.xml，以及依赖的jar包都放在lib子目录下。
+ 这与Java web项目部署目录规范相同。
+
+如果使用Eclipse，直接导入这两个目录下的工程，注意看下svc工程的属性：
+
+- Java Build Path: Projects页中，设置有svc项目依赖jdcloud项目；Libraries页中，如果依赖的JDK版本或Tomcat版本不对，则相应做下调整。
+- Deployment Assembly: svc工程部署时应包含jdcloud模块。
+- Project Facets: 应有Dynamic web module
+
+实际项目中我们一般先将svc项目改名（目录名不变，只修改项目名），在eclipse中右键项目选择`Refactor->Rename`，换成实际项目名，比如`mysvc`。
+这样在Eclipse中项目部署到Tomcat后的默认访问地址是`http://localhost:8080/mysvc/`.
+
+如果使用IDEA，导入目录后默认识别两个模块，注意查看`File->Project Structure`菜单，检查"Project Setting"中各项设置是否正确：
+
+- Project栏: SDK版本与Project Language Level一致。
+- Modules栏：两个模块均应依赖Tomcat(一般需要手工添加Tomcat依赖)，还有依赖Libraries.
+- Libraries栏：svc/WebContent/lib目录下的所有jar包。
+- Facets栏：svc模块为Web项目，且正确设置了项目描述文件为svc/WebContent/WEB-INF/web.xml，以及web资源目录根路径为svc/WebContent。
+- Artifacts栏：应包含各模块的的编译结果，以及svc项目的web facet资源（即svc/WebContent目录）。
+- 首次运行时创建一个Run Configuration，在deployment页中将web项目加入并指定url为"/mysvc"。
+
+框架的git库中含有一个idea分支，可以用IDEA直接打开，其中去除了Eclipse的工程设置，可供参考。
 
 再看如何配置数据库连接等信息。在目录svc/WebContent/WEB-INF下，有个web.properties.template文件，将它复制为web.properties文件。
-先指定你项目中回调入口类，如：
+先指定你项目中回调入口类，如示例项目配置为：
 
 	JDEnv=com.demo.WebApi
 
@@ -199,7 +225,14 @@ public class AC2_ApiLog extends AccessControl
 
 参数P_DBTYPE用于提示数据库类型，值为"mssql"或"mysql"。
 
-我们从svc演示工程开始，在这个工程中，为了方便编码，把所有的类都放在文件com/demo/WebApi.java中了（所以那些接口类都没有加public前缀）。
+配置好后运行Web项目，检查接口是否可正常访问：`http://localhost:8080/mysvc/api/hello`
+
+- 正常应返回`[0, 数据]`这样的数组，第一项0表示返回值，即接口处理成功。之前若设置了测试模式则会显示更多项。
+- 如果返回404错，检查部署URL路径是否正确设置；
+- 如果返回空或创建JDEnv错，检查Artifacts的设置，尤其是WEB-INF下是否正确包含了jdcloud库以web.properties等文件，以及web.properties是否正确配置JDEnv参数。
+- 如果返回数据库连接错，则检查web.properties中数据库连接参数的设置。
+
+下面讲解代码，我们从svc演示工程开始，在这个工程中，为了方便编码，把所有的类都放在文件com/demo/WebApi.java中了（所以那些接口类都没有加public前缀）。
 
 public类com.demo.WebApi就是在web.properties配置文件中指定的入口(JDEnv=com.demo.WebApi)，它必须继承com.jdcloud.JDEnvBase类。为了学习接口编程，我们先清空这个文件，只留下这些代码：
 
@@ -937,6 +970,31 @@ queryOne只返回首行数据，特别地，如果返回行中只有一列，则
 
 	int newId = execOne("INSERT INTO ...", true);
 
+(v2) 对一般的插入和更新，可以用更方便的dbInsert/dbUpdate函数，如：
+
+	int orderId = dbInsert("Ordr", new JsObject(
+		"tm", new Date(), // 支持Date类型
+		"tm1", "=now()", // "="开头，表示是SQL表达式
+		"amount", 100,
+		"dscr", null // null字段会被忽略
+	));
+	// 等价于：
+	String sql = String.format("INSERT INTO Ordr (tm, tm1, amount, dscr) VALUES ('%s', now(), %f, %s)", date(FMT_DT, tm), amount, Q(dscr)); // date函数为框架提供，用于转日期字符串
+	int orderId = execOne(sql, true);
+
+	// UPDATE Ordr SET ... WHERE id=100
+	int cnt = dbUpdate("Ordr", new JsObject(
+		"amount", 30,
+		"dscr", "test dscr",
+		"tm", "null", // 用""或"null"对字段置空；用"empty"对字段置空串。
+		"tm1", null // null会被忽略
+	), 100);
+
+	// UPDATE Ordr SET tm=now() WHERE tm IS NULL
+	int cnt = dbUpdate("Ordr", new JsObject(
+		"tm", "=now()"  // "="开头，表示是SQL表达式
+	), "tm IS NULL);
+	
 **[防备SQL注入]**
 
 要特别注意的是，所有外部传入的字符串参数都不应直接用来拼接SQL语句，
@@ -959,6 +1017,8 @@ queryOne只返回首行数据，特别地，如果返回行中只有一列，则
 
 	String sql = String.format("SELECT id FROM User WHERE uname=%s AND pwd=%s", Q(uname), Q(pwd));
 	Object id = queryOne(sql);
+
+(v2)对于插入和更新语句，尽量用dbInsert/dbUpdate方法，它们会安全地处理处理参数。
 
 **[支持数据库事务]**
 
