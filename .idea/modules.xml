@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/jdcloud/jdcloud.iml" filepath="$PROJECT_DIR$/jdcloud/jdcloud.iml" />
+      <module fileurl="file://$PROJECT_DIR$/svc/svc.iml" filepath="$PROJECT_DIR$/svc/svc.iml" />
+    </modules>
+  </component>
+</project>
