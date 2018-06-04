@@ -31,7 +31,7 @@ public class JDUpload extends JDApiBase {
 	}
 	// thumb size for upload type:
 	static Map<String, PicSize> UploadType = asMap(
-		"default", new PicSize(100, 100),
+		"default", new PicSize(360, 360),
 		"user", new PicSize(128, 128),
 		"store", new PicSize(200, 150)
 	);

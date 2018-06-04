@@ -166,9 +166,20 @@ public class JDEnvBase
 		if (request.getMethod().equals("OPTIONS"))
 			api.exit();
 
+		response.setContentType("text/plain; charset=utf-8");
+		if (this.isTestMode)
+		{
+			api.header("X-Daca-Test-Mode", "1");
+		}
+
+		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
+
+		String pathInfo = request.getPathInfo();
+		if (pathInfo == null)
+			throw new MyException(JDApiBase.E_PARAM, "bad ac");
 		// parse ac
 		Pattern re = Pattern.compile("([\\w|.]+)$");
-		Matcher m = re.matcher(request.getPathInfo());
+		Matcher m = re.matcher(pathInfo);
 		if (! m.find()) {
 			throw new MyException(JDApiBase.E_PARAM, "bad ac");
 		}
@@ -252,13 +263,6 @@ public class JDEnvBase
 			throw new MyException(JDApiBase.E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
 		
 		this.dbStrategy.init(this);
-
-		response.setContentType("text/plain; charset=utf-8");
-		if (this.isTestMode)
-		{
-			api.header("X-Daca-Test-Mode", "1");
-		}
-		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 
 		this.onApiInit();
 
@@ -532,7 +536,14 @@ public class JDEnvBase
 		for (String clsName: clsNames) {
 			Class<?> cls = null;
 			try {
-				String fullClsName = this.getClass().getPackage().getName() + "." + clsName; 
+				String fullClsName = null;
+				if (clsName.indexOf('.') < 0) {
+					String pkg = clsName.equals("AccessControl")? "com.jdcloud": this.getClass().getPackage().getName();
+					fullClsName = pkg + "." + clsName; 
+				}
+				else {
+					fullClsName = clsName;
+				}
 				cls = Class.forName(fullClsName);
 			}
 			catch (ClassNotFoundException ex) {}

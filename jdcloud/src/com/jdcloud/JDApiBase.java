@@ -301,6 +301,9 @@ e.g.
 					.append(date(null, (Date)oval))
 					.append("'");
 			}
+			else if (oval instanceof String && val.charAt(0) == '=') {
+				values.append(val.substring(1));
+			}
 			else {
 				val = htmlEscape(val);
 				values.append(Q(val));
@@ -981,10 +984,10 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 		throw new MyException(E_NOAUTH, "need login");
 	}
 
-	int perms_;
+	int perms_ = -1;
 	public boolean hasPerm(int perms)
 	{
-		perms_ = env.onGetPerms();
+		perms_ = perms_!=-1? perms_: env.onGetPerms();
 		if ((perms_ & perms) != 0)
 			return true;
 		return false;

@@ -194,7 +194,6 @@ public class JDLogin extends JDApiBase
 			pwd = (String)rv.get(0);
 			code = (String)rv.get(1);
 		}
-		Boolean wantAll = (Boolean)param("wantAll/b");
 
 		if (code != null && code.length() > 0)
 		{
@@ -238,13 +237,19 @@ public class JDLogin extends JDApiBase
 		}
 		else if (type.equals("emp")) {
 			obj = "Employee";
-			String sql = String.format("SELECT id,pwd FROM Employee WHERE %s=%s", key, Q(uname));
+			String sql = String.format("SELECT id,pwd,perms FROM Employee WHERE %s=%s", key, Q(uname));
 			Object rv = queryOne(sql, true);
 			JsObject row = null;
 			if (rv.equals(false) || (pwd != null && (row=(JsObject)rv)!=null && !hashPwd(pwd).equals(row.get("pwd"))) )
 				throw new MyException(E_AUTHFAIL, "bad uname or password", "用户名或密码错误");
 
 			setSession("empId", row.get("id"));
+			String perms = (String) row.get("perms");
+			if (perms != null) {
+				String[] permArr = perms.split(",");
+				setSession("perms", permArr);
+			}
+
 			ret = new JsObject("id", row.get("id"));
 		}
 		// admin login
@@ -260,7 +265,7 @@ public class JDLogin extends JDApiBase
 			ret = new JsObject("id", adminId, "uname", uname1);
 		}
 
-		if (wantAll != null && wantAll && obj != null)
+		if (obj != null)
 		{
 			JsObject rv = (JsObject)env.callSvc(obj + ".get");
 			ret.putAll(rv);
