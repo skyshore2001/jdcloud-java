@@ -201,7 +201,7 @@ class AC2_Ordr extends AC0_Ordr
 				if (status.equals("RE") || status.equals("CA")) {
 					Object oldStatus = queryOne(String.format("SELECT status FROM Ordr WHERE id=%s", this.id));
 					if (! oldStatus.equals("CR")) {
-						throw new MyException(E_FORBIDDEN, String.format("forbidden to change status to ", status));
+						throw new MyException(E_FORBIDDEN, String.format("forbidden to change status to %s", status));
 					}
 					this.onAfterActions.add(ret -> {
 						Object orderId = this.id;
