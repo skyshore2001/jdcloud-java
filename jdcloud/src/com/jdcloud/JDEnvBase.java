@@ -166,6 +166,9 @@ public class JDEnvBase
 		if (request.getMethod().equals("OPTIONS"))
 			api.exit();
 
+		String enc = request.getCharacterEncoding();
+		if (enc == null)
+			request.setCharacterEncoding("utf-8");
 		response.setContentType("text/plain; charset=utf-8");
 		if (this.isTestMode)
 		{
