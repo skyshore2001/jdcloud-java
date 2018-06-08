@@ -206,6 +206,13 @@ public class JDEnvBase
 					this._POST.put(k, request.getParameter(k));
 			}
 		}
+		else {
+			Enumeration<String> em = this.request.getParameterNames();
+			while (em.hasMoreElements()) {
+				String k = em.nextElement();
+				this._POST.put(k, request.getParameter(k));
+			}
+		}
 
 		// 支持POST为json格式
 		if (this.request.getContentType() != null && this.request.getContentType().indexOf("/json") > 0) {

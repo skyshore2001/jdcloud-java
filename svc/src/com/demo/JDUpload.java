@@ -51,6 +51,12 @@ public class JDUpload extends JDApiBase {
 		"zip", "application/zip",
 		"rar", "application/x-rar-compressed"
 	);
+	
+	static Map<String, String> FILE_TAG = asMap(
+		"\u00ff\u00d8\u00ff", "jpg",
+		"\u0089PNG", "png",
+		"GIF8", "gif"
+	);
 
 	// generate image/jpeg output. if out=null, output to stdout
 	void resizeImage(File in, int w, int h, File out)
@@ -96,6 +102,26 @@ public class JDUpload extends JDApiBase {
 	boolean isPic(String ext)
 	{
 		return ext.equals("jpg") || ext.equals("jpeg") || ext.equals("png");
+	}
+	
+	String guessFileType(InputStream in)
+	{
+		byte[] bs = new byte[4];
+		String s;
+		try {
+			in.read(bs);
+			s = new String(bs, "ISO-8859-1");
+			in.reset();
+		} catch (Exception e1) {
+			return null;
+		}
+		if (s.length() < 4)
+			return null;
+		for (Map.Entry<String, String> e: FILE_TAG.entrySet()) {
+			if (s.startsWith(e.getKey()))
+				return e.getValue();
+		}
+		return null;
 	}
 
 	@FunctionalInterface
@@ -171,15 +197,20 @@ public class JDUpload extends JDApiBase {
 		JsArray ret = null;
 		class HandleOneFile
 		{
-			void apply(String fname, String type, String mimeType, Consumer<File> writeFile, JsObject ret) throws Exception
+			// in?=null, 当文件没有扩展名时从in中读前几个字节猜测文件类型。必须可以in.reset()
+			void apply(String fname, String type, String mimeType, Consumer<File> writeFile, JsObject ret, InputStream in) throws Exception
 			{
 				// 检查文件类型
 				String ext = FilenameUtils.getExtension(fname).toLowerCase();
 				String orgName = FilenameUtils.getName(fname);
 				if (ext.length() == 0 && mimeType != null) {
 					ext = indexOf(ALLOWED_MIME, (k,v)->v.equals(mimeType));
-					if (ext == null)
-						throw new MyException(E_PARAM, String.format("MIME type not supported: `%s`", mimeType), String.format("文件类型`%s`不支持.", mimeType));
+					if (ext == null) {
+						if (in != null)
+							ext = guessFileType(in);
+						if (ext == null)
+							throw new MyException(E_PARAM, String.format("MIME type not supported: `%s`", mimeType), String.format("文件类型`%s`不支持.", mimeType));
+					}
 				}
 				
 				if (ext.length() == 0 || !ALLOWED_MIME.containsKey(ext)) {
@@ -239,17 +270,21 @@ public class JDUpload extends JDApiBase {
 			if (uploadSizeMax > 0 && contentLen > uploadSizeMax) {
 				throw new MyException(E_PARAM, String.format("file is too large: contentLen(%s) > uploadSizeMax(%s)", contentLen, uploadSizeMax), "文件太大，禁止上传");
 			}
+			// 此类型会导致request.getInputStream()读不到数据。(因为此前已被request.getParameter使用过stream)
+			if (env.request.getContentType().toLowerCase().contains("application/x-www-form-urlencoded"))
+				throw new MyException(E_PARAM, "Content-Type 'application/x-www-form-urlencoded' is forbidden for upload.", "编码类型错误");
+
 			handleOneFile.apply(fileName, type, null, f -> {
 				// for upload raw/raw_b64
 				try {
-					InputStream in = fmt.equals("fmt_b64")?
+					InputStream in = fmt.equals("raw_b64")?
 						Base64.getDecoder().wrap(env.request.getInputStream()) :
 						env.request.getInputStream();
 					writeFile(in, f);
 				} catch (IOException e) {
 					throw new MyException(E_PARAM, e.getMessage());
 				}
-			}, ret1);
+			}, ret1, null);
 			ret = new JsArray(ret1);
 		}
 		else {
@@ -276,7 +311,7 @@ public class JDUpload extends JDApiBase {
 							} catch (Exception e) {
 								throw new MyException(E_PARAM, e.getMessage());
 							} 
-						}, ret1 );
+						}, ret1, item.getInputStream() );
 						ret.add(ret1);
 					}
 				}
