@@ -201,8 +201,8 @@ public class AccessControl extends JDApiBase {
 		sqlConf = new SqlConf();
 		sqlConf.res = asList();
 		sqlConf.gres = gres;
-		sqlConf.gcond = (String)param("gcond", null, null, false);
-		sqlConf.cond = asList((String)param("cond", null, null, false));
+		sqlConf.gcond = getCondParam("gcond");
+		sqlConf.cond = asList(getCondParam("cond"));
 		sqlConf.join = asList();
 		sqlConf.orderby = (String)param("orderby", null, null, false);
 		sqlConf.subobj = new HashMap<String, SubobjDef>();
@@ -652,6 +652,29 @@ public class AccessControl extends JDApiBase {
 		if (cnt != 1)
 			throw new MyException(E_PARAM, String.format("not found id=%s", id));
 	}
+	
+	static String getCondStr(List<String> condArr)
+	{
+		StringBuffer condBuilder = new StringBuffer();
+		for (String cond : condArr) {
+			if (cond == null)
+				continue;
+			if (condBuilder.length() > 0)
+				condBuilder.append(" AND ");
+			if (regexMatch(cond, "(?i) (and|or) ").find())
+				condBuilder.append("(").append(cond).append(")");
+			else 
+				condBuilder.append(cond);
+		}
+		return condBuilder.toString();
+	}
+	
+	private String getCondParam(String paramName) {
+		return getCondStr(asList(
+			env._GET.get(paramName).toString(),
+			env._POST.get(paramName).toString()
+		));
+	}
 
 	// return [stringbuffer, tblSql, condSql]
 	protected Object[] genQuerySql()
@@ -669,24 +692,13 @@ public class AccessControl extends JDApiBase {
 		if (sqlConf.join.size() > 0)
 			tblSql += "\n" + String.join("\n", sqlConf.join);
 
-		StringBuffer condBuilder = new StringBuffer();
-		for (String cond : sqlConf.cond) {
-			if (cond == null)
-				continue;
-			if (condBuilder.length() > 0)
-				condBuilder.append(" AND ");
-			if (regexMatch(cond, "(?i) (and|or) ").find())
-				condBuilder.append("(").append(cond).append(")");
-			else 
-				condBuilder.append(cond);
-		}
-		condSql = condBuilder.toString();
+		condSql = getCondStr(sqlConf.cond);
 		StringBuffer sql = new StringBuffer();
 		sql.append(String.format("SELECT %s FROM %s", resSql, tblSql));
-		if (condBuilder.length() > 0)
+		if (condSql.length() > 0)
 		{
 			// TODO: flag_handleCond(condSql);
-			sql.append("\nWHERE ").append(condBuilder);
+			sql.append("\nWHERE ").append(condSql);
 		}
 		return new Object[] { sql, tblSql, condSql };
 	}
@@ -795,11 +807,15 @@ public class AccessControl extends JDApiBase {
 					}
 				}
 			}
-			// 避免excel将大数字显示为科学计数法
-			String tag = "";
-			if (s.matches("^[\\d\\.]{5,}$"))
-				tag = "\t";
-			echo('"', s, tag, '"');
+			// Excel使用本地编码(gb18030)
+			// 大数字，避免excel用科学计数法显示（从11位手机号开始）。
+			// 5位-10位数字时，Excel会根据列宽显示科学计数法或完整数字，11位以上数字总显示科学计数法。
+			if (s.matches("^\\d{11,}$"))
+				s += "\t";
+			if (s.indexOf('"') >= 0 || s.indexOf('\n') >= 0)
+				echo('"', s, '"');
+			else
+				echo(s);
 		}
 		echo("\n");
 	}
