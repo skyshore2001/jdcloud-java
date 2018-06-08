@@ -975,6 +975,10 @@ public class AccessControl extends JDApiBase {
 		int fixedColCnt = objArr.size()==0? 0: ((JsObject)objArr.get(0)).size();
 		for (Object rowData : objArr) {
 			JsObject row = (JsObject)rowData;
+			Object id1 = row.get("id");
+			if (id1 != null) {
+				handleSubObj((int)id1, row);
+			}
 			this.handleRow(row);
 		}
 		Object reto = objArr;
@@ -988,13 +992,6 @@ public class AccessControl extends JDApiBase {
 			}
 			else {
 				nextkey = pagekey + 1;
-			}
-		}
-		for (Object mainObj0 : objArr) {
-			JsObject mainObj = (JsObject)mainObj0;
-			Object id = mainObj.get("id");
-			if (id != null) {
-				handleSubObj((int)id, (JsObject)mainObj);
 			}
 		}
 		String fmt = (String)param("fmt");
