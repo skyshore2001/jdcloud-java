@@ -694,7 +694,7 @@ e.g.
 		ret.condSql = getCondStr(sqlConf.cond);
 
 		ret.tblSql = this.table + " t0";
-		if (sqlConf.join.size() > 0)
+		if (sqlConf != null && sqlConf.join != null && sqlConf.join.size() > 0)
 			ret.tblSql += "\n" + String.join("\n", sqlConf.join);
 		return ret;
 	}
