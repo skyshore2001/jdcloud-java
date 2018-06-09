@@ -352,8 +352,8 @@ e.g.
 			//if (substr($k,0,2) == "p_")
 				//continue;
 			// TODO: check meta
-			if (!k.matches("\\w+"))
-				throw new MyException(E_PARAM, String.format("bad property `%s`" + k));
+			if (!k.matches("^(\\w+\\.)?\\w+$"))
+				throw new MyException(E_PARAM, String.format("bad property `%s`", k));
 
 			Object val = kv.get(k);
 			if (val == null)

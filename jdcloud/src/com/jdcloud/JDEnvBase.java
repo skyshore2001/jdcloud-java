@@ -353,7 +353,17 @@ public class JDEnvBase
 				if (msg == null)
 					msg = ex.getClass().getName();
 				ret.add(msg);
-				ret.add(ex.getStackTrace());
+				List<String> trace = new ArrayList<String>();
+				for (StackTraceElement st: ex.getStackTrace()) {
+					String cls = st.getClassName();
+					if (cls.indexOf(".reflect.") >= 0 || cls.indexOf(".jdbc.") >= 0)
+						continue;
+					trace.add(String.format("at %s.%s (%s:%d)", st.getClassName(), st.getMethodName(), st.getFileName(), st.getLineNumber()));
+					// 最多显示10层
+					if (trace.size() >= 10)
+						break;
+				}
+				ret.add(trace);
 			}
 			ex.printStackTrace();
 		}

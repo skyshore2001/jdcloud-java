@@ -355,6 +355,7 @@ public class AccessControl extends JDApiBase {
 				if (! rowData.containsKey(k))
 					return;
 				Object v = rowData.get(k);
+				@SuppressWarnings("rawtypes")
 				Map map = (Map)e.getValue();
 				String SEP = ",";
 				if (map instanceof Map) {
@@ -652,6 +653,120 @@ public class AccessControl extends JDApiBase {
 		if (cnt != 1)
 			throw new MyException(E_PARAM, String.format("not found id=%s", id));
 	}
+
+/**<pre>
+@fn AccessControl::checkSetFields(allowedFields)
+
+"set"/"setIf"接口中，限定可设置的字段。
+不可设置的字段用readonlyFields/readonlyFields2来设置。
+
+e.g.
+	void onValidate()
+	{
+		if (this.ac.equals("set"))
+			checkSetFields(asList("status", "cmt"));
+	}
+*/
+	protected void checkSetFields(List<String> allowedFields)
+	{
+		for (String k: env._POST.keySet()) {
+			if (! allowedFields.contains(k))
+				throw new MyException(E_FORBIDDEN, String.format("forbidden to set field `%s`", k));
+		}
+	}
+
+	protected class CondSql
+	{
+		String tblSql;
+		String condSql;
+	}
+	// return {tblSql, condSql}
+	protected CondSql genCondSql()
+	{
+		String cond = getCondParam("cond");
+		if (cond == null)
+			throw new MyException(E_PARAM, "requires param `cond`");
+
+		initVColMap();
+		addCond(fixUserQuery(cond));
+
+		CondSql ret = new CondSql();
+		ret.condSql = getCondStr(sqlConf.cond);
+
+		ret.tblSql = this.table + " t0";
+		if (sqlConf.join.size() > 0)
+			ret.tblSql += "\n" + String.join("\n", sqlConf.join);
+		return ret;
+	}
+/**<pre>
+@fn AccessControl::api_setIf()
+
+批量更新。
+
+setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更新。
+也可以直接用checkSetFields指定哪些字段允许更新。
+返回更新记录数。
+示例：
+
+	class AC2_Ordr extends AccessControl {
+		@Override
+		public Object api_setIf() throws Exception {
+			checkAuth(App.PERM_MGR);
+			this.checkSetFields(asList("dscr", "amount"));
+			Object empId = getSession("empId");
+			addCond("t0.empId=" + empId);
+			// addJoin("...");
+			return super.api_setIf();
+		}
+	}
+
+ */
+	@SuppressWarnings("unchecked")
+	protected Object api_setIf() throws Exception
+	{
+		for (List<String> roFields: asList(this.readonlyFields, this.readonlyFields2)) {
+			if (roFields == null)
+				continue;
+			for (String field: roFields) {
+				if (env._POST.containsKey(field))
+					throw new MyException(E_FORBIDDEN, String.format("forbidden to set field `%s`", field));
+			}
+		}
+		
+		CondSql cond = genCondSql();
+		JsObject kv = env._POST;
+		// 有join时，防止字段重名。统一加"t0."
+		if (sqlConf != null && sqlConf.join != null && sqlConf.join.size() > 0) {
+			kv = new JsObject();
+			for (Map.Entry<String,Object> pair: env._POST.entrySet()) {
+				kv.put("t0." + pair.getKey(), pair.getValue());
+			}
+		}
+		int cnt = dbUpdate(cond.tblSql, kv, cond.condSql);
+		return cnt;
+	}
+	
+/**<pre>
+@fn AccessControl::api_delIf()
+
+批量删除。返回删除记录数。
+示例：
+
+	class AC2_Ordr extends AccessControl {
+		@Override
+		public Object api_delIf() throws Exception {
+			checkAuth(App.PERM_MGR);
+			return super.api_delIf();
+		}
+	}
+ */
+	protected Object api_delIf() throws Exception
+	{
+		CondSql cond = genCondSql();
+		String sql = String.format("DELETE t0 FROM %s WHERE %s", cond.tblSql, cond.condSql);
+		int cnt = execOne(sql);
+		return cnt;
+	}
 	
 	static String getCondStr(List<String> condArr)
 	{
@@ -661,18 +776,20 @@ public class AccessControl extends JDApiBase {
 				continue;
 			if (condBuilder.length() > 0)
 				condBuilder.append(" AND ");
-			if (regexMatch(cond, "(?i) (and|or) ").find())
+			if (cond.charAt(0) != '(' && regexMatch(cond, "(?i) (and|or) ").find())
 				condBuilder.append("(").append(cond).append(")");
 			else 
 				condBuilder.append(cond);
 		}
+		if (condBuilder.length() == 0)
+			return null;
 		return condBuilder.toString();
 	}
 	
 	private String getCondParam(String paramName) {
 		return getCondStr(asList(
-			env._GET.get(paramName).toString(),
-			env._POST.get(paramName).toString()
+			(String)env._GET.get(paramName),
+			(String)env._POST.get(paramName)
 		));
 	}
 
@@ -989,13 +1106,25 @@ public class AccessControl extends JDApiBase {
 
 		// Note: colCnt may be changed in after().
 		int fixedColCnt = objArr.size()==0? 0: ((JsObject)objArr.get(0)).size();
-		for (Object rowData : objArr) {
-			JsObject row = (JsObject)rowData;
-			Object id1 = row.get("id");
-			if (id1 != null) {
-				handleSubObj((int)id1, row);
+		
+		boolean SUBOBJ_OPTIMIZE = false;
+		if (SUBOBJ_OPTIMIZE) {
+			/*
+			$this->handleSubObjForList($ret); // 优化: 总共只用一次查询, 替代每个主表查询一次
+			foreach ($ret as &$ret1) {
+				$this->handleRow($ret1);
 			}
-			this.handleRow(row);
+			*/
+		}
+		else {
+			for (Object rowData : objArr) {
+				JsObject row = (JsObject)rowData;
+				Object id1 = row.get("id");
+				if (id1 != null) {
+					handleSubObj((int)id1, row);
+				}
+				this.handleRow(row);
+			}
 		}
 		Object reto = objArr;
 		this.after(reto);
@@ -1079,6 +1208,10 @@ public class AccessControl extends JDApiBase {
 	// prepend?=false
 	public void addCond(String cond, boolean prepend)
 	{
+		if (sqlConf == null)
+			sqlConf = new SqlConf();
+		if (sqlConf.cond == null)
+			sqlConf.cond = asList();
 		if (prepend)
 			this.sqlConf.cond.add(0, cond);
 		else
@@ -1094,6 +1227,10 @@ public class AccessControl extends JDApiBase {
 	 */
 	public void addJoin(String join)
 	{
+		if (sqlConf == null)
+			sqlConf = new SqlConf();
+		if (sqlConf.join == null)
+			sqlConf.join = asList();
 		this.sqlConf.join.add(join);
 	}
 

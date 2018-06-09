@@ -23,6 +23,22 @@ public class WebApi extends JDEnvBase
 	{
 		return new String[] { "Global", "JDLogin", "JDUpload" };
 	}
+
+	@Override
+	protected int onGetPerms() {
+		int perms = super.onGetPerms();
+		if ((perms | JDApiBase.AUTH_EMP) != 0) {
+			String[] permArr = (String[]) api.getSession("perms");
+			if (permArr != null) {
+				for (String perm : permArr) {
+					if (perm.equals("mgr")) {
+						perms |= App.PERM_MGR;
+					}
+				}
+			}
+		}
+		return perms;
+	}
 }
 
 class App
@@ -216,6 +232,23 @@ class AC2_Ordr extends AC0_Ordr
 			}
 		}
 	}
+
+/*	delIf/setIf示例
+
+	@Override
+	public Object api_delIf() throws Exception {
+		checkAuth(App.PERM_MGR);
+		return super.api_delIf();
+	}
+	@Override
+	public Object api_setIf() throws Exception {
+		checkAuth(App.PERM_MGR);
+		this.checkSetFields(asList("dscr", "cmt"));
+		Object empId = getSession("empId");
+		addCond("t0.id=" + empId);
+		return super.api_setIf();
+	}
+*/
 }
 
 class AC0_ApiLog extends AccessControl
