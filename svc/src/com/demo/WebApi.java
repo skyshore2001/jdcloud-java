@@ -121,7 +121,7 @@ class AC2_Employee extends AC0_Employee
 	protected void onInit() {
 		this.requiredFields = asList("uname", "pwd");
 
-		if (hasPerm(App.PERM_MGR)) {
+		if (! hasPerm(App.PERM_MGR)) {
 			this.allowedAc = asList("query", "get", "set");
 		}
 		// else it has all perms
