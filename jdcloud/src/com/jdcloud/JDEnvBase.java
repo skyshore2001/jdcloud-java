@@ -80,6 +80,13 @@ public class JDEnvBase
 %var env.baseDir
 
 应用程序的主目录，用于写文件。默认为 {user.home}/jd-data/{project}.
+
+在CentOS下运行tomcat时，往往默认位置为 /usr/share/tomcat/jd-data/{project}
+如果在web.properties中设置了
+
+	baseDir=.
+
+表示以项目部署目录为基本目录。
  */
 // TODO: use static
 	public String baseDir;
