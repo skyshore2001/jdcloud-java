@@ -45,6 +45,7 @@ public class AccessControl extends JDApiBase {
 		public String sql;
 		public boolean wantOne;
 		public boolean isDefault;
+		public boolean force;
 		
 		public SubobjDef sql(String val) {
 			this.sql = val;
@@ -56,6 +57,10 @@ public class AccessControl extends JDApiBase {
 		}
 		public SubobjDef isDefault(boolean val) {
 			this.isDefault = val;
+			return this;
+		}
+		public SubobjDef force(boolean val) {
+			this.force = val;
 			return this;
 		}
 	}
@@ -768,6 +773,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		return cnt;
 	}
 	
+	// 没有cond则返回null
 	static String getCondStr(List<String> condArr)
 	{
 		StringBuffer condBuilder = new StringBuffer();
@@ -786,6 +792,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		return condBuilder.toString();
 	}
 	
+	// 没有cond则返回null
 	private String getCondParam(String paramName) {
 		return getCondStr(asList(
 			(String)env._GET.get(paramName),
@@ -812,7 +819,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		condSql = getCondStr(sqlConf.cond);
 		StringBuffer sql = new StringBuffer();
 		sql.append(String.format("SELECT %s FROM %s", resSql, tblSql));
-		if (condSql.length() > 0)
+		if (condSql != null && condSql.length() > 0)
 		{
 			// TODO: flag_handleCond(condSql);
 			sql.append("\nWHERE ").append(condSql);
@@ -864,6 +871,94 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 				else {
 					mainObj.put(k, ret1);
 				}
+			}
+		}
+	}
+
+	// 优化的子表查询. 对列表使用一次`IN (id,...)`查询出子表, 然后使用程序自行join
+	// 临时添加了"id_"作为辅助字段.
+	protected void handleSubObjForList(JsArray objArr) throws Exception
+	{
+		Map<String, SubobjDef> subobj = this.sqlConf.subobj;
+		if (subobj == null || subobj.size() == 0)
+			return;
+
+		List<String> idArr = asList();
+		for (Object e: objArr) {
+			JsObject row = (JsObject)e;
+			Object key = row.getOrDefault("id", row.getOrDefault("编号", null)); // TODO: use id
+			if (key == null)
+				continue;
+			idArr.add(key.toString());
+		}
+		if (idArr.size() == 0)
+			return;
+		String idList = String.join(",", idArr);
+
+		for (Map.Entry<String, SubobjDef> kv: subobj.entrySet()) {
+			String k = kv.getKey();
+			// opt: {sql, wantOne=false}
+			SubobjDef opt = kv.getValue();
+
+			if (opt.sql == null)
+				continue;
+			String[] joinField = {null};
+
+			// e.g. "select * from OrderItem where orderId=%d" => (添加主表关联字段id_) "select *, orderId id_ from OrderItem where orderId=%d"
+			String sql = regexReplace(opt.sql, "(\\S+)=%d", ms -> {
+				joinField[0] = ms.group(1);
+				return joinField[0] + " IN (" + idList + ")";
+			});
+
+			if (joinField[0] == null) {
+				if (! opt.force)
+					throw new MyException(E_SERVER, "bad subobj def: `" + opt.sql + "'. require `field=%d`");
+
+				JsArray ret1 = queryAll(sql, true);
+				Object ret1_o = ret1;
+				if (opt.wantOne) {
+					if (ret1.size() == 0)
+						ret1_o = null;
+					else
+						ret1_o = ret1.get(0);
+				}
+				for (Object e: objArr) {
+					JsObject row = (JsObject)e;
+					row.put(k, ret1_o);
+				}
+				continue;
+			}
+
+			sql = regexReplace(sql, "(?i) from", String.format(", %s id_$0", joinField[0]));
+
+			JsArray ret1 = queryAll(sql, true);
+			Map<Object, List<JsObject>>subMap = new HashMap<>(); // {id_=>[subobj_row]}
+			for (Object e: ret1) {
+				JsObject e1 = (JsObject)e;
+				Object key = e1.get("id_");
+				e1.remove("id_");
+				if (! subMap.containsKey(key)) {
+					subMap.put(key, asList(e1));
+				}
+				else {
+					subMap.get(key).add(e1);
+				}
+			}
+			// 关联主表
+			for (Object e: objArr) {
+				JsObject row = (JsObject)e;
+				Object key = row.getOrDefault("id", row.getOrDefault("编号", null)); // TODO: use id
+				List<JsObject> val = subMap.getOrDefault(key, null);
+				Object val_o = val;
+				if (opt.wantOne) {
+					if (val != null)
+						val_o = val.get(0);
+				}
+				else {
+					if (val == null)
+						val_o = asList();
+				}
+				row.put(k, val_o);
 			}
 		}
 	}
@@ -1076,7 +1171,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			String cntSql;
 			if (! complexCntSql) {
 				cntSql = "SELECT COUNT(*) FROM " + tblSql;
-				if (condSql.length() > 0)
+				if (condSql != null && condSql.length() > 0)
 					cntSql += "\nWHERE " + condSql;
 			}
 			else {
@@ -1107,14 +1202,13 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		// Note: colCnt may be changed in after().
 		int fixedColCnt = objArr.size()==0? 0: ((JsObject)objArr.get(0)).size();
 		
-		boolean SUBOBJ_OPTIMIZE = false;
+		boolean SUBOBJ_OPTIMIZE = true;
 		if (SUBOBJ_OPTIMIZE) {
-			/*
-			$this->handleSubObjForList($ret); // 优化: 总共只用一次查询, 替代每个主表查询一次
-			foreach ($ret as &$ret1) {
-				$this->handleRow($ret1);
+			handleSubObjForList(objArr); // 优化: 总共只用一次查询, 替代每个主表查询一次
+			for (Object rowData: objArr) {
+				JsObject row = (JsObject)rowData;
+				this.handleRow(row);
 			}
-			*/
 		}
 		else {
 			for (Object rowData : objArr) {

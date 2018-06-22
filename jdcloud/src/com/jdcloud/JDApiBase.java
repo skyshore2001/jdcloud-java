@@ -461,10 +461,10 @@ e.g.
 		}
 	}
 
-	public void logit(String s) {
+	public void logit(Object s) {
 		logit(s, true, "trace");
 	}
-	public void logit(String s, boolean addHeader) {
+	public void logit(Object s, boolean addHeader) {
 		logit(s, addHeader, "trace");
 	}
 /**
@@ -474,14 +474,19 @@ e.g.
 
  */
 	// which?="trace"
-	public void logit(String s, boolean addHeader, String type) {
+	public void logit(Object s, boolean addHeader, String type) {
 		String fname = env.baseDir + "/" + type + ".log";
 		try (OutputStream out = new FileOutputStream(fname, true)) {
 			if (addHeader) {
 				String hdr = String.format("[%s] ", date());
 				out.write(hdr.getBytes("utf-8"));
 			}
-			out.write(s.getBytes("utf-8"));
+			if (s instanceof byte[])
+				out.write((byte[])s);
+			else if (s instanceof String)
+				out.write(((String)s).getBytes("utf-8"));
+			else
+				out.write(s.toString().getBytes("utf-8"));
 			out.write('\n');
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
@@ -1347,6 +1352,33 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 			}
 		}
 		return idx;
+	}
+
+/**<pre>
+%fn forEach(map, fn(k, v))
+
+与map.forEach类似，但抛出Exception异常。
+如果设置外部变量，示例：
+
+	Map<String, Integer> m = new HashMap<>();
+	// add values ...
+	Integer[] minVal = {Integer.MAX_VALUE};
+	forEach(m, (k, v) -> {
+		if (minVal[0] > v)
+			minVal[0] = v;
+	});
+
+*/
+	@FunctionalInterface
+	public interface MapForEachFn<K,V>
+	{
+		void exec(K k, V v) throws Exception;
+	}
+	public static <K,V> void forEach(Map<K,V> m, MapForEachFn<K,V> fn) throws Exception
+	{
+		for (Map.Entry<K,V> kv: m.entrySet()) {
+			fn.exec(kv.getKey(), kv.getValue());
+		}
 	}
 
 /**<pre>
