@@ -159,12 +159,12 @@ public class JDApiBase
 %fn queryOne(sql, assoc?=false) 
 
 执行查询语句，只返回一行数据，如果行中只有一列，则直接返回该列数值。
-如果查询不到，返回false.
+如果查询不到，返回false，可以用Objects.equals(rv, false)来判断。注意返回值可能为null，不要用rv.equals(false)判断。
 
 示例：查询用户姓名与电话，默认返回值数组(JsArray)：
 
 	Object rv = queryOne("SELECT name,phone FROM User WHERE id=" + id);
-	if (rv.equals(false))
+	if (Objects.equals(rv, false))
 		throw new MyException(E_PARAM, "bad user id");
 	JsArray row = (JsArray)rv;
 	// row = ["John", "13712345678"]
@@ -172,7 +172,7 @@ public class JDApiBase
 指定参数assoc=true时，返回关联数组:
 
 	Object rv = queryOne("SELECT name,phone FROM User WHERE id=" + id, true);
-	if (rv.equals(false))
+	if (Objects.equals(rv, false))
 		throw new MyException(E_PARAM, "bad user id");
 	JsObject row = (JsObject)rv;
 	// row = {"name": "John",  "phone":"13712345678"}
@@ -180,7 +180,7 @@ public class JDApiBase
 当查询结果只有一列且参数assoc=false时，直接返回该数值。
 
 	Object phone = queryOne("SELECT phone FROM User WHERE id="+id);
-	if (phone.equals(false))
+	if (Objects.equals(phone, false))
 		throw new MyException(E_PARAM, "bad user id");
 	// phone = "13712345678"
 
@@ -284,8 +284,10 @@ e.g.
 				throw new MyException(E_PARAM, String.format("bad property `%s`", k));
 
 			Object oval = kv.get(k);
+			if (oval == null)
+				continue;
 			String val = oval.toString();
-			if (oval == null || val.length() == 0)
+			if (val.length() == 0)
 				continue;
 			if (keys.length() > 0)
 			{
@@ -495,6 +497,20 @@ e.g.
 		}
 	}
 
+/**<pre>
+%fn parseBoolean(val) -> boolVal
+
+val支持多种类型。
+
+- null或数值0表示false
+- 字符串"0", "false", "off", "no"表示false 
+- 字符串"1", "true", "on", "yes"表示true, 特别地, 空串("", empty)表示true
+
+示例：
+
+	boolean forTest = param("test/b", false); 
+	boolean isTestMode = parseBoolean(getenv("P_TEST_MODE", "0")); // 仅用作示例，可以直接用 env.isTestMode
+ */
 	public static boolean parseBoolean(Object o)
 	{
 		boolean val = false;
@@ -508,7 +524,7 @@ e.g.
 		String s = ((String)o).toLowerCase();
 		if (s.equals("0") || s.equals("false") || s.equals("off") || s.equals("no"))
 			val = false;
-		else if (s.equals("1") || s.equals("true") || s.equals("on") || s.equals("yes"))
+		else if (s.equals("") || s.equals("1") || s.equals("true") || s.equals("on") || s.equals("yes"))
 			val = true;
 		else
 			throw new NumberFormatException();
@@ -519,8 +535,16 @@ e.g.
 		return parseDate(s, false);
 	}
 
-	// "2010/1/1 10:10", "2011-2-1 8:8:8", "2010.3.4", "2011-02-01T10:10:10Z"
-	// return null if fails
+/**<pre>
+%fn parseDate(str, onlyDatePart?=false) -> dateVal
+
+支持以下日期格式：
+
+	"2010/1/1 10:10", "2011-2-1 8:8:8", "2010.3.4", "2011-02-01T10:10:10Z"
+
+如果格式无法解析，返回null。
+如果onlyDatePart=true，则只取日期部分，忽略时间部分。
+ */
 	@SuppressWarnings("deprecation")
 	public static java.util.Date parseDate(String s, boolean onlyDatePart) {
 		String fmt;
@@ -1496,11 +1520,13 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 /**<pre>
 %fn exit()
 
-立即返回，不再处理。等价于`throw new DirectReturn();`
-如果想退出返回数据，请直接用DirectReturn.
+立即返回，不再处理，不自动输出任何内容。
+如果想输出返回数据，请自行用echo输出后再调用exit，或直接用DirectReturn(val)返回`[0,val]`标准格式.
+
+%see DirectReturn
  */
 	public void exit() {
-		throw new DirectReturn();
+		throw new DirectReturn(0, null, false);
 	}
 	
 /**<pre>

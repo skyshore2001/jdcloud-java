@@ -778,7 +778,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	{
 		StringBuffer condBuilder = new StringBuffer();
 		for (String cond : condArr) {
-			if (cond == null)
+			if (cond == null || cond.length() == 0)
 				continue;
 			if (condBuilder.length() > 0)
 				condBuilder.append(" AND ");

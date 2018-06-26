@@ -301,7 +301,7 @@ public class JDEnvBase
 	public JsArray callSvcSafe(String ac, boolean useTrans) {
 		JsArray ret = new JsArray(0, null);
 		boolean ok = false; // commit or rollback trans
-		boolean dret = false;
+		boolean output = true;
 		ApiLog apiLog = null;
 		boolean isDefaultCall = ac == null;
 		try {
@@ -336,13 +336,9 @@ public class JDEnvBase
 		}
 		catch (DirectReturn ex) {
 			ok = true;
-			if (ex.retVal != null) {
-				ret.set(1, ex.retVal);
-			}
-			else {
-				ret.set(1, "OK");
-				dret = true;
-			}
+			ret.set(0, ex.retCode);
+			ret.set(1, ex.retVal==null? "OK": ex.retVal);
+			output = ex.output;
 		}
 		catch (MyException ex) {
 			ret.set(0, ex.getCode());
@@ -391,7 +387,7 @@ public class JDEnvBase
 			api.safeClose(this.conn);
 			this.conn = null;
 
-			if (! dret) {
+			if (output) {
 				api.echo(this.X_RET_STR);
 			}
 		}
