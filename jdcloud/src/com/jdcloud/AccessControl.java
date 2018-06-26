@@ -792,12 +792,12 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		return condBuilder.toString();
 	}
 	
-	// 没有cond则返回null
+	// 没有cond则返回null, 支持GET/POST中各有一个cond/gcond条件。
 	private String getCondParam(String paramName) {
-		return getCondStr(asList(
-			(String)env._GET.get(paramName),
-			(String)env._POST.get(paramName)
-		));
+		String[] condArr = env.request.getParameterValues(paramName);
+		if (condArr == null)
+			return null;
+		return getCondStr(Arrays.asList(condArr));
 	}
 
 	// return [stringbuffer, tblSql, condSql]
