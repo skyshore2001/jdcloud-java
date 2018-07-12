@@ -264,7 +264,8 @@ public class JDEnvBase
 		this.clientVer = (String)api.param("_ver", null, "G");
 		if (this.clientVer == null) {
 			// Mozilla/5.0 (Linux; U; Android 4.1.1; zh-cn; MI 2S Build/JRO03L) AppleWebKit/533.1 (KHTML, like Gecko)Version/4.0 MQQBrowser/5.4 TBS/025440 Mobile Safari/533.1 MicroMessenger/6.2.5.50_r0e62591.621 NetType/WIFI Language/zh_CN
-			if ((m=JDApiBase.regexMatch(this.request.getHeader("User-Agent"), "MicroMessenger\\/([0-9.]+)")).find()) {
+			String ua = this.request.getHeader("User-Agent");
+			if (ua!=null && (m=JDApiBase.regexMatch(ua, "MicroMessenger\\/([0-9.]+)")).find()) {
 				this.clientVer = "wx/" + m.group(1);
 			}
 			else {
