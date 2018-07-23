@@ -1077,7 +1077,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			handled = true;
 		}
 		if (handled)
-			throw new DirectReturn();
+			exit();
 	}
 
 	public int getMaxPageSz()
