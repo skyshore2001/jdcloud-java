@@ -1,12 +1,22 @@
 package com.jdcloud;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLEncoder;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.*;
@@ -395,7 +405,7 @@ e.g.
 		return cnt;
 	}
 
-	public String jsonEncode(Object o)
+	public static String jsonEncode(Object o)
 	{
 		return jsonEncode(o, false);
 	}
@@ -406,7 +416,7 @@ e.g.
 
 %see jsonDecode
  */
-	public String jsonEncode(Object o, boolean doFormat)
+	public static String jsonEncode(Object o, boolean doFormat)
 	{
 		GsonBuilder gb = new GsonBuilder();
 		gb.serializeNulls().disableHtmlEscaping().setDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -423,14 +433,22 @@ e.g.
 	List m = jsonDecode(json, List.class);
 	User u = jsonDecode(json, User.class);
 
+	Object o = jsonDecode(json);
+	// the same as
+	Object o = jsonDecode(json, Object.class);
+	
 %see jsonEncode
  */
-	public <T> T jsonDecode(String json, Class<T> type)
+	public static <T> T jsonDecode(String json, Class<T> type)
 	{
 		GsonBuilder gb = new GsonBuilder();
 		gb.serializeNulls().disableHtmlEscaping().setDateFormat("yyyy-MM-dd HH:mm:ss");
 		Gson gson = gb.create();
 		return gson.fromJson(json, type);
+	}
+	public static Object jsonDecode(String json)
+	{
+		return jsonDecode(json, Object.class);
 	}
 	
 	static final Map<String, String> htmlEntityMapping = asMap(
@@ -1406,6 +1424,53 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 	}
 
 /**<pre>
+@fn readFileBytes(file, maxLen=-1) -> byte[]
+
+返回null表示读取失败。
+ */
+	public static byte[] readFileBytes(String file) throws IOException
+	{
+		return readFileBytes(file, -1);
+	}
+	public static byte[] readFileBytes(String file, int maxLen)
+	{
+		byte[] bs = null;
+		try {
+			File f = new File(file);
+			if (! f.exists())
+				return null;
+			InputStream in = new FileInputStream(f);
+			int len = (int)f.length();
+			if (maxLen >0 && len > maxLen)
+				len = maxLen;
+			bs = new byte[len];
+			in.read(bs);
+			in.close();
+		}
+		catch (IOException ex) {
+			
+		}
+		return bs;
+	}
+
+/**<pre>
+%fn readFile(file, charset="utf-8") -> String
+
+返回null表示读取失败。
+ */
+	public static String readFile(String file) throws IOException
+	{
+		return readFile(file, "utf-8");
+	}
+	public static String readFile(String file, String charset) throws IOException
+	{
+		byte[] bs = readFileBytes(file);
+		if (bs == null)
+			return null;
+		return new String(bs, charset);
+	}
+
+/**<pre>
 %fn writeFile(in, out, bufSize?)
 
 复制输入到输出。输入、输出可以是文件或流。
@@ -1611,5 +1676,125 @@ Close without exception.
 			map.put(kv[0], kv[1]);
 		}
 		return map;
+	}
+	
+	public static String urlEncodeArr(Map<String,Object> params) throws Exception
+	{
+		StringBuffer sb = new StringBuffer();
+		for (Map.Entry<String, Object> kv: params.entrySet()) {
+			if (sb.length() > 0)
+				sb.append('&');
+			String k = URLEncoder.encode(kv.getKey(), "UTF-8");
+			String v = URLEncoder.encode(kv.getValue().toString(), "UTF-8");
+			sb.append(k).append('=').append(v);
+		}
+		return sb.toString();
+	}
+	public static String makeUrl(String ac, Map<String,Object> params) throws Exception
+	{
+		StringBuffer url = new StringBuffer();
+		url.append(ac);
+		if (params != null) {
+			if (url.indexOf("?") <= 0)
+				url.append('?');
+			else
+				url.append('&');
+			url.append(urlEncodeArr(params));
+		}
+		/*
+		if (hash != null)
+			url.append(hash);
+		*/
+		return url.toString();
+	}
+
+/**
+%fn httpCall(url, urlParams, postParams, opt)
+
+postParams非空使用POST请求，否则使用GET请求。
+postParams可以是字符串、map或list等数据结构。默认contentType为"x-www-form-urlencoded"格式。如果postParams为list等结构，则使用"json"格式。
+如果要明确指定格式，可以设置opt.contentType参数，如
+
+	String rv = httpCall(baseUrl, urlParams, postParams, asMap("contentType", "application/json"));
+	
+
+- opt: {contentType}
+
+e.g.
+
+	String baseUrl = "http://oliveche.com/echo.php";
+	// 常用asMap或new JsObject
+	Map<String, Object> urlParams = asMap("intval", 100, "floatval", 12.345, "strval", "hello");
+	JsObject postParams = new JsObject("postintval", 100, "poststrval", "中文");
+	String rv = httpCall(baseUrl, urlParams, postParams, null);
+
+*/
+	public static String httpCall(String url, Map<String,Object> getParams, Object postParams, Map<String,Object> opt) throws Exception
+	{
+		String url1 = makeUrl(url, getParams);
+		URL oUrl = new URL(url1);
+		HttpURLConnection conn = (HttpURLConnection)oUrl.openConnection();
+		conn.setConnectTimeout(60);
+		conn.setReadTimeout(60);
+
+		byte[] postBytes = null;
+		String charset = "UTF-8";
+		if (postParams != null) {
+			String postStr = null;
+			String ct = null;
+			if (opt != null) 
+				ct = Objects.toString(opt.get("contentType"));
+			if (ct == null) {
+				if (postParams instanceof Map || postParams instanceof String) {
+					ct = "application/x-www-form-urlencoded";
+				}
+				else {
+					ct = "application/json";
+				}
+			}
+			if (postParams instanceof String) {
+				postStr = (String)postParams;
+			}
+			else if (ct.indexOf("/json") >0) {
+				postStr = jsonEncode(postParams);
+			}
+			else {
+				@SuppressWarnings("unchecked")
+				Map<String,Object> postMap = (Map<String,Object>)postParams;
+				postStr = urlEncodeArr(postMap);
+			}
+			conn.setRequestProperty("Content-Type", ct + ";charset=" + charset);
+			conn.setDoOutput(true);
+			conn.setDoInput(true);
+
+			postBytes = postStr.getBytes(charset);
+		}
+		conn.connect();
+		if (postBytes != null) {
+			try (OutputStream out = conn.getOutputStream()) {
+				out.write(postBytes);
+			}
+		}
+
+		String ct = conn.getContentType();
+		String resCharset = "UTF-8";
+		Matcher m = regexMatch(ct, "(?i)charset=([\\w-]+)");
+		if (m.find())
+			resCharset = m.group(1);
+		// System.out.println(ct);
+
+		String ret = null;
+		try (
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			BufferedInputStream in = new BufferedInputStream(conn.getInputStream())
+		) {
+			byte[] buf = new byte[1024];
+			int len;
+			while ((len = in.read(buf)) >= 0) {
+				out.write(buf, 0, len);
+			}
+			ret = out.toString(resCharset);
+		}
+		return ret;
 	}
 }
