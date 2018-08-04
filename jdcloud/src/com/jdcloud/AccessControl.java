@@ -359,7 +359,7 @@ public class AccessControl extends JDApiBase {
 				String k = e.getKey();
 				if (! rowData.containsKey(k))
 					return;
-				Object v = rowData.get(k);
+				Object v = rowData.get(k).toString();
 				@SuppressWarnings("rawtypes")
 				Map map = (Map)e.getValue();
 				String SEP = ",";
@@ -1007,6 +1007,10 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			}
 			else if (e instanceof Number) {
 				s = numberFormat.format(e);
+			}
+			else if (e instanceof java.sql.Timestamp) {
+				java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				s = df.format(e);
 			}
 			else {
 				s = e.toString().replace("\"", "\"\"");
