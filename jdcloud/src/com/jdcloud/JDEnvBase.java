@@ -177,12 +177,6 @@ public class JDEnvBase
 		if (enc == null)
 			request.setCharacterEncoding("utf-8");
 		response.setContentType("text/plain; charset=utf-8");
-		if (this.isTestMode)
-		{
-			api.header("X-Daca-Test-Mode", "1");
-		}
-
-		// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 
 		String pathInfo = request.getPathInfo();
 		if (pathInfo == null)
@@ -242,6 +236,8 @@ public class JDEnvBase
 			}
 		}
 
+		// end with "/"
+		String webRootDir = JDApiBase.getPath(this.request.getServletContext().getRealPath(""), true);
 		// TODO: static
 		this.baseDir = props.getProperty("baseDir");
 		if (this.baseDir == null) {
@@ -249,12 +245,13 @@ public class JDEnvBase
 		}
 		// 支持相对路径, 以项目servlet路径作为当前路径。
 		else if (! this.baseDir.matches("^([/\\\\]|\\w:)")) { // /dir1 c:/dir1
-			this.baseDir = JDApiBase.getPath(this.request.getServletContext().getRealPath(""), true) + this.baseDir;
+			this.baseDir = webRootDir + this.baseDir;
 		}
 		this.baseDir = JDApiBase.getPath(this.baseDir, false);
 		new File(this.baseDir).mkdirs();
 		
 		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
+		// TODO: debugLevel在test模式下有效；且可通过_debug参数指定
 		this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "0"));
 		this.dbType = props.getProperty("P_DBTYPE", "mysql");
 
@@ -283,6 +280,19 @@ public class JDEnvBase
 		this.dbStrategy.init(this);
 
 		this.onApiInit();
+
+		if (this.isTestMode)
+		{
+			api.header("X-Daca-Test-Mode", "1");
+		}
+
+		// TODO: X-Daca-Mock-Mode
+		// X-Daca-Server-Rev
+		String rev = JDApiBase.readFile(webRootDir + "revision.txt");
+		if (rev != null) {
+			rev = rev.substring(0, 6);
+			api.header("X-Daca-Server-Rev", rev);
+		}
 
 		return ac;
 	}
