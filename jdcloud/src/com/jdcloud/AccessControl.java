@@ -86,7 +86,7 @@ public class AccessControl extends JDApiBase {
 		public boolean added;
 	}
 
-	public static final List<String> stdAc = asList("add", "get", "set", "del", "query");
+	public static final List<String> stdAc = asList("add", "get", "set", "del", "query", "setIf", "delIf");
 	protected List<String> allowedAc;
 	protected String ac;
 	protected String table;
@@ -727,7 +727,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 
  */
 	@SuppressWarnings("unchecked")
-	protected Object api_setIf() throws Exception
+	public Object api_setIf() throws Exception
 	{
 		for (List<String> roFields: asList(this.readonlyFields, this.readonlyFields2)) {
 			if (roFields == null)
@@ -765,7 +765,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		}
 	}
  */
-	protected Object api_delIf() throws Exception
+	public Object api_delIf() throws Exception
 	{
 		CondSql cond = genCondSql();
 		String sql = String.format("DELETE t0 FROM %s WHERE %s", cond.tblSql, cond.condSql);
