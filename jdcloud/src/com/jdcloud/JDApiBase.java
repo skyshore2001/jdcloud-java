@@ -1778,10 +1778,12 @@ e.g.
 
 		String ct = conn.getContentType();
 		String resCharset = "UTF-8";
-		Matcher m = regexMatch(ct, "(?i)charset=([\\w-]+)");
-		if (m.find())
-			resCharset = m.group(1);
-		// System.out.println(ct);
+		if (ct != null) {
+			Matcher m = regexMatch(ct, "(?i)charset=([\\w-]+)");
+			if (m.find())
+				resCharset = m.group(1);
+			// System.out.println(ct);
+		}
 
 		String ret = null;
 		try (
