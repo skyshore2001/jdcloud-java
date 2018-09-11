@@ -1,9 +1,6 @@
 package com.jdcloud;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
-
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -21,26 +18,21 @@ public class JDHandler extends HttpServlet {
 	 * @see HttpServlet#service(HttpServletRequest request, HttpServletResponse response)
 	 */
 	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		Properties props = null;
+		JDEnvBase env;
 		try {
-			props = new Properties();
-			InputStream is = request.getServletContext().getResourceAsStream("/WEB-INF/web.properties");
-			props.load(is);
-		} catch (Exception e) {
-		}
-		
-		JDEnvBase env = null;
-		try {
-			String clsEnv = props.getProperty("JDEnv");
-			if (clsEnv == null) {
-				throw null; 
-			}
-			env = (JDEnvBase)Class.forName(clsEnv).newInstance();
+			env = JDEnvBase.createEnv(request.getServletContext());
 		} catch (Exception ex) {
 			response.setContentType("text/plain; charset=utf-8");
-			response.getWriter().format("[%d, \"%s\", \"%s\"]", JDApiBase.E_SERVER, "服务器错误", "Fail to create JDEnv");
+			String msg = "Fail to create JDEnv";
+			if (ex instanceof MyException) {
+				MyException ex1 = (MyException)ex;
+				msg += ": " + ex1.getDebugInfo().toString();
+			}
+			String ret = JDApiBase.jsonEncode(new JsArray(JDApiBase.E_SERVER, msg));
+			response.getWriter().println(ret);
+			ex.printStackTrace();
 			return;
 		}
-		env.service(request, response, props);
+		env.service(request, response);
 	}
 }

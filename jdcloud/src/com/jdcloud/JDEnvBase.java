@@ -1,5 +1,6 @@
 package com.jdcloud;
 import java.io.File;
+import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -9,12 +10,12 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.text.DecimalFormat;
 import java.util.*;
-import java.util.function.Function;
 import java.util.regex.*;
 
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
+import javax.servlet.ServletContext;
 import javax.servlet.http.*;
 import javax.sql.DataSource;
 
@@ -66,6 +67,7 @@ public class JDEnvBase
 	protected JDApiBase api = new JDApiBase();
 
 	public Connection conn;
+	protected ServletContext ctx;
 	public HttpServletRequest request;
 	public HttpServletResponse response;
 	public JsObject _GET, _POST;
@@ -90,6 +92,7 @@ public class JDEnvBase
  */
 // TODO: use static
 	public String baseDir;
+	protected String webRootDir;
 
 /**<pre>
 %var env.props
@@ -159,8 +162,63 @@ public class JDEnvBase
 	public String X_RET_STR;
 	public JsArray X_RET;
 
+	public static JDEnvBase createEnv(ServletContext ctx) throws Exception
+	{
+		Properties props = null;
+		try {
+			props = new Properties();
+			InputStream is = ctx.getResourceAsStream("/WEB-INF/web.properties");
+			props.load(is);
+		} catch (Exception e) {
+		}
+		
+		String clsEnv = props.getProperty("JDEnv");
+		if (clsEnv == null) {
+			throw null; 
+		}
+		JDEnvBase env = (JDEnvBase)Class.forName(clsEnv).newInstance();
+		env.initEnv(ctx, props);
+		return env;
+	}
+
+	private void initEnv(ServletContext ctx, Properties props) throws Exception
+	{
+		this.ctx = ctx;
+		this.props = props;
+		this.api = new JDApiBase();
+		this.api.env = this;
+
+		// end with "/"
+		this.webRootDir = JDApiBase.getPath(ctx.getRealPath(""), true);
+		// TODO: static
+		this.baseDir = props.getProperty("baseDir");
+		if (this.baseDir == null) {
+			this.baseDir = System.getProperty("user.home") + "/jd-data/" + ctx.getContextPath();
+		}
+		// 支持相对路径, 以项目servlet路径作为当前路径。
+		else if (! this.baseDir.matches("^([/\\\\]|\\w:)")) { // /dir1 c:/dir1
+			this.baseDir = this.webRootDir + this.baseDir;
+		}
+		this.baseDir = JDApiBase.getPath(this.baseDir, false);
+		new File(this.baseDir).mkdirs();
+		
+		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
+		// TODO: debugLevel在test模式下有效；且可通过_debug参数指定
+		this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "0"));
+		this.dbType = props.getProperty("P_DBTYPE", "mysql");
+
+		if (this.dbType.equals("mysql"))
+			this.dbStrategy = new MySQLStrategy();
+		else if (this.dbType.equals("mssql"))
+			this.dbStrategy = new MsSQLStrategy();
+		else
+			throw new MyException(JDApiBase.E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
+		
+		this.dbStrategy.init(this);
+	}
+
 	@SuppressWarnings("unchecked")
-	private String init() throws Exception
+	protected String initRequest() throws Exception
 	{
 		String origin = request.getHeader("Origin");
 		if (origin != null)
@@ -236,25 +294,6 @@ public class JDEnvBase
 			}
 		}
 
-		// end with "/"
-		String webRootDir = JDApiBase.getPath(this.request.getServletContext().getRealPath(""), true);
-		// TODO: static
-		this.baseDir = props.getProperty("baseDir");
-		if (this.baseDir == null) {
-			this.baseDir = System.getProperty("user.home") + "/jd-data/" + request.getContextPath();
-		}
-		// 支持相对路径, 以项目servlet路径作为当前路径。
-		else if (! this.baseDir.matches("^([/\\\\]|\\w:)")) { // /dir1 c:/dir1
-			this.baseDir = webRootDir + this.baseDir;
-		}
-		this.baseDir = JDApiBase.getPath(this.baseDir, false);
-		new File(this.baseDir).mkdirs();
-		
-		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
-		// TODO: debugLevel在test模式下有效；且可通过_debug参数指定
-		this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "0"));
-		this.dbType = props.getProperty("P_DBTYPE", "mysql");
-
 		this.appName = (String)api.param("_app", "user", "G");
 		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
 
@@ -270,15 +309,6 @@ public class JDEnvBase
 			}
 		}
 
-		if (this.dbType.equals("mysql"))
-			this.dbStrategy = new MySQLStrategy();
-		else if (this.dbType.equals("mssql"))
-			this.dbStrategy = new MsSQLStrategy();
-		else
-			throw new MyException(JDApiBase.E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
-		
-		this.dbStrategy.init(this);
-
 		this.onApiInit();
 
 		if (this.isTestMode)
@@ -288,7 +318,7 @@ public class JDEnvBase
 
 		// TODO: X-Daca-Mock-Mode
 		// X-Daca-Server-Rev
-		String rev = JDApiBase.readFile(webRootDir + "revision.txt");
+		String rev = JDApiBase.readFile(this.webRootDir + "revision.txt");
 		if (rev != null) {
 			rev = rev.substring(0, 6);
 			api.header("X-Daca-Server-Rev", rev);
@@ -296,18 +326,14 @@ public class JDEnvBase
 
 		return ac;
 	}
-	
-	public void service(HttpServletRequest request, HttpServletResponse response, Properties props) {
+
+	public void service(HttpServletRequest request, HttpServletResponse response) {
 		this.request = request;
 		this.response = response;
-		this.props = props;
-		
-		this.api = new JDApiBase();
-		this.api.env = this;
 		
 		callSvcSafe(null, true);
 	}
-
+	
 	// ac=null: auto init
 	public JsArray callSvcSafe(String ac, boolean useTrans) {
 		JsArray ret = new JsArray(0, null);
@@ -317,7 +343,7 @@ public class JDEnvBase
 		boolean isDefaultCall = ac == null;
 		try {
 			if (isDefaultCall) {
-				ac = init();
+				ac = initRequest();
 				if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
 					apiLog = new ApiLog(ac);
 					apiLog.logBefore();
@@ -388,7 +414,7 @@ public class JDEnvBase
 			ret.add(this.debugInfo);
 		}
 
-		this.X_RET_STR = api.jsonEncode(ret, this.isTestMode);;
+		this.X_RET_STR = JDApiBase.jsonEncode(ret, this.isTestMode);
 		this.X_RET = ret;
 
 		if (isDefaultCall) {
@@ -520,7 +546,7 @@ public class JDEnvBase
 			String[] clsNames = table==null? onCreateApi(): onCreateAC(table);
 			if (! getCallInfo(clsNames, methodName, callInfo)) {
 				if (table == null || callInfo.cls != null)
-					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
+					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)", "接口不支持");
 
 				int code = !this.api.hasPerm(JDApiBase.AUTH_LOGIN) ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
 				throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
