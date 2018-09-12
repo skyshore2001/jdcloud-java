@@ -144,7 +144,7 @@ public class AccessControl extends JDApiBase {
 	protected String defaultRes = "t0.*"; // 缺省为 "t0.*" 加  default=true的虚拟字段
 	protected String defaultSort = "t0.id";
 	// for query
-	protected int maxPageSz = 100;
+	protected int maxPageSz = 1000;
 
 	// for get/query
 	// virtual columns definition
