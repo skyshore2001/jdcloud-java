@@ -601,6 +601,26 @@ val支持多种类型。
 		return dt;
 	}
 
+/**<pre>
+%fn parseDate(str, fmt) -> dateVal
+
+	java.util.Date tm = parseDate("20180101121030", "yyyyMMddHHmmss");
+	if (tm == null) // fail to parse
+		return;
+	String tmstr = date("yyyy-MM-dd HH:mm:ss", tm); // "2018-01-01 12:10:30"
+	
+如果格式无法解析，返回null。
+ */
+	public static java.util.Date parseDate(String s, String fmt) {
+		DateFormat ofmt = new SimpleDateFormat(fmt);
+		java.util.Date dt = null;
+		try {
+			dt = ofmt.parse(s);
+		} catch (ParseException e) {
+		}
+		return dt;
+	}
+
 	// retrun: [type, name]
 	private String[] parseType(String name)
 	{
