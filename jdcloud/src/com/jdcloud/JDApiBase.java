@@ -1754,8 +1754,8 @@ e.g.
 		String url1 = makeUrl(url, getParams);
 		URL oUrl = new URL(url1);
 		HttpURLConnection conn = (HttpURLConnection)oUrl.openConnection();
-		conn.setConnectTimeout(60);
-		conn.setReadTimeout(60);
+		conn.setConnectTimeout(10000);
+		conn.setReadTimeout(20000);
 
 		byte[] postBytes = null;
 		String charset = "UTF-8";
