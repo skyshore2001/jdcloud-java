@@ -29,7 +29,10 @@ ALL_JARS:=$(shell find $(TOMCAT_HOME)/lib -name '*.jar') $(JARS)
 NUL:=
 SPACE:=$(NUL) #
 # support windows & linux 
-SEP=$(if $(WINDIR),;,:)
+SEP=:
+ifeq ($(OS),Windows_NT)
+	SEP=;
+endif
 CLASS_PATH=$(subst $(SPACE),$(SEP),$(ALL_JARS))
 
 OUT_CLASS_DIR=$(OUT_DIR)/WEB-INF/classes
