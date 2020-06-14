@@ -1,6 +1,9 @@
 package com.jdcloud;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -164,12 +167,13 @@ public class JDEnvBase
 
 	public static JDEnvBase createEnv(ServletContext ctx) throws Exception
 	{
-		Properties props = null;
-		try {
-			props = new Properties();
-			InputStream is = ctx.getResourceAsStream("/WEB-INF/web.properties");
-			props.load(is);
-		} catch (Exception e) {
+		Properties props = new Properties();
+		try (InputStream is = ctx.getResourceAsStream("/WEB-INF/web.properties");
+			Reader rd = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+		) {
+			props.load(rd);
+		}
+		catch (Exception e) {
 		}
 		
 		String clsEnv = props.getProperty("JDEnv");
@@ -181,6 +185,22 @@ public class JDEnvBase
 		return env;
 	}
 
+	public static JDEnvBase createEnv() throws Exception
+	{
+		Properties props = new Properties();
+		try (InputStream is = new FileInputStream("web.properties");
+			Reader rd = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+		) {
+			props.load(rd);
+		}
+		catch (Exception e) {
+		}
+		
+		JDEnvBase env = new JDEnvBase();
+		env.initEnv(null, props);
+		return env;
+	}
+
 	private void initEnv(ServletContext ctx, Properties props) throws Exception
 	{
 		this.ctx = ctx;
@@ -188,12 +208,16 @@ public class JDEnvBase
 		this.api = new JDApiBase();
 		this.api.env = this;
 
+		String path = (ctx != null? ctx.getRealPath(""): System.getProperty("user.dir"));
 		// end with "/"
-		this.webRootDir = JDApiBase.getPath(ctx.getRealPath(""), true);
+		this.webRootDir = JDApiBase.getPath(path, true);
 		// TODO: static
 		this.baseDir = props.getProperty("baseDir");
 		if (this.baseDir == null) {
-			this.baseDir = System.getProperty("user.home") + "/jd-data/" + ctx.getContextPath();
+			if (ctx != null)
+				this.baseDir = System.getProperty("user.home") + "/jd-data/" + ctx.getContextPath();
+			else
+				this.baseDir = System.getProperty("user.dir");
 		}
 		// 支持相对路径, 以项目servlet路径作为当前路径。
 		else if (! this.baseDir.matches("^([/\\\\]|\\w:)")) { // /dir1 c:/dir1
@@ -216,7 +240,7 @@ public class JDEnvBase
 		
 		this.dbStrategy.init(this);
 	}
-
+	
 	@SuppressWarnings("unchecked")
 	protected String initRequest() throws Exception
 	{
@@ -247,52 +271,43 @@ public class JDEnvBase
 		}
 		String ac = m.group(1);
 
-		this._GET = new JsObject();
-		this._POST = new JsObject();
-		String q = this.request.getQueryString();
-		if (q != null) {
-			Set<String> set = new HashSet<String>();
-			for (String q1 : q.split("&")) {
-				String[] kv = q1.split("=");
-				set.add(kv[0]);
+		// 支持POST为urlencoded或json格式
+		String ct = this.request.getContentType();
+		if (ct != null) {
+			if (ct.indexOf("/json") > 0) {
+				Type type = null;
+				if (ac.equals("batch")) {
+					type = new TypeToken<List<CallCtx>>() {}.getType();
+				}
+				else {
+					type = Object.class;
+				}
+				try {
+					Reader rd = this.request.getReader();
+					this.postData = new Gson().fromJson(rd, type);
+				}
+				catch (Exception e) {
+					throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
+				}
+				if (this.postData instanceof Map) {
+					this._POST.putAll((Map<String, Object>)this.postData);
+				}
 			}
-			Enumeration<String> em = this.request.getParameterNames();
-			while (em.hasMoreElements()) {
-				String k = em.nextElement();
-				if (set.contains(k))
-					this._GET.put(k, request.getParameter(k));
-				else
-					this._POST.put(k, request.getParameter(k));
+			else if (ct.indexOf("urlencoded") >= 0) {
+				try {
+					this._POST = QueryString.getPostParam(request);
+				}
+				catch (Exception e) {
+					throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
+				}
 			}
 		}
 		else {
-			Enumeration<String> em = this.request.getParameterNames();
-			while (em.hasMoreElements()) {
-				String k = em.nextElement();
-				this._POST.put(k, request.getParameter(k));
-			}
+			this._POST = new JsObject();
 		}
 
-		// 支持POST为json格式
-		if (this.request.getContentType() != null && this.request.getContentType().indexOf("/json") > 0) {
-			Type type = null;
-			if (ac.equals("batch")) {
-				type = new TypeToken<List<CallCtx>>() {}.getType();
-			}
-			else {
-				type = Object.class;
-			}
-			try {
-				Reader rd = this.request.getReader();
-				this.postData = new Gson().fromJson(rd, type);
-			}
-			catch (Exception e) {
-				throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
-			}
-			if (this.postData instanceof Map) {
-				this._POST.putAll((Map<String, Object>)this.postData);
-			}
-		}
+		// 注意: request.getReader()只能读一次. 若在处理POST内容前调用getQueryString将导致POST内容无法读取.
+		this._GET = QueryString.getUrlParam(request);
 
 		this.appName = (String)api.param("_app", "user", "G");
 		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
@@ -421,7 +436,7 @@ public class JDEnvBase
 			if (apiLog != null)
 				apiLog.logAfter();
 
-			api.safeClose(this.conn);
+			Common.safeClose(this.conn);
 			this.conn = null;
 
 			if (output) {
@@ -472,6 +487,48 @@ public class JDEnvBase
 		ref_ok[0] = ! (useTrans && retCode != 0);
 		return ret;
 	}
+	
+	@FunctionalInterface
+	public interface Fn {
+		Object call() throws Exception;
+	}
+
+	public Object tmpEnv(JsObject param, JsObject postParam, Fn fn) throws Exception
+	{
+		JsObject[] bak = new JsObject[] { this._GET, this._POST };
+		if (param != null)
+			this._GET = param;
+		if (postParam != null)
+			this._POST = postParam;
+		
+		Object ret = null;
+		try {
+			ret = fn.call();
+		}
+		finally {
+			this._GET = bak[0];
+			this._POST = bak[1];
+		}
+		return ret;
+	}
+	
+	public JDApiBase createAC(String table, String ac, String cls, CallInfo callInfo) throws Exception
+	{
+		if (callInfo == null)
+			callInfo = new CallInfo();
+		String[] clsNames = table==null? onCreateApi(): onCreateAC(table);
+		if (! getCallInfo(clsNames, ac, callInfo)) {
+			if (table == null || callInfo.cls != null)
+				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)", "接口不支持");
+
+			int code = !this.api.hasPerm(JDApiBase.AUTH_LOGIN) ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
+			throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
+		}
+
+		JDApiBase api = (JDApiBase)this.onNewInstance(callInfo.cls);
+		api.env = this;
+		return api;
+	}
 
 	public Object callSvc(String ac) throws Exception
 	{
@@ -500,32 +557,14 @@ public class JDEnvBase
 */
 	public Object callSvc(String ac, JsObject param, JsObject postParam, CallSvcOpt opt) throws Exception
 	{
-		JsObject[] bak = null;
-		if (opt != null)
-		{
-			if (opt.backupEnv) {
-				bak = new JsObject[] { this._GET, this._POST };
-			}
-			if (opt.isCleanCall) {
-				this._GET = new JsObject();
-				this._POST = new JsObject();
-			}
+		if (param!=null || postParam!=null) {
+			return tmpEnv(param, postParam, () -> {
+				return callSvc(ac);
+			});
 		}
-		if (param != null)
-		{
-			for (Map.Entry<String, Object> kv : param.entrySet())
-			{
-				this._GET.put(kv.getKey(), kv.getValue());
-			}
-		}
-		if (postParam != null) {
-			for (Map.Entry<String, Object> kv : postParam.entrySet()) {
-				this._POST.put(kv.getKey(), kv.getValue());
-			}
-		}
-
-		Matcher m = Pattern.compile("(\\w+)(?:\\.(\\w+))?$").matcher(ac);
-		m.find();
+		Matcher m = JDApiBase.regexMatch(ac, "(?U)(\\w+)(?:\\.(\\w+))?$");
+		if (!m.find())
+			throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "`", "接口不支持");
 		String ac1 = null;
 		String table = null;
 		String methodName = null;
@@ -543,17 +582,8 @@ public class JDEnvBase
 		CallInfo callInfo = new CallInfo();
 		Object ret = null;
 		try {
-			String[] clsNames = table==null? onCreateApi(): onCreateAC(table);
-			if (! getCallInfo(clsNames, methodName, callInfo)) {
-				if (table == null || callInfo.cls != null)
-					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)", "接口不支持");
-
-				int code = !this.api.hasPerm(JDApiBase.AUTH_LOGIN) ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
-				throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
-			}
-
-			JDApiBase api = (JDApiBase)this.onNewInstance(callInfo.cls);
-			api.env = this;
+			JDApiBase api = (JDApiBase)this.createAC(table, methodName, null, callInfo);
+			// JDApiBase api = (JDApiBase)this.onNewInstance(callInfo.cls);
 			Method mi = callInfo.method;
 			if (table == null)
 			{
@@ -577,16 +607,15 @@ public class JDEnvBase
 				ret = "OK";
 		}
 		catch (Exception e) {
-			if (e instanceof InvocationTargetException && e.getCause() != null)
-				throw (Exception)e.getCause();
-			throw e;
-		}
-		finally {
-			if (bak != null)
-			{
-				this._GET = bak[0];
-				this._POST = bak[1];
+			if (e instanceof InvocationTargetException) {
+				Throwable e1 = e;
+				do {
+					e1 = e1.getCause();
+				}
+				while (e1 != null && e1 instanceof InvocationTargetException);
+				throw (Exception)e1;
 			}
+			throw e;
 		}
 
 		return ret;
@@ -611,13 +640,15 @@ public class JDEnvBase
 				continue;
 			ci.cls = cls;
 
-			Method method = null;
-			try {
-				method = cls.getMethod(methodName);
-			}catch (NoSuchMethodException e) {}
-			if (method == null)
-				continue;
-			ci.method = method;
+			if (methodName != null) {
+				Method method = null;
+				try {
+					method = cls.getMethod(methodName);
+				}catch (NoSuchMethodException e) {}
+				if (method == null)
+					continue;
+				ci.method = method;
+			}
 			return true;
 		}
 		return false;
@@ -916,10 +947,24 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 		return this.dbStrategy.fixPaging(sql);
 	}
 
+/**
+@var JDEnvBase.skipLogCnt
+
+如果想忽略输出一条SQL日志，可以在调用SQL查询前设置skipLogCnt，如：
+
+	++ env.skipLogCnt; // 若要忽略两条就用 env.skipLogCnt+=2;
+	execOne(...);
+
+@see queryAll,execOne,dbconn
+ */
+	public int skipLogCnt = 0;
 	public String getSqlForExec(String sql)
 	{
 		sql = fixTableName(sql);
-		api.addLog(sql, 9);
+		if (this.skipLogCnt <= 0)
+			api.addLog(sql, 9);
+		else
+			-- this.skipLogCnt;
 		return sql;
 	}
 	
@@ -1085,7 +1130,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 		void logBefore()
 		{
 			try {
-				this.startTm = api.time();
+				this.startTm = Common.time();
 		
 				String type = appType;
 				Object userId = null;
@@ -1120,9 +1165,10 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 				String ua = request.getHeader("User-Agent");
 		
 				String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
-					api.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(appName), 
+					Common.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(appName), 
 					JDApiBase.Q(request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(clientVer)
 				);
+				++ api.env.skipLogCnt;
 				this.id = api.execOne(sql, true);
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -1134,7 +1180,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 			if (conn == null)
 				return;
 			try {
-				long iv = api.time() - this.startTm;
+				long iv = Common.time() - this.startTm;
 				String content = myVarExport(X_RET_STR, 200);
 		
 				String userIdStr = "";
@@ -1144,6 +1190,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 				String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
 						iv, X_RET.get(0), X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
 
+				++ api.env.skipLogCnt;
 				@SuppressWarnings("unused")
 				int rv = api.execOne(sql);
 			} catch (Exception e) {
@@ -1151,5 +1198,4 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 			}
 		}
 	}
-
 }

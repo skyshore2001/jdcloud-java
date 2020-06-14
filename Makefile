@@ -6,8 +6,8 @@
 #############
 
 #### 可配置项
-OUT_DIR?=../jdcloud-online
-TOMCAT_HOME?=d:/apache-tomcat-8.5.11
+OUT_DIR?=../dist
+TOMCAT_HOME?=d:/apache-tomcat-8.5.28
 
 SRC_DIR?=jdcloud/src svc/src
 APP_HOME?=svc/WebContent

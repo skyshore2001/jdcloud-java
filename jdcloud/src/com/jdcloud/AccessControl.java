@@ -1,9 +1,11 @@
 package com.jdcloud;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Method;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.regex.*;
 
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class AccessControl extends JDApiBase {
 
 	public class VcolDef
@@ -46,6 +48,12 @@ public class AccessControl extends JDApiBase {
 		public boolean wantOne;
 		public boolean isDefault;
 		public boolean force;
+
+		public String obj;
+		public String cond;
+		public String AC;
+		public String res;
+		public Map<String, Object> params = asMap();
 		
 		public SubobjDef sql(String val) {
 			this.sql = val;
@@ -61,6 +69,26 @@ public class AccessControl extends JDApiBase {
 		}
 		public SubobjDef force(boolean val) {
 			this.force = val;
+			return this;
+		}
+		public SubobjDef obj(String val) {
+			this.obj = val;
+			return this;
+		}
+		public SubobjDef cond(String val) {
+			this.cond = val;
+			return this;
+		}
+		public SubobjDef AC(String val) {
+			this.AC = val;
+			return this;
+		}
+		public SubobjDef res(String val) {
+			this.res = val;
+			return this;
+		}
+		public SubobjDef put(String key, Object value) {
+			this.params.put(key, value);
 			return this;
 		}
 	}
@@ -108,22 +136,20 @@ public class AccessControl extends JDApiBase {
 /**<pre>
 
 @var AccessControl.enumFields 枚举支持及自定义字段处理
+@alias enumFields(fieldName, EnumFieldFn)
 
 (版本v1.1)
 
-格式为{field => map/fn(val) }
+格式为{field => map/fn(val, row) }
 
 作为比onHandleRow/onAfterActions等更易用的工具，enumFields可对返回字段做修正。例如，想要对返回的status字段做修正，如"CR"显示为"Created"，可设置：
 
 	Map<String, Object> map = asMap("CR","Created", "CA","Cancelled");
-	this.enumFields = asMap(
-		"status", map
-	);
+	this.enumFields("status", map)
 
-(TODO:暂不支持)也可以设置为自定义函数，如：
+也可以设置为自定义函数，如：
 
-	map = asMap(...);
-	this.enumFields.asMap("status", v -> {
+	this.enumFields("status", (v, row) -> {
 		if (map.containsKey(v))
 			return String.format("%s-%s", v, map.get(v));
 		return v;
@@ -138,7 +164,13 @@ public class AccessControl extends JDApiBase {
 更多地，设置enumFields也支持逗号分隔的枚举列表，比如字段值为"CR,CA"，实际可返回"Created,Cancelled"。
  */
 
-	protected Map<String, Object> enumFields; // elem: {field => {key=>val}} 或 {field => fn(val)}，与onHandleRow类似地去修改数据。TODO: 目前只支持map，不支持
+	@FunctionalInterface 
+	public interface EnumFieldFn
+	{
+		Object call(Object val, Map row) throws Exception;
+	}
+	// 通过同名enumFields方法来添加
+	protected Map<String, Object> enumFields; // elem: {field => {key=>val}} 或 {field => fn(val,row)}，与onHandleRow类似地去修改数据。TODO: 目前只支持map，不支持
 
 	// for query
 	protected String defaultRes = "t0.*"; // 缺省为 "t0.*" 加  default=true的虚拟字段
@@ -196,6 +228,125 @@ public class AccessControl extends JDApiBase {
 	{
 		return 0;
 	}
+	
+/**<pre>
+ * @throws Exception 
+@var AccessControl::create($tbl, $ac = null, $cls = null) 
+
+如果$cls非空，则按指定AC类创建AC对象。
+否则按当前登录类型自动创建AC类（回调onCreateAC）。
+
+示例：
+
+	AccessControl::create("Ordr", "add");
+	AccessControl::create("Ordr", "add", true);
+	AccessControl::create("Ordr", null, "AC0_Ordr");
+
+@see JDBaseEnv.createAC
+*/
+	public AccessControl createAC(String tbl, String ac, String cls) throws Exception
+	{
+		return (AccessControl)env.createAC(tbl, ac, cls, null);
+	}
+	
+	final Object callSvc(String tbl, String ac) throws Exception
+	{
+		return this.callSvc(tbl, ac, null, null);
+	}
+
+/**<pre>
+@fn AccessControl::callSvc(tbl, ac, param=null, postParam=null)
+
+直接调用指定类的接口，如内部直接调用"PdiRecord.query"方法：
+
+	// 假如当前是AC2权限，对应的AC类为AC2_PdiRecord:
+	AccessControl acObj = new AC2_PdiRecord();
+	acObj.env = env; // 别忘记指定env
+	acObj.callSvc("PdiRecord", "query");
+
+这相当于调用`callSvc("PdiRecord.query")`。
+区别是，用本方法可自由指定任意AC类，无须根据当前权限自动匹配类。
+
+例如，"PdiRecord.query"接口不对外开放，只对内开放，我们就可以只定义`class PdiRecord extends AccessControl`（无AC前缀，外界无法访问），在内部访问它的query接口：
+
+	AccessControl acObj = new PdiRecord();
+	acObj.env = env;
+	acObj.callSvc("PdiRecord", "query");
+
+如果未指定param/postParam，则使用当前GET/POST环境参数执行，否则使用指定环境执行，并在执行后恢复当前环境。
+
+也适用于AC类内的调用，这时可不传table，例如调用当前类的add接口：
+
+	Object rv = this.callSvc(null, "add", null, postParam);
+
+示例：通过手机号发优惠券时，支持批量发量，用逗号分隔的多个手机号，接口：
+
+	手机号userPhone只有一个时：
+	Coupon.add()(userPhone, ...) -> id
+
+	如果userPhone包含多个手机号：（用逗号隔开，支持中文逗号，支持有空格）
+	Coupon.add()(userPhone, ...) -> {cnt, idList}
+
+重载add接口，如果是批量添加则通过callSvc再调用add接口：
+
+	public Object api_add() {
+		if (this._POST.containsKey("userPhone")) {
+			String userPhone = (String)this._POST.get("userPhone");
+			String[] arr = userPhone.split("(?U)[,，]"); // 支持中文逗号
+			if (arr.length > 1) {
+				List idList = new ArrayList();
+				JsObject postParam = new JsObject();
+				postParam.putAll(this._POST);
+				for (String e: arr) {
+					postParam.put("userPhone", e.trim());
+					idList.add(this.callSvc(null, "add", null, postParam));
+				}
+				setRet(0, asMap(
+					"cnt", idList.size(),
+					"idList", idList
+				);
+				throw new DirectReturn();
+			}
+		}
+		return super.api_add();
+	}
+
+框架自带的批量添加接口api_batch也是类似调用。
+
+@see callSvc
+@see callSvcSafe
+*/
+	final public Object callSvc(String tbl, String ac, JsObject param, JsObject postParam) throws Exception
+	{
+		// 已初始化过，创建新对象调用接口，避免污染当前环境。
+		if (this.ac != null && this.table != null) {
+			AccessControl acObj = this.getClass().newInstance();
+			return acObj.callSvc(tbl != null ? tbl: this.table, ac, param, postParam);
+		}
+		if (param != null || postParam != null) {
+			return env.tmpEnv(param, postParam, () -> {
+				return this.callSvc(tbl, ac, null, null);
+			});
+		}
+
+		if (this.table == null)
+			this.table = tbl;
+		this.ac = ac;
+		this.onInit();
+
+		String fn = "api_" + ac;
+		Method m = null;
+		try {
+			m = this.getClass().getMethod(fn);
+		}
+		catch (NoSuchMethodException ex) {
+			throw new MyException(E_PARAM, String.format("Bad request - unknown `%s` method: `%s`", tbl, ac), "接口不支持");
+		}
+		this.before();
+		Object ret = m.invoke(this);
+		this.after(ret);
+		return ret;
+	}
 
 	// for get/query
 	protected void initQuery() throws Exception
@@ -247,9 +398,11 @@ public class AccessControl extends JDApiBase {
 		if (gres != null) {
 			this.filterRes(gres, true);
 		}
-		else if (res == null) {
-			res = this.defaultRes;
-			addDefaultCol = true;
+		else {
+			if (res == null)
+				res = this.defaultRes;
+			if (res.charAt(0) == '*')
+				addDefaultCol = true;
 		}
 
 		if (res != null) {
@@ -349,27 +502,44 @@ public class AccessControl extends JDApiBase {
 			throw new MyException(E_FORBIDDEN, String.format("Operation `%s` is not allowed on object `%s`", ac, table));
 	}
 	
-	private void handleEnumFields(JsObject rowData)
+	protected AccessControl enumFields(String key, EnumFieldFn fn)
+	{
+		if (this.enumFields == null)
+			this.enumFields = asMap();
+		this.enumFields.put(key, fn);
+		return this;
+	}
+	protected AccessControl enumFields(String key, Object obj)
+	{
+		if (this.enumFields == null)
+			this.enumFields = asMap();
+		this.enumFields.put(key, obj);
+		return this;
+	}
+
+	private void handleEnumFields(JsObject rowData) throws Exception
 	{
 		if (this.enumFields != null) {
 			// 处理enum/enumList字段返回
-			Iterator<Map.Entry<String, Object>> it = this.enumFields.entrySet().iterator();
-			while (it.hasNext()) {
-				Map.Entry<String, Object> e = it.next();
-				String k = e.getKey();
-				if (! rowData.containsKey(k))
+			forEach(this.enumFields, (field, e) -> {
+				if (! rowData.containsKey(field))
 					return;
-				Object v = rowData.get(k).toString();
-				@SuppressWarnings("rawtypes")
-				Map map = (Map)e.getValue();
-				String SEP = ",";
-				if (map instanceof Map) {
-					if (map.containsKey(v)) {
-						v = map.get(v);
+				// TODO: field = aliasMap[field]
+				Object v = rowData.get(field);
+				if (e instanceof EnumFieldFn) {
+					EnumFieldFn fn = (EnumFieldFn)e;
+					v = fn.call(v, rowData);
+				}
+				else if (e instanceof Map) {
+					Map map = (Map)e;
+					String SEP = ",";
+					String k = v.toString();
+					if (map.containsKey(k)) {
+						v = map.get(k);
 					}
-					else if (v.toString().contains(SEP)) {
+					else if (k.contains(SEP)) {
 						StringBuffer v1 = new StringBuffer();
-						for (String ve: v.toString().split(SEP)) {
+						for (String ve: k.split(SEP)) {
 							if (v1.length() > 0)
 								v1.append(SEP);
 							if (map.containsKey(ve))
@@ -380,8 +550,8 @@ public class AccessControl extends JDApiBase {
 						v = v1.toString();
 					}
 				}
-				rowData.put(k, v);
-			}
+				rowData.put(field, v);
+			});
 		}
 	}
 
@@ -405,15 +575,20 @@ public class AccessControl extends JDApiBase {
 	// for query. "field1"=>"t0.field1"
 	private String fixUserQuery(String q)
 	{
+		this.initVColMap();
 		if (regexMatch(q, "(?i)select").find()) {
 			throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
 		}
 		// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null"
-		Matcher m = regexMatch(q, "(?i)[\\w.\\u4E00-\\u9FA5]+(?=(\\s*[=><]|(\\s+(IS|LIKE))))");
+		Matcher m = regexMatch(q, "(?iU)[\\w.]+(?=\\s*[=><]|\\s+(IS|LIKE|BETWEEN|IN|NOT)\\s)");
 		StringBuffer sb = new StringBuffer();
 		while (m.find()) {
 			// 't0.0' for col, or 'voldef' for vcol
 			String col = m.group();
+			if (col.matches("\\d+") || col.equalsIgnoreCase("NOT") || col.equalsIgnoreCase("IS")) {
+				m.appendReplacement(sb, col);
+				continue;
+			}
 			if (col.contains(".")) {
 				m.appendReplacement(sb, col);
 				continue;
@@ -464,12 +639,10 @@ public class AccessControl extends JDApiBase {
 			return alias;
 
 		alias = a[0].length() == 0? null: a[0];
-		if (this.enumFields == null)
-			this.enumFields = asMap();
 		String k = alias==null?col:alias;
 		if (k.charAt(0) == '"') // remove ""
 			k = k.substring(1, k.length()-1);
-		this.enumFields.put(k, parseKvList(a[1], ";", ":"));
+		this.enumFields(k, parseKvList(a[1], ";", ":"));
 		return alias;
 	}
 
@@ -477,11 +650,13 @@ public class AccessControl extends JDApiBase {
 		filterRes(res, false);
 	}
 	
+	// 和fixUserQuery处理外部cond类似(安全版的addCond), filterRes处理外部传入的res (安全版的addRes)
 	// gres?=false
 	// return: new field list
 	private void filterRes(String res, boolean gres)
 	{
 		List<String> cols = new ArrayList<String>();
+		boolean isAll = false;
 		for (String col0 : res.split(",")) 
 		{
 			String col = col0.trim();
@@ -490,19 +665,30 @@ public class AccessControl extends JDApiBase {
 			if (col.equals("*") || col.equals("t0.*")) 
 			{
 				this.addRes("t0.*", false);
+				isAll = true;
 				continue;
 			}
 			Matcher m;
 			// 适用于res/gres, 支持格式："col" / "col col1" / "col as col1", alias可以为中文，如"col 某列"
 			// 如果alias中有特殊字符（逗号不支持），则应加引号，如"amount \"金额(元)\"", "v \"速率 m/s\""等。
-			if (! (m=regexMatch(col, "^(?i)(\\w+)(?:\\s+(?:AS\\s+)?([^,]+))?$")).find())
+			if (! (m=regexMatch(col, "^(?iU)(\\w+)(?:\\s+(?:AS\\s+)?([^,]+))?$")).find())
 			{
 				// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum，如"count(distinct ac) cnt", "sum(qty*price) docTotal"
-				if (!gres && (m=regexMatch(col, "^(?i)(\\w+)\\([a-z0-9_.\'* ,+\\/]+\\)\\s+(?:AS\\s+)?([^,]+)$")).find())
+				if (!gres && (m=regexMatch(col, "^(?iU)(\\w+)\\(([a-z0-9_.\'* ,+\\/]+)\\)\\s+(?:AS\\s+)?([^,]+)$")).find())
 				{
 					fn = m.group(1).toUpperCase();
-					if (!fn.equals("COUNT") && !fn.equals("SUM"))
-						throw new MyException(E_FORBIDDEN, String.format("SQL function not allowed: `%s`", fn));
+					if (!fn.equals("COUNT") && !fn.equals("SUM") && !fn.equals("AVG"))
+						throw new MyException(E_FORBIDDEN, String.format("function not allowed: `%s`", fn));
+					String expr = m.group(2);
+					alias = m.group(3);
+					// 支持对虚拟字段的聚合函数 (addVCol)
+					Matcher m2 = regexMatch(expr, "(?iU)\\w+");
+					while (m2.find()) {
+						String col1 = m2.group();
+						if (col1.compareToIgnoreCase("distinct") == 0)
+							continue;
+						this.addVCol(col1, true, "-");
+					}
 					this.isAggregationQuery = true;
 				}
 				else 
@@ -535,6 +721,9 @@ public class AccessControl extends JDApiBase {
 				}
 				else
 				{
+					if (isAll)
+						throw new MyException(E_PARAM, "`" + col + "` MUST be virtual column when `res` has `*`", "虚拟字段未定义: " + col);
+
 					col = "t0." + col;
 					String col1 = col;
 					if (alias != null)
@@ -561,7 +750,7 @@ public class AccessControl extends JDApiBase {
 		List<String> colArr = new ArrayList<String>();
 		for (String col0 : orderby.split(",")) {
 			String col = col0.trim();
-			Matcher m = regexMatch(col, "^(?i)(\\w+\\.)?(\\S+)(\\s+(asc|desc))?$");
+			Matcher m = regexMatch(col, "^(?iU)(\\w+\\.)?(\\S+)(\\s+(asc|desc))?$");
 			if (! m.find())
 				throw new MyException(E_PARAM, String.format("bad property `%s`", col));
 			if (m.group(1) != null) // e.g. "t0.id desc"
@@ -628,13 +817,12 @@ public class AccessControl extends JDApiBase {
 
 		String res = (String)param("res");
 		Object ret = null;
-		if (res != null)
-		{
-			env._GET.put("id", this.id);
-			ret = env.callSvc(this.table + ".get");
+		if (res != null) {
+			ret = this.callSvc(null, "get", new JsObject("id", this.id), null);
 		}
-		else
+		else {
 			ret = this.id;
+		}
 		return ret;
 	}
 
@@ -726,7 +914,6 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	}
 
  */
-	@SuppressWarnings("unchecked")
 	public Object api_setIf() throws Exception
 	{
 		for (List<String> roFields: asList(this.readonlyFields, this.readonlyFields2)) {
@@ -794,10 +981,17 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	
 	// 没有cond则返回null, 支持GET/POST中各有一个cond/gcond条件。
 	private String getCondParam(String paramName) {
-		String[] condArr = env.request.getParameterValues(paramName);
-		if (condArr == null)
-			return null;
-		return getCondStr(Arrays.asList(condArr));
+		List<String> condArr = asList();
+		Object[] conds = new Object[] { env._GET.get(paramName), env._POST.get(paramName) };
+		for (Object cond: conds) {
+			if (cond == null)
+				continue;
+			if (cond instanceof List)
+				condArr.addAll((List)cond);
+			else
+				condArr.add(cond.toString());
+		}
+		return getCondStr(condArr);
 	}
 
 	// return [stringbuffer, tblSql, condSql]
@@ -847,20 +1041,65 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		}
 		return ret;
 	}
+	// k: subobj name
+	private List querySubObj(String k, SubobjDef opt, Map<String, Object> opt1) throws Exception {
+		JsObject param = new JsObject("cond", opt.cond, "res", opt.res);
+		Map param1 = castOrNull(param("param_" + k), Map.class);
+		if (param1 != null) {
+			Object cond = param1.get("cond");
+			if (cond != null) {
+				param.put("cond2", new Object[] {cond});
+			}
+			param.putAll(param1);
+			if (param1.containsKey("wantOne")) {
+				opt.wantOne = (boolean)param("wantOne/b", null, param1, false);
+			}
+		}
+		Object res = param("res_" + k);
+		if (res != null) {
+			param.put("res", res);
+		}
+
+		// 设置默认参数，可被覆盖
+		param.put("fmt", "list");
+		if (this.ac == "query" && !param("disableSubobjOptimize/b").equals(true)) {
+			if (param.containsKey("pagesz"))
+				throw new MyException(E_PARAM, "pagesz not allowed", "子查询query接口不可指定pagesz参数，请使用get接口或加disableSubobjOptimize=1参数");
+			// 由于query操作对子查询做了查询优化，不支持指定pagesz, 必须查全部子对象数据。
+			param.put("pagesz", -1);
+		}
+		else if (! param.containsKey("pagesz")) {
+			param.put("pagesz", opt.wantOne? 1: -1);
+		}
+
+		param.putAll(opt1);
+
+		String objName = opt.obj;
+		AccessControl acObj = this.createAC(objName, null, opt.AC);
+		Object rv = acObj.callSvc(objName, "query", param, null);
+		return castOrNull(getJsValue(rv, "list"), List.class);
+	}
+
 	private void handleSubObj(int id, JsObject mainObj) throws Exception
 	{
-		HashMap<String, SubobjDef> subobj = this.sqlConf.subobj;
+		Map<String, SubobjDef> subobj = this.sqlConf.subobj;
 		if (subobj != null) 
 		{
 			// opt: {sql, wantOne=false}
-			for (Map.Entry<String, SubobjDef> kv : subobj.entrySet()) {
-				String k = kv.getKey();
-				SubobjDef opt = kv.getValue();
-				if (opt.sql == null)
-					continue;
-				String sql1 = String.format(opt.sql, id); // e.g. "select * from OrderItem where orderId=%d"
-				boolean tryCache = sql1.equals(opt.sql);
-				JsArray ret1 = queryAll(sql1, true, tryCache);
+			forEach(subobj, (k, opt) -> {
+				List ret1;
+				if (opt.obj != null && opt.cond != null) {
+					String cond = String.format(opt.cond, id);
+					ret1 = querySubObj(k, opt, asMap("cond", cond));
+				}
+				else if (opt.sql == null) {
+					return;
+				}
+				else {
+					String sql1 = String.format(opt.sql, id); // e.g. "select * from OrderItem where orderId=%d"
+					boolean tryCache = sql1.equals(opt.sql);
+					ret1 = queryAll(sql1, true, tryCache);
+				}
 				if (opt.wantOne) 
 				{
 					if (ret1.size() > 0)
@@ -871,7 +1110,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 				else {
 					mainObj.put(k, ret1);
 				}
-			}
+			});
 		}
 	}
 
@@ -1206,7 +1445,8 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		// Note: colCnt may be changed in after().
 		int fixedColCnt = objArr.size()==0? 0: ((JsObject)objArr.get(0)).size();
 		
-		boolean SUBOBJ_OPTIMIZE = true;
+// TODO:
+		boolean SUBOBJ_OPTIMIZE = false;
 		if (SUBOBJ_OPTIMIZE) {
 			handleSubObjForList(objArr); // 优化: 总共只用一次查询, 替代每个主表查询一次
 			for (Object rowData: objArr) {
@@ -1242,6 +1482,11 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		if (fmt != null && fmt.equals("list")) {
 			ret = new JsObject("list", objArr);
 		}
+		else if (Objects.equals(fmt, "one")) {
+			if (objArr.size() == 0)
+				throw new MyException(E_PARAM, "no data", "查询不到数据");
+			return objArr.get(0);
+		}
 		else {
 			ret = objarr2table(objArr, fixedColCnt);
 		}
@@ -1254,6 +1499,51 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		if (fmt != null && !fmt.equals("list"))
 			handleExportFormat(fmt, ret, (String)param("fname", this.table));
 		return ret;
+	}
+
+/**<pre>
+@fn AccessControl.qsearch(fields, q)
+
+模糊查询
+
+示例接口：
+
+	Obj.query(q) -> 同query接口返回
+
+查询匹配参数q的内容（比如查询name, label等字段）。
+参数q是一个字符串，或多个以空格分隔的字符串。例如"aa bb"表示字段包含"aa"且包含"bb"。
+每个字符串中可以用通配符"*"，如"a*"表示以a开头，"*a"表示以a结尾，而"*a*"和"a"是效果相同的。
+
+实现：
+
+	protected function onQuery() {
+		this.qsearch(asList("name", "label", "content"), param("q"));
+	}
+
+*/
+	protected void qsearch(List<String> fields, Object q)
+	{
+		if (q == null)
+			return;
+
+		StringBuilder cond = new StringBuilder();
+		for (String q1: q.toString().trim().split("\\s+")) {
+			if (q1.length() == 0)
+				continue;
+			String qstr;
+			if (q1.indexOf("*") >= 0) {
+				qstr = Q(q1.replace('*', '%'));
+			}
+			else {
+				qstr = Q("%" + q1 + "%");
+			}
+			StringBuilder cond1 = new StringBuilder();
+			for (String f: fields) {
+				addToStr(cond1, f + " LIKE " + qstr, " OR ");
+			}
+			addToStr(cond, "(" + cond1 + ")", " AND ");
+		}
+		addCond(cond.toString());
 	}
 
 	public void addRes(String res) {
@@ -1303,9 +1593,15 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	public void addCond(String cond) {
 		this.addCond(cond, false);
 	}
-	// prepend?=false
-	public void addCond(String cond, boolean prepend)
+	public void addCond(String cond, boolean prepend) {
+		this.addCond(cond, prepend, true);
+	}
+	// prepend?=false, fixUserQuery=true
+	public void addCond(String cond, boolean prepend, boolean doFixUserQuery)
 	{
+		if (doFixUserQuery)
+			cond = fixUserQuery(cond);
+			
 		if (sqlConf == null)
 			sqlConf = new SqlConf();
 		if (sqlConf.cond == null)
@@ -1337,11 +1633,13 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	{
 		Matcher m = null;
 		String colName, def;
-		if ( (m=regexMatch(res, "^(\\w+)\\.(\\w+)$")).find()) {
+		if ( (m=regexMatch(res, "(?U)^(\\w+)\\.(\\w+)$")).find()) {
+			if (m.group(1).equals("t0"))
+				return;
 			colName = m.group(2);
 			def = res;
 		}
-		else if ( (m = regexMatch(res, "(?is)^(.*?)\\s+(?:as\\s+)?\"?(\\S+?)\"?$")).find()) {
+		else if ( (m = regexMatch(res, "(?isU)^(.*?)\\s+(?:as\\s+)?\"?(\\S+?)\"?$")).find()) {
 			colName = m.group(2);
 			def = m.group(1);
 		}
@@ -1365,8 +1663,10 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 
 	private void initVColMap()
 	{
-		if (this.vcolMap == null)
-			this.vcolMap = new HashMap<String,Vcol>();
+		if (this.vcolMap != null)
+			return;
+
+		this.vcolMap = new HashMap<String,Vcol>();
 		if (this.vcolDefs == null)
 			return;
 
