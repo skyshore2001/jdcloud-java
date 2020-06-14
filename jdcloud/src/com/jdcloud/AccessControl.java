@@ -173,7 +173,7 @@ public class AccessControl extends JDApiBase {
 	protected Map<String, Object> enumFields; // elem: {field => {key=>val}} 或 {field => fn(val,row)}，与onHandleRow类似地去修改数据。TODO: 目前只支持map，不支持
 
 	// for query
-	protected String defaultRes = "t0.*"; // 缺省为 "t0.*" 加  default=true的虚拟字段
+	protected String defaultRes = "*"; // 缺省为 "t0.*" 加  default=true的虚拟字段
 	protected String defaultSort = "t0.id";
 	// for query
 	protected int maxPageSz = 1000;
