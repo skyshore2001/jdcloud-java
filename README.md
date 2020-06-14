@@ -1779,3 +1779,74 @@ logit - 调试输出到文件。
 
 - 模拟模式与第三方扩展接口
 
+## 筋斗云框架Java开发规范
+
+作者认为, Java做为类型安全的编译型编程语言, 相比php, 在重构和运行效率上具有优势. 尤其是在应用重构后, 编译阶段能提示和解决大量错误.
+但在开发效率上, 由类型定义和类型转换带来的开发开销也是比较大的, 尤其是泛型对象各种转换带来的问题.
+而Java的强制异常处理体系设计, 尤其给开发者带来许多麻烦. 综合实践经验, 在基于筋斗云框架的接口开发领域, 提出以下最佳实践:
+
+### 不使用Java的异常体系
+
+函数建议直接声明抛出Exception异常, 除了需要及时处理并继续向下运行的异常, 其它异常一般不去处理, 交给最外层框架负责处理.
+
+	public Object api_add() throws Exception
+	{
+	}
+
+List和Map默认的forEach函数, 其lambda表达式中不可抛出异常. 例如
+
+	@FunctionalInterface
+	public interface MyAction
+	{
+		void exec(Object ret) throws Exception;
+	}
+	protected Map<String, SubobjDef> subobj = asMap();
+
+	// Map.forEach函数要求回调不可抛出异常, 而数据库操作会抛出异常，所以这里编译无法通过:
+	subobj.forEach((name, subobjDef) -> {
+		dbInsert(...); // 
+	});
+
+可换成: JDApiBase.forEach函数.
+
+	forEach(subobj, (name, subobjDef) -> { ... 不受是否有异常限制 } );
+
+### 高效使用集合, 鼓励直接使用List和Map(不带泛型)
+
+使用JsObject/asMap, JsArray/asList来构造各种集合, 如:
+
+	JsObject map = new JsObject("key1", "value1", "key2", 99);
+	JsArray arr = new JsArray("value1", 99, 3.0, true);
+
+	// 不要用Arrays.asList, 那个是定长不可修改的.
+	Map map = asMap("key1", "value1", "key2", 99);
+	List arr = asList("value1", 99, 3.0, true);
+
+使用generic类型会报警告, 在类上添加:
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+
+或是在eclipse中设置忽略这两个警告.
+
+获取值: 返回值用cast/castOrNull转成Map/List类型(cast出错抛出异常, castOrNull出错返回null), 用intValue转成整数(出错返回0)
+
+	String str = "{ \"id\": 100, \"name\": \"f1\", \"persons\": [ {\"id\": 1001, \"name\": \"p1\"}, {\"id\": 1002, \"name\": \"p2\"} ] }";
+	Object obj = jsonDecode(str);
+	Object v1 = getJsValue(obj, "id"); // 相当于js的obj.id: 100. 注意: jsonDecode在未指定类型时, 所有数值均解析成Double类型
+	int id = intValue(v1);
+	List persons = castOrNull(getJsValue(obj, "persons")); // 取List
+	Map person = castOrNull(getJsValue(obj, "persons", 1)); // 取Map
+	Map person2 = castOrNull(getJsValue(persons, 1)); // 结果同上
+	Object v2 = getJsValue(obj, "persons", 1, "name"); // 相当于js的obj.persons[1].name: "p2"
+	Object v21 = getJsValue(obj, new Object[] { "persons", 1, "name" }); // 同上面没有区别.
+	Object v3 = getJsValue(person2, "name"); // 结果同上
+	Object v4 = getJsValue(obj, "persons", 99, "name"); // 如果任意一步取不到值, 均返回 null
+
+设置值:
+
+	Map obj = asMap("id", 100);
+	setJsValue(obj, "addr", "city", "Shanghai"); // 相当于obj.addr.city = "Shanghai", addr不存在则自动创建对象
+	setJsValue(obj, "persons", 0, asMap("id", 1001, "name", "p1")); // 相当于obj.persons[0] = {id:1001, name:"p1"}, persons不存在或persons[0]不存在则自动创建
+	setJsValue(obj, new Object[] {"persons", 0, asMap("id", 1001, "name", "p1"}); // 同上面没有区别
+	setJsValue(obj, "persons2", 1, "name", "p1"); // 相当于obj.persons[1].name = "p1"; 中间环境不存在则自动创建
+
