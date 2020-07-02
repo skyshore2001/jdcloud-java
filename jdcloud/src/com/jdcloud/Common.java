@@ -592,10 +592,19 @@ keys中最后一个是value.
 		">", "&gt;",
 		"&", "&amp;"
 	);
+/**<pre>
+@fn htmlEscape(s)
+
+用于防止XSS攻击。只转义字符"<", ">"，示例：
+当用户保存`<script>alert(1)</script>`时，实际保存的是`&lt;script&gt;alert(1)&lt;/script&gt;`
+这样，当前端以`$div.html($val)`来显示时，不会产生跨域攻击泄漏Cookie。
+
+如果前端就是需要带"<>"的字符串（如显示在input中），则应自行转义。
+ */
 	public static String htmlEscape(String s)
 	{
 		StringBuffer sb = new StringBuffer();
-		Matcher m = regexMatch(s, "<|>|&");
+		Matcher m = regexMatch(s, "<|>");
 		while (m.find()) {
 			m.appendReplacement(sb, (String)htmlEntityMapping.get(m.group(0)));
 		}

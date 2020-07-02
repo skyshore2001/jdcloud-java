@@ -21,6 +21,14 @@ import javax.servlet.http.HttpSession;
 
 public class JDApiBase extends Common
 {
+	public static class DbExpr
+	{
+		public String val;
+		public DbExpr(String val) {
+			this.val = val;
+		}
+	}
+
 	public static final int E_ABORT = -100;
 	public static final int E_AUTHFAIL = -1;
 	public static final int E_OK = 0;
@@ -236,7 +244,7 @@ e.g.
 
 	int orderId = dbInsert("Ordr", new JsObject(
 		"tm", new Date(), // 支持Date类型
-		"tm1", "=now()", // "="开头，表示是SQL表达式
+		"tm1", dbExpr("now()"), // 使用dbExpr直接提供SQL表达式
 		"amount", 100,
 		"dscr", null // null字段会被忽略
 	));
@@ -272,8 +280,8 @@ e.g.
 					.append(date(null, (Date)oval))
 					.append("'");
 			}
-			else if (oval instanceof String && val.charAt(0) == '=') {
-				values.append(val.substring(1));
+			else if (oval instanceof DbExpr) {
+				values.append(((DbExpr)oval).val);
 			}
 			else {
 				val = htmlEscape(val);
@@ -306,7 +314,7 @@ e.g.
 
 	// UPDATE Ordr SET tm=now() WHERE tm IS NULL
 	int cnt = dbUpdate("Ordr", new JsObject(
-		"tm", "=now()"  // "="开头，表示是SQL表达式
+		"tm", dbExpr("now()")  // 使用dbExpr，表示是SQL表达式
 	), "tm IS NULL);
 */
 	public int dbUpdate(String table, Map<String,Object> kv, Object cond) throws SQLException
@@ -342,8 +350,8 @@ e.g.
 			else if (val instanceof Number) {
 				kvstr.append(k).append("=").append(val);
 			}
-			else if (val instanceof String && val.toString().startsWith("=")) {
-				kvstr.append(k).append(val);
+			else if (val instanceof DbExpr) {
+				kvstr.append(k).append("=").append(((DbExpr)val).val);
 			}
 			else {
 				kvstr.append(k).append("=").append(Q(htmlEscape(val.toString())));
@@ -362,6 +370,21 @@ e.g.
 			cnt = execOne(sql);
 		}
 		return cnt;
+	}
+
+/**<pre>
+@fn dbExpr($val)
+
+用于在dbInsert/dbUpdate(插入或更新数据库)时，使用表达式：
+
+	int id = dbInsert("Ordr", asMap(
+		"tm", dbExpr("now()") // 使用dbExpr直接提供SQL表达式
+	));
+
+*/
+	public static DbExpr dbExpr(String val)
+	{
+		return new DbExpr(val);
 	}
 
 	public void addLog(String s)

@@ -366,31 +366,35 @@ public class AccessControl extends JDApiBase {
 		sqlConf.distinct = (boolean)param("distinct/b", false);
 		this.isAggregationQuery = sqlConf.gres != null;
 
+		String hiddenFields = (String)param("hiddenFields");
+		if (hiddenFields != null) {
+			if (this.hiddenFields == null)
+				this.hiddenFields = asList();
+			for (String e: hiddenFields.split("\\s*,\\s*")) {
+				this.hiddenFields.add(e);
+			}
+		}
+
 		this.initVColMap();
 
-		/* TODO
-		// support internal param res2/join/cond2
-		if ((res2 = param("res2")) != null) {
-			if (! is_array(res2))
-				throw new MyException(E_SERVER, "res2 should be an array: `res2`");
-			for (res2 as e)
-				this.addRes(e);
+		// support internal param res2/join/cond2, 内部使用, 必须用dbExpr()包装一下.
+		Object v;
+		if ((v = param("res2")) != null) {
+			if (! (v instanceof DbExpr))
+				throw new MyException(E_SERVER, "res2 should be DbExpr");
+			this.filterRes(((DbExpr)v).val);
 		}
-		if ((join=param("join")) != null) {
-			this.addJoin(join);
+		if ((v = param("join")) != null) {
+			if (! (v instanceof DbExpr))
+				throw new MyException(E_SERVER, "join should be DbExpr");
+			this.addJoin(((DbExpr)v).val);
 		}
-		if ((cond2 = param("cond2")) != null) {
-			if (! is_array(cond2))
-				throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
-			for (cond2 as e)
-				this.addCond(e);
+		if ((v = param("cond2", null, null, false)) != null) {
+			if (! (v instanceof DbExpr))
+				throw new MyException(E_SERVER, "cond2 should be DbExpr");
+			this.addCond(((DbExpr)v).val);
 		}
-		if ((subobj = param("subobj")) != null) {
-			if (! is_array(subobj))
-				throw new MyException(E_SERVER, "subobj should be an array");
-			this.sqlConf["subobj"] = subobj;
-		}
-		*/
+
 		this.onQuery();
 
 		boolean addDefaultCol = false;
