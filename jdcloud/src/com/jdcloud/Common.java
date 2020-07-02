@@ -181,6 +181,11 @@ public class Common
 			return null;
 		return clazz.cast(obj);
 	}
+/**<pre>
+@fn cast(obj)
+
+强制类型转换, 无法转换则抛出异常
+*/
 	public static<T> T cast(Object obj) {
 		return (T)obj;
 	}
@@ -188,18 +193,47 @@ public class Common
 /**<pre>
 @fn intValue(obj) -> int
 
-转换int工具, 如果转换失败返回0.
+转换int工具, 如果转换失败返回0. 若想返回null可用IntValue
+
+	int i = intVaulue(99); // 99
+	int i = intVaulue(99.0); // 99
+	int i = intVaulue("99"); // 99
+	int i = intVaulue(null); // 0
+	int i = intVaulue("N99"); // 0
 
 	Map obj = cast(jsonDecode(str));
-	int m = intValue(obj.get("id"));
+	int id = intValue(obj.get("id"));
 
+@see IntValue
  */
 	public static int intValue(Object obj)
 	{
+		Integer val = IntValue(obj);
+		return val == null? 0: val;
+	}
+
+/**<pre>
+@fn IntValue(obj) -> Integer
+
+转换int工具, 如果转换失败返回null.
+
+	Int i = IntVaulue(99); // 99
+	Int i = IntVaulue(99.0); // 99
+	Int i = IntVaulue("99"); // 99
+	Int i = IntVaulue(null); // 0
+	Int i = IntVaulue("N99"); // 0
+
+	Map obj = cast(jsonDecode(str));
+	Int id = IntValue(obj.get("id"));
+
+@see IntValue
+ */
+	public static Integer IntValue(Object obj)
+	{
 		if (obj == null)
-			return 0;
+			return null;
 		if (obj instanceof Integer) {
-			return (int)obj;
+			return (Integer)obj;
 		}
 		if (obj instanceof Double) {
 			return ((Double) obj).intValue();
@@ -208,15 +242,72 @@ public class Common
 			return Integer.parseInt(obj.toString());
 		}
 		catch (Exception ex) {
-			return 0;
+			return null;
 		}
+	}
+
+/**<pre>
+@fn DoubleValue(obj) -> Double
+
+转换数值Double工具, 如果转换失败返回null
+
+	Double d = DoubleVaulue(99); // 99.0
+	Double d = DoubleVaulue(99.0); // 99.0
+	Double d = DoubleVaulue("99"); // 99.0
+	Double d = DoubleVaulue(null); // 0.0
+	Double d = DoubleVaulue("N99"); // 0.0
+	
+	Map obj = cast(jsonDecode(str));
+	Double qty = DoubleValue(obj.get("qty"));
+	if (qty == null) ...
+
+@see doubleValue
+ */
+	public static Double DoubleValue(Object obj)
+	{
+		if (obj == null)
+			return null;
+		if (obj instanceof Integer) {
+			return (double)(Integer)obj;
+		}
+		if (obj instanceof Double) {
+			return (Double)obj;
+		}
+		try {
+			return Double.parseDouble(obj.toString());
+		}
+		catch (Exception ex) {
+			return null;
+		}
+	}
+
+/**<pre>
+@fn doubleValue(obj) -> double
+
+转换数值double工具, 如果转换失败返回0.0. 若想返回null可用DoubleValue
+
+	double d = doubleVaulue(99); // 99.0
+	double d = doubleVaulue(99.0); // 99.0
+	double d = doubleVaulue("99"); // 99.0
+	double d = doubleVaulue(null); // 0.0
+	double d = doubleVaulue("N99"); // 0.0
+	
+	Map obj = cast(jsonDecode(str));
+	double qty = doubleValue(obj.get("qty"));
+
+@see DoubleValue
+ */
+	public static double doubleValue(Object obj)
+	{
+		Double val = DoubleValue(obj);
+		return val == null? 0.0: val;
 	}
 
 /**<pre>
 @fn getJsValue(container, key1, key2, ...) -> Object
 
 取json复合结构(即Map/List组合)中的值, 当索引为Integer时取数组List的值, 当索引为字符串时取字典Map的值.
-返回值用cast转成Map/List类型(出错返回null), 用castInt转成整数(出错返回0)
+返回值用cast转成Map/List类型(出错抛出异常,或用castOrNull出错返回null), 用intValue转成整数(出错返回0), 用doubleValue转成数值(出错返回0.0)
 
 	String str = "{ \"id\": 100, \"name\": \"f1\", \"persons\": [ {\"id\": 1001, \"name\": \"p1\"}, {\"id\": 1002, \"name\": \"p2\"} ] }";
 	Object obj = jsonDecode(str);
@@ -568,7 +659,7 @@ keys中最后一个是value.
 		return sb.toString();
 	}
 	
-	public static String join(String sep, List<?> ls) {
+	public static String join(String sep, Collection<?> ls) {
 		StringBuffer sb = new StringBuffer();
 		for (Object o : ls) {
 			if (sb.length() > 0)

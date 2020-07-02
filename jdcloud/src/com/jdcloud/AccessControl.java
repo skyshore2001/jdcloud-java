@@ -1467,6 +1467,13 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		Object reto = objArr;
 		this.after(reto);
 
+		String pivot = (String)param("pivot");
+		if (pivot != null) {
+			int[] v = new int[] {0};
+			objArr = pivot(objArr, pivot, v);
+			fixedColCnt = v[0];
+		}
+
 		Object nextkey = null;
 		if (pagesz == objArr.size()) { // 还有下一页数据, 添加nextkey
 			// TODO: res参数中没有指定id时?
@@ -1705,8 +1712,10 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 			return true;
 		this.addVColDef(this.vcolMap.get(col).vcolDefIdx);
 		if (alias != null) {
-			if (alias != "-")
+			if (alias != "-") {
 				this.addRes(this.vcolMap.get(col).def + " " + alias, false);
+				this.vcolMap.put(alias, this.vcolMap.get(col)); // vcol及其alias同时加入vcolMap并标记已添加"added"
+			}
 		}
 		else {
 			this.addRes(this.vcolMap.get(col).def0, false);

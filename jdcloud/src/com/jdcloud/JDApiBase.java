@@ -968,17 +968,15 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 		JsObject row0 = (JsObject)rs.get(0);
 		h.addAll(row0.keySet());
 		if (fixedColCnt >= 0) {
-			/*
-			TODO
-			foreach (rs as row) {
-				h1 = array_keys(row);
-				for (i=fixedColCnt; i<count(h1); ++i) {
-					if (array_search(h1[i], h) === false) {
-						h[] = h1[i];
+			for (Object row: rs) {
+				JsObject row1 = (JsObject)row;
+				String[] h1 = row1.keySet().toArray(new String[0]);
+				for (int i=fixedColCnt; i<h1.length; ++i) {
+					if (! h.contains(h1[i])) {
+						h.add(h1[i]);
 					}
 				}
 			}
-			*/
 		}
 		for (Object row : rs) {
 			JsObject row1 = (JsObject)row;
@@ -1440,6 +1438,107 @@ e.g.
 			}
 			ret = out.toString(resCharset);
 		}
+		return ret;
+	}
+
+/**<pre>
+#fn pivit(objArr, gcols, xcolCnt=null)
+
+将行转置到列。一般用于统计分析数据处理。
+
+- gcols为转置字段，可以是一个或多个字段。可以是个字符串("f1" 或 "f1,f2")，也可以是个数组（如["f1","f2"]）
+- objArr是对象数组，最后一列是统计列。
+
+示例：
+
+	JsArray arr = new JsArray(
+		new JsObject("y",2019, "m",11, "cateId",1, "cateName","衣服", "sum",20000),
+		new JsObject("y",2019, "m",11, "cateId",2, "cateName","食品", "sum",12000),
+		new JsObject("y",2019, "m",12, "cateId",2, "cateName","食品", "sum",15000),
+		new JsObject("y",2020, "m",2, "cateId",1, "cateName","衣服", "sum",19000)
+	);
+
+	// 将类别转到列
+	JsArray arr2 = JDApiBase.pivot(arr, "cateId,cateName", null);
+
+得到：
+
+	[
+	  { "y": 2019, "m": 11, "1-衣服": 20000.0, "2-食品": 12000.0 },
+	  { "y": 2019, "m": 12, "2-食品": 15000.0 },
+	  { "y": 2020, "m": 2, "1-衣服": 19000.0 }
+	]
+
+*/
+	static JsArray pivot(JsArray objArr, String gcol, int[] out_xcolCnt) throws Exception
+	{
+		if (objArr.size() == 0)
+			return objArr;
+
+		List<String> gcols = asList(gcol.split("\\s*,\\s*"));
+
+		if (gcols.size() == 0) {
+			throw new MyException(E_PARAM, "bad gcols: no data", "未指定分组列");
+		}
+		JsObject row0 = cast(getJsValue(objArr, 0));
+		Set<String> cols = row0.keySet(); // LinkedHashMap返回的set可保持字段顺序
+		forEach(gcols, col -> {
+			if (! cols.contains(col))
+				throw new MyException(E_PARAM, "bad gcol " + col + ": not in cols", "分组列不正确: " + col);
+		});
+
+		// xcols = cols - ycol(最后一列) - gcols
+		List<String> xcols = asList();
+		int i =0;
+		int colLen = cols.size();
+		for (String col: cols) {
+			++ i;
+			if (i == colLen)
+				continue;
+			if (gcols.contains(col))
+				continue;
+			xcols.add(col);
+		}
+		if (out_xcolCnt != null)
+			out_xcolCnt[0] = xcols.size();
+		
+		JsObject xMap = new JsObject(); // {x=>新行}
+
+		forEach(objArr, rowA -> {
+			JsObject row = cast(rowA);
+			// x = xtext(row);
+			JsObject xarr = new JsObject();
+			for (String col: xcols) {
+				xarr.put(col, row.get(col));
+			}
+			String x = join("-", xarr.values());
+
+			JsArray garr = new JsArray();
+			for (String col: gcols) {
+				garr.add(row.get(col));
+			}
+			String g = join("-", garr);
+
+			if (! xMap.containsKey(x)) {
+				xMap.put(x, xarr);
+			}
+			Object[] lastOne = new Object[] {null}; // row中最后一列，且应是数值
+			forEach(row, (k, v) -> {
+				lastOne[0] = v;
+			});
+			double y = doubleValue(lastOne[0]);
+
+			JsObject row1 = cast(xMap.get(x));
+			if (! row1.containsKey(g))
+				row1.put(g, y);
+			else
+				row1.put(g, (Double)row1.get(g) + y);
+		});
+
+		JsArray ret = new JsArray();
+		forEach(xMap, (k, v) -> {
+			ret.add(v);
+		});
 		return ret;
 	}
 }

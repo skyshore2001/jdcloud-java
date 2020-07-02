@@ -79,4 +79,20 @@ public class Test extends Common {
 		map = QueryString.parseQuery(q);
 		Assert.assertEquals(map, asMap("a", asMap("cond", asList(asMap("id", "1", "name", "v1"), "id>1"))));
 	}
+
+	@org.junit.Test
+	public void pivotTest() throws Exception
+	{
+		JsArray arr = new JsArray(
+			new JsObject("y",2019, "m",11, "cateId",1, "cateName","衣服", "sum",20000),
+			new JsObject("y",2019, "m",11, "cateId",2, "cateName","食品", "sum",12000),
+			new JsObject("y",2019, "m",12, "cateId",2, "cateName","食品", "sum",15000),
+			new JsObject("y",2020, "m",2, "cateId",1, "cateName","衣服", "sum",19000)
+		);
+		// 将类别转到列
+		JsArray arr2 = JDApiBase.pivot(arr, "cateId,cateName", null);
+		System.out.println(jsonEncode(arr2, true));
+		String res = "[{\"y\":2019,\"m\":11,\"1-衣服\":20000.0,\"2-食品\":12000.0},{\"y\":2019,\"m\":12,\"2-食品\":15000.0},{\"y\":2020,\"m\":2,\"1-衣服\":19000.0}]";
+		Assert.assertEquals(jsonEncode(arr2), res);
+	}
 }
