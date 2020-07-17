@@ -1,10 +1,5 @@
 package com.jdcloud;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -290,6 +285,7 @@ public class JDEnvBase
 					throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
 				}
 				if (this.postData instanceof Map) {
+					this._POST = new JsObject();
 					this._POST.putAll((Map<String, Object>)this.postData);
 				}
 			}
@@ -302,7 +298,8 @@ public class JDEnvBase
 				}
 			}
 		}
-		else {
+		// e.g. "application/xml" 
+		if (this._POST == null) {
 			this._POST = new JsObject();
 		}
 
@@ -342,13 +339,28 @@ public class JDEnvBase
 		return ac;
 	}
 
+	// 回调函数集。在事务结束时调用。
+	public List<Action> onAfterActions = JDApiBase.asList();
+
 	public void service(HttpServletRequest request, HttpServletResponse response) {
 		this.request = request;
 		this.response = response;
 		
 		callSvcSafe(null, true);
+
+		for (Action f: this.onAfterActions) {
+			try {
+				f.call();
+			}
+			catch (Exception ex) {
+				StringWriter w = new StringWriter();
+				ex.printStackTrace(new PrintWriter(w));
+				api.logit(w.toString());
+				ex.printStackTrace();
+			}
+		}
 	}
-	
+
 	// ac=null: auto init
 	public JsArray callSvcSafe(String ac, boolean useTrans) {
 		JsArray ret = new JsArray(0, null);
@@ -492,14 +504,16 @@ public class JDEnvBase
 	public interface Fn {
 		Object call() throws Exception;
 	}
+	@FunctionalInterface
+	public interface Action {
+		void call() throws Exception;
+	}
 
 	public Object tmpEnv(JsObject param, JsObject postParam, Fn fn) throws Exception
 	{
 		JsObject[] bak = new JsObject[] { this._GET, this._POST };
-		if (param != null)
-			this._GET = param;
-		if (postParam != null)
-			this._POST = postParam;
+		this._GET = param != null? param: new JsObject();
+		this._POST = postParam != null? postParam: new JsObject();
 		
 		Object ret = null;
 		try {
@@ -970,9 +984,11 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 	
 	private String fixTableName(String sql)
 	{
-		String q = this.dbStrategy.quoteName("$1");
-		Matcher m = JDApiBase.regexMatch(sql, "(?isx)(?<= (?:UPDATE | FROM | JOIN | INTO) \\s+ )([\\w|.]+)");
-		return m.replaceAll(q);
+		return JDApiBase.regexReplace(sql, "(?isx)(?<= (?:UPDATE | FROM | JOIN | INTO) \\s+ )(?:(\\w+)\\.)?(\\w+)", (m) -> {
+			if (m.group(1) != null)
+				return this.dbStrategy.quoteName(m.group(1)) + "." + this.dbStrategy.quoteName(m.group(2));
+			return this.dbStrategy.quoteName(m.group(2));
+		});
 	}
 
 

@@ -320,7 +320,8 @@ public class AccessControl extends JDApiBase {
 	{
 		// 已初始化过，创建新对象调用接口，避免污染当前环境。
 		if (this.ac != null && this.table != null) {
-			AccessControl acObj = this.getClass().newInstance();
+			AccessControl acObj = (AccessControl) this.env.onNewInstance(this.getClass()); // .newInstance();
+			acObj.env = this.env;
 			return acObj.callSvc(tbl != null ? tbl: this.table, ac, param, postParam);
 		}
 		if (param != null || postParam != null) {
@@ -983,8 +984,17 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		return condBuilder.toString();
 	}
 	
-	// 没有cond则返回null, 支持GET/POST中各有一个cond/gcond条件。
-	private String getCondParam(String paramName) {
+/**<pre>
+@fn AccessControl.getCondParam(paramName)
+
+由于cond参数的特殊性，不宜用param("cond")来取，可以使用：
+
+	String cond = getCondParam("cond");
+
+支持GET/POST中各有一个cond/gcond条件。而且支持其中含有">","<"等特殊字符。
+没有cond则返回null
+*/
+	protected String getCondParam(String paramName) {
 		List<String> condArr = asList();
 		Object[] conds = new Object[] { env._GET.get(paramName), env._POST.get(paramName) };
 		for (Object cond: conds) {
@@ -1297,8 +1307,30 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			echo(join("\t", (JsArray)row), "\n");
 		}
 	}
+	
+	void table2html(JsObject tbl) throws Exception
+	{
+		table2html(tbl, false);
+	}
 
-	void handleExportFormat(String fmt, JsObject ret, String fname) throws UnsupportedEncodingException
+	String table2html(JsObject tbl, boolean retStr) throws Exception
+	{
+		StringBuilder rv = new StringBuilder();
+		rv.append("<table border=1 cellspacing=0>");
+		if (tbl.containsKey("h")) {
+			rv.append("<tr><th>").append(Common.join("</th><th>", (JsArray)tbl.get("h"))).append("</th></tr>\n");
+		}
+		forEach ((JsArray)tbl.get("d"), row -> {
+			rv.append("<tr><td>").append(Common.join("</td><td>", (JsArray)row)).append("</td></tr>\n");
+		});
+		rv.append("</table>");
+		if (retStr)
+			return rv.toString();
+		echo(rv.toString());
+		return null;
+	}
+
+	void handleExportFormat(String fmt, JsObject ret, String fname) throws Exception
 	{
 		boolean handled = false;
 		fname = java.net.URLEncoder.encode(fname, "UTF-8");
@@ -1323,6 +1355,13 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			table2txt(ret);
 			handled = true;
 		}
+		else if (fmt.equals("html")) {
+			header("Content-Type", "text/html; charset=UTF-8");
+			header("Content-Disposition", "filename=" + fname + ".html");
+			table2html(ret);
+			handled = true;
+		}
+
 		if (handled)
 			exit();
 	}
@@ -1349,11 +1388,15 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 				enablePartialQuery = false;
 			}
 		}
+		String fmt = (String)param("fmt");
+		if (Objects.equals(fmt, "one") || Objects.equals(fmt, "one?"))
+			pagesz = 1;
+		else if (pagesz == null || pagesz == 0)
+			pagesz = 20;
+
 		int maxPageSz = getMaxPageSz();
 		if (pagesz != null && (pagesz < 0 || pagesz > maxPageSz))
 			pagesz = maxPageSz;
-		else if (pagesz == null || pagesz == 0)
-			pagesz = 20;
 
 		if (this.isAggregationQuery) {
 			enablePartialQuery = false;
@@ -1488,6 +1531,20 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 				nextkey = pagekey + 1;
 			}
 		}
+		return queryRet(objArr, nextkey, totalCnt, fixedColCnt);
+	}
+	
+/**<pre>
+@fn AccessControl.queryRet(objArr, nextkey?, totalCnt?, fixedColCnt?=0)
+
+处理objArr，按照fmt参数指定的格式返回，与query接口返回相同。例如，默认的`h-d`表格式, `list`格式，`excel`等。
+ */
+	protected Object queryRet(JsArray objArr) throws Exception
+	{
+		return queryRet(objArr, null, null, 0);
+	}
+	protected Object queryRet(JsArray objArr, Object nextkey, Object totalCnt, int fixedColCnt) throws Exception
+	{
 		String fmt = (String)param("fmt");
 		JsObject ret = null;
 		if (fmt != null && fmt.equals("list")) {
@@ -1496,6 +1553,14 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		else if (Objects.equals(fmt, "one")) {
 			if (objArr.size() == 0)
 				throw new MyException(E_PARAM, "no data", "查询不到数据");
+			return objArr.get(0);
+		}
+		else if (Objects.equals(fmt, "one?")) {
+			if (objArr.size() == 0)
+				return false;
+			JsObject row1 = (JsObject)objArr.get(0);
+			if (row1.size() == 1)
+				return row1.values().iterator().next();
 			return objArr.get(0);
 		}
 		else {

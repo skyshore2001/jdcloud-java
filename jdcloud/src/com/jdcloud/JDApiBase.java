@@ -2,6 +2,7 @@ package com.jdcloud;
 
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.Socket;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.security.SecureRandom;
@@ -1354,10 +1355,13 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 		}
 		return sb.toString();
 	}
-	public static String makeUrl(String ac, Map<String,Object> params) throws Exception
+	public String makeUrl(String ac, Map<String,Object> params) throws Exception
 	{
 		StringBuffer url = new StringBuffer();
-		url.append(ac);
+		if (ac.matches("^[\\w\\.]+$"))
+			url.append(getBaseUrl(false) + "/" + ac);
+		else
+			url.append(ac);
 		if (params != null) {
 			if (url.indexOf("?") <= 0)
 				url.append('?');
@@ -1380,9 +1384,8 @@ postParams可以是字符串、map或list等数据结构。默认contentType为"
 如果要明确指定格式，可以设置opt.contentType参数，如
 
 	String rv = httpCall(baseUrl, urlParams, postParams, asMap("contentType", "application/json"));
-	
 
-- opt: {contentType}
+- opt: {contentType, async}
 
 e.g.
 
@@ -1392,22 +1395,21 @@ e.g.
 	JsObject postParams = new JsObject("postintval", 100, "poststrval", "中文");
 	String rv = httpCall(baseUrl, urlParams, postParams, null);
 
+- opt.async: 当设置为true时，不等服务端响应就关闭连接。
+
 */
-	public static String httpCall(String url, Map<String,Object> getParams, Object postParams, Map<String,Object> opt) throws Exception
+	public String httpCall(String url, Map<String,Object> getParams, Object postParams, Map<String,Object> opt) throws Exception
 	{
 		String url1 = makeUrl(url, getParams);
 		URL oUrl = new URL(url1);
-		HttpURLConnection conn = (HttpURLConnection)oUrl.openConnection();
-		conn.setConnectTimeout(10000);
-		conn.setReadTimeout(20000);
+		String ct = null;
 
 		byte[] postBytes = null;
 		String charset = "UTF-8";
 		if (postParams != null) {
 			String postStr = null;
-			String ct = null;
 			if (opt != null) 
-				ct = Objects.toString(opt.get("contentType"));
+				ct = (String)opt.get("contentType");
 			if (ct == null) {
 				if (postParams instanceof Map || postParams instanceof String) {
 					ct = "application/x-www-form-urlencoded";
@@ -1427,11 +1429,44 @@ e.g.
 				Map<String,Object> postMap = (Map<String,Object>)postParams;
 				postStr = urlEncodeArr(postMap);
 			}
+
+			postBytes = postStr.getBytes(charset);
+		}
+		boolean isAsync = opt != null && (boolean) opt.get("async");
+		if (isAsync) {
+			String host = oUrl.getHost();
+			int port = oUrl.getPort();
+			if (port == -1)
+				port = oUrl.getDefaultPort();
+
+			try (
+				Socket sock = new Socket(host, port);
+				OutputStream out = sock.getOutputStream()
+			) {
+				StringBuilder sb = new StringBuilder();
+				sb.append(String.format("%s %s HTTP/1.1\r\nHost: %s\r\n", postBytes==null? "GET": "POST", url1, host));
+				if (postBytes != null) {
+					sb.append(String.format("Content-Type: %s;charset=%s\r\nContent-Length: %s\r\n", ct, charset, postBytes.length));
+				}
+				sb.append("Connection: Close\r\n\r\n");
+				out.write(sb.toString().getBytes(charset));
+				if (postBytes != null) {
+					out.write(postBytes);
+				}
+			}
+			return null;
+		}
+
+		HttpURLConnection conn = (HttpURLConnection)oUrl.openConnection();
+		conn.setConnectTimeout(10000);
+		conn.setReadTimeout(20000);
+		conn.setUseCaches(false);
+
+		if (postBytes != null) {
 			conn.setRequestProperty("Content-Type", ct + ";charset=" + charset);
 			conn.setDoOutput(true);
 			conn.setDoInput(true);
-
-			postBytes = postStr.getBytes(charset);
+			conn.setRequestMethod("POST");
 		}
 		conn.connect();
 		if (postBytes != null) {
@@ -1439,8 +1474,7 @@ e.g.
 				out.write(postBytes);
 			}
 		}
-
-		String ct = conn.getContentType();
+		ct = conn.getContentType();
 		String resCharset = "UTF-8";
 		if (ct != null) {
 			Matcher m = regexMatch(ct, "(?i)charset=([\\w-]+)");
@@ -1462,6 +1496,14 @@ e.g.
 			ret = out.toString(resCharset);
 		}
 		return ret;
+	}
+	
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public void callSvcAsync(String ac, Map params, Map postParams) throws Exception
+	{
+		env.onAfterActions.add( () -> {
+			httpCall(ac, params, postParams, asMap("async", true));
+		});
 	}
 
 /**<pre>
