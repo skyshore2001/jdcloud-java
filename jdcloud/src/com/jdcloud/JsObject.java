@@ -12,4 +12,8 @@ public class JsObject extends LinkedHashMap<String, Object>
 			this.put(args[i].toString(), args[i+1]);
 		}
 	}
+	public JsObject(Map<String, Object> m)
+	{
+		this.putAll(m);
+	}
 }

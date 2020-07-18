@@ -100,6 +100,35 @@ class Global extends JDApiBase
 	}
 }
 
+class AC1_UserA extends AccessControl
+{
+	@Override
+	protected void onInit()
+	{
+		// !!! NOTE: java中不可直接写成员变量 protected String table = "User" -- 它不会重写父类的同名变量 !!!
+		this.table = "User";
+	
+		this.vcolDefs = asList(
+			new VcolDef().res("(SELECT COUNT(*) FROM ApiLog WHERE userId=t0.id) logCnt")
+				.isDefault(true),
+			new VcolDef().res("(SELECT MAX(id) FROM ApiLog WHERE userId=t0.id) lastLogId"),
+			new VcolDef().res("null lastLogAc")
+				.require("lastLog")
+		);
+		
+		this.subobj = asMap(
+			"log", new SubobjDef().obj("ApiLog").cond("userId=%d").res("id,tm,ac,addr").isDefault(false),
+			"lastLog", new SubobjDef().obj("ApiLog").cond("id=%d").res("id,tm,ac,addr")
+				.wantOne(true).isDefault(true)
+			//TODO .relatedKey("lastLogId")
+		);
+
+		this.enumFields("lastLogAc", (val, row) -> {
+			return getJsValue(row, "lastLog", "ac");
+		});
+	}
+}
+
 class AC_ApiLog extends AccessControl
 {
 	@Override
@@ -108,6 +137,20 @@ class AC_ApiLog extends AccessControl
 		this.requiredFields = asList("ac");
 		this.readonlyFields = asList("ac", "tm");
 		this.hiddenFields = asList("ua");
+		
+		this.vcolDefs = asList(
+			/* TODO: ext vcol
+			new VcolDef().res("concat(y, '-', m) ym")
+				// 用require指定所有依赖的内层字段
+				.require("y,m")
+				// 用isExt指定这是外部虚拟字段
+				.isExt(true),
+			*/
+			new VcolDef().res("u.name userName")
+				.join("LEFT JOIN User u ON u.id=t0.userId")
+				.isDefault(true),
+			new VcolDef().res(tmCols("t0.tm"))
+		);
 	}
 	@Override
 	protected void onValidate()
@@ -116,6 +159,11 @@ class AC_ApiLog extends AccessControl
 		{
 			env._POST.put("tm", date());
 		}
+	}
+	@Override
+	protected void onQuery() throws Exception
+	{
+		this.qsearch(asList("ac", "addr"), param("q"));
 	}
 }
 
@@ -126,6 +174,8 @@ class AC1_UserApiLog extends AC_ApiLog
 	@Override
 	protected void  onInit()
 	{
+		super.onInit();
+
 		this.allowedAc = asList("get", "query", "add", "del");
 		this.uid = (int)this.getSession("uid");
 
@@ -150,19 +200,16 @@ class AC1_UserApiLog extends AC_ApiLog
 ") last3LogAc");
 		}
 	
-		this.vcolDefs = asList(
-			new VcolDef().res("u.name userName")
-				.join("INNER JOIN User u ON u.id=t0.userId")
-				.isDefault(true),
-			vcol
-		);
+		this.vcolDefs.add(vcol);
 
 		this.subobj = asMap(
 			"user", new SubobjDef()
 				.sql("SELECT id,name FROM User u WHERE id=" + this.uid)
 				.wantOne(true),
 			"last3Log", new SubobjDef()
-				.sql(env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3"))
+				.sql(env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3")),
+			"user2", new SubobjDef().obj("User").AC("AC1_UserA").cond("id=%d").res("id,name").wantOne(true)
+			// TODO: "%d"=>"userId"
 		);
 	}
 
@@ -202,6 +249,7 @@ class AC1_UserApiLog extends AC_ApiLog
 			"fmt", "list",
 			"cond", "ac=" + Q(ac)
 		);
+		param.putAll(env._GET);
 
 		return env.callSvc("UserApiLog.query", param, null, null);
 	}

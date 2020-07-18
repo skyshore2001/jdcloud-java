@@ -394,8 +394,6 @@ public class JDEnvBase
 				rv = this.batchCall(batchUseTrans, ref_ok);
 				ok = ref_ok[0];
 			}
-			if (rv == null)
-				rv = "OK";
 			ret.set(1, rv);
 		}
 		catch (DirectReturn ex) {
@@ -617,8 +615,6 @@ public class JDEnvBase
 			{
 				throw new MyException(JDApiBase.E_SERVER, "misconfigured ac=`" + ac + "`");
 			}
-			if (ret == null)
-				ret = "OK";
 		}
 		catch (Exception e) {
 			if (e instanceof InvocationTargetException) {

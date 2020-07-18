@@ -201,7 +201,8 @@ public class AccessControl extends JDApiBase {
 
 	public void init(String table, String ac) throws Exception
 	{
-		this.table = table;
+		if (this.table == null)
+			this.table = table;
 		this.ac = ac;
 		this.onInit();
 	}
@@ -330,10 +331,7 @@ public class AccessControl extends JDApiBase {
 			});
 		}
 
-		if (this.table == null)
-			this.table = tbl;
-		this.ac = ac;
-		this.onInit();
+		this.init(tbl, ac);
 
 		String fn = "api_" + ac;
 		Method m = null;
@@ -817,13 +815,14 @@ public class AccessControl extends JDApiBase {
 		else if (env._POST.containsKey("id")) {
 			env._POST.remove("id");
 		}
+		this.handleSubObjForAddSet();
 
 		this.id = dbInsert(this.table, env._POST);
 
 		String res = (String)param("res");
 		Object ret = null;
 		if (res != null) {
-			ret = this.callSvc(null, "get", new JsObject("id", this.id), null);
+			ret = this.callSvc(null, "get", new JsObject("id", this.id, "res", res), null);
 		}
 		else {
 			ret = this.id;
@@ -831,17 +830,66 @@ public class AccessControl extends JDApiBase {
 		return ret;
 	}
 
-	public void api_set() throws Exception
+	public Object api_set() throws Exception
 	{
 		this.onValidateId();
 		this.id = (int)mparam("id");
 		this.validate();
+		this.handleSubObjForAddSet();
 
 		@SuppressWarnings("unused")
 		int cnt = dbUpdate(this.table, env._POST, this.id);
+		return "OK";
 	}
 
-	public void api_del() throws Exception
+	private void handleSubObjForAddSet() throws Exception
+	{
+		if (this.subobj == null)
+			return;
+		List<OnAfterAction> onAfterActions = asList();
+		forEach (this.subobj, (k, v) -> {
+			Object subobjList = env._POST.get(k);
+			if (subobjList != null && subobjList instanceof List && v.obj != null) {
+				onAfterActions.add(ret -> {
+					String relatedKey = null;
+					Matcher m;
+					if ((m=regexMatch(v.cond, "(?u)(\\w+)=%d")).find()) {
+						relatedKey = m.group(1);
+					}
+					if (relatedKey == null) {
+						throw new MyException(E_SERVER, "bad cond: cannot get relatedKey", "子表配置错误");
+					}
+
+					String objName = v.obj;
+					AccessControl acObj = this.createAC(objName, null, v.AC);
+					for (Map<String, Object> subobj: (List<Map>)subobjList) {
+						Object subid = subobj.get("id");
+						if (subid != null) {
+							// set/del接口支持cond.
+							String cond = relatedKey + "=" + this.id;
+							if (subobj.get("_delete") == null) {
+								acObj.callSvc(objName, "set", new JsObject("id", subid, "cond", cond), new JsObject(subobj));
+							}
+							else {
+								acObj.callSvc(objName, "del", new JsObject("id", subid, "cond", cond), null);
+							}
+						}
+						else {
+							subobj.put(relatedKey, this.id);
+							acObj.callSvc(objName, "add", null, new JsObject(subobj));
+						}
+					}
+				});
+				env._POST.remove(k);
+			}
+		});
+		if (onAfterActions.size() > 0) {
+			this.onAfterActions.addAll(0, onAfterActions);
+		}
+	}
+
+
+	public Object api_del() throws Exception
 	{
 		this.onValidateId();
 		this.id = (int)mparam("id");
@@ -850,6 +898,7 @@ public class AccessControl extends JDApiBase {
 		int cnt = execOne(sql);
 		if (cnt != 1)
 			throw new MyException(E_PARAM, String.format("not found id=%s", id));
+		return "OK";
 	}
 
 /**<pre>
@@ -1062,7 +1111,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		if (param1 != null) {
 			Object cond = param1.get("cond");
 			if (cond != null) {
-				param.put("cond2", new Object[] {cond});
+				param.put("cond2", dbExpr(cond.toString()));
 			}
 			param.putAll(param1);
 			if (param1.containsKey("wantOne")) {
@@ -1341,7 +1390,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			table2csv(ret, null);
 			handled = true;
 		}
-		else if (fmt.equals("excel")) 
+		else if (fmt.equals("excel") || fmt.equals("excelcsv")) 
 		{
 			header("Content-Type", "application/csv; charset=gb18030");
 			header("Content-Disposition", "attachment;filename=" + fname + ".csv");
@@ -1828,5 +1877,18 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 			this.addJoin(vcolDef.join);
 		if (vcolDef.cond != null)
 			this.addCond(vcolDef.cond);
+	}
+
+/**
+@fn AccessControl::isFileExport()
+
+返回是否为导出文件请求。
+*/
+	protected boolean isFileExport()
+	{
+		if (! Objects.equals(this.ac, "query"))
+			return false;
+		Object fmt = param("fmt");
+		return fmt != null && !Objects.equals(fmt, "list") && !Objects.equals(fmt, "one") && !Objects.equals(fmt, "one?");
 	}
 }
