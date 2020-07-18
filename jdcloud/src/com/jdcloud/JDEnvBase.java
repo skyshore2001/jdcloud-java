@@ -528,7 +528,8 @@ public class JDEnvBase
 	{
 		if (callInfo == null)
 			callInfo = new CallInfo();
-		String[] clsNames = table==null? onCreateApi(): onCreateAC(table);
+		String[] clsNames = cls != null? new String[] {cls}
+			: table==null? onCreateApi(): onCreateAC(table);
 		if (! getCallInfo(clsNames, ac, callInfo)) {
 			if (table == null || callInfo.cls != null)
 				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)", "接口不支持");

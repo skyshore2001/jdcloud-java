@@ -118,9 +118,8 @@ class AC1_UserA extends AccessControl
 		
 		this.subobj = asMap(
 			"log", new SubobjDef().obj("ApiLog").cond("userId=%d").res("id,tm,ac,addr").isDefault(false),
-			"lastLog", new SubobjDef().obj("ApiLog").cond("id=%d").res("id,tm,ac,addr")
+			"lastLog", new SubobjDef().obj("ApiLog").cond("id=%d").relatedKey("lastLogId").res("id,tm,ac,addr")
 				.wantOne(true).isDefault(true)
-			//TODO .relatedKey("lastLogId")
 		);
 
 		this.enumFields("lastLogAc", (val, row) -> {
@@ -204,12 +203,12 @@ class AC1_UserApiLog extends AC_ApiLog
 
 		this.subobj = asMap(
 			"user", new SubobjDef()
-				.sql("SELECT id,name FROM User u WHERE id=" + this.uid)
+				.sql("SELECT id,name FROM User u WHERE id=" + this.uid).force(true)
 				.wantOne(true),
 			"last3Log", new SubobjDef()
-				.sql(env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3")),
-			"user2", new SubobjDef().obj("User").AC("AC1_UserA").cond("id=%d").res("id,name").wantOne(true)
-			// TODO: "%d"=>"userId"
+				.sql(env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3"))
+				.force(true),
+			"user2", new SubobjDef().obj("User").AC("AC1_UserA").cond("id=%d").relatedKey("userId").res("id,name").wantOne(true)
 		);
 	}
 
