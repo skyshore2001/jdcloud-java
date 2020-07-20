@@ -52,7 +52,6 @@ public class AccessControl extends JDApiBase {
 		public String sql;
 		public boolean wantOne;
 		public boolean isDefault;
-		public boolean force;
 		public String relatedKey; // ="%d" in jdcloud-php
 
 		public String obj;
@@ -71,10 +70,6 @@ public class AccessControl extends JDApiBase {
 		}
 		public SubobjDef isDefault(boolean val) {
 			this.isDefault = val;
-			return this;
-		}
-		public SubobjDef force(boolean val) {
-			this.force = val;
 			return this;
 		}
 		public SubobjDef obj(String val) {
@@ -718,6 +713,18 @@ public class AccessControl extends JDApiBase {
 	}
 
 	private void addSubobj(String col, SubobjDef def) {
+		if (def.cond != null) {
+			def.cond = regexReplace(def.cond, "(?U)\\{(\\w+)\\}", (ms) -> {
+				def.relatedKey = ms.group(1);
+				return "%d";
+			});
+		}
+		if (def.sql != null) {
+			def.sql = regexReplace(def.sql, "(?U)\\{(\\w+)\\}", (ms) -> {
+				def.relatedKey = ms.group(1);
+				return "%d";
+			});
+		}
 		this.sqlConf.subobj.put(col, def);
 		if (def.relatedKey != null) {
 			String col1 = def.relatedKey;
@@ -1180,6 +1187,9 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	// k: subobj name
 	private JsArray querySubObj(String k, SubobjDef opt, Map<String, Object> opt1) throws Exception
 	{
+		if (opt.obj == null)
+			throw new MyException(E_PARAM, "missing subobj.obj", "子表定义错误");
+
 		JsObject param = new JsObject("cond", opt.cond, "res", opt.res);
 		Map param1 = castOrNull(param("param_" + k), Map.class);
 		if (param1 != null) {
@@ -1226,17 +1236,14 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			forEach(subobj, (k, opt) -> {
 				JsArray ret1;
 				Object id1 = opt.relatedKey != null? this.getAliasVal(mainObj, opt.relatedKey) : id; // %d指定的关联字段会事先添加
-				if (opt.obj != null && opt.cond != null) {
+				if (opt.sql == null) {
 					if (id1 != null) {
-						String cond = String.format(opt.cond, id1);
+						String cond = opt.cond != null? String.format(opt.cond, id1): null;
 						ret1 = querySubObj(k, opt, asMap("cond", cond));
 					}
 					else {
 						ret1 = new JsArray();
 					}
-				}
-				else if (opt.sql == null) {
-					return;
 				}
 				else {
 					String sql1 = String.format(opt.sql, id1); // e.g. "select * from OrderItem where orderId=%d"
@@ -1278,55 +1285,49 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 				if (val != null)
 					idArr.add(val);
 			});
-			String idList = join(",", idArr);
 			JsArray ret1 = new JsArray();
-			if (idArr.size() == 0) {
-			}
-			else if (opt.obj != null && opt.cond != null) {
-				String cond = regexReplace(opt.cond, "(\\S+)=%d", ms -> {
-					joinField[0] = ms.group(1);
-					return joinField[0] + " IN (" + idList + ")";
-				});
-				// NOTE: GROUP BY也要做调整
-				if (opt.get("gres") != null) {
-					opt.put("gres", "id_," + opt.get("gres"));
+			if (idArr.size() > 0) {
+				String idList = join(",", idArr);
+				String sql = opt.cond != null? opt.cond: opt.sql;
+				if (sql != null) {
+					sql = regexReplace(sql, "(\\S+)=%d", ms -> {
+						joinField[0] = ms.group(1);
+						return joinField[0] + " IN (" + idList + ")";
+					});
 				}
-				ret1 = this.querySubObj(k, opt, asMap(
-					"cond", cond,
-					"res2", dbExpr(joinField[0] + " id_")
-				));
-			}
-			else if (opt.sql != null) {
-				// e.g. "select * from OrderItem where orderId=%d" => (添加主表关联字段id_) "select *, orderId id_ from OrderItem where orderId=%d"
-				String sql = regexReplace(opt.sql, "(\\S+)=%d", ms -> {
-					joinField[0] = ms.group(1);
-					return joinField[0] + " IN (" + idList + ")";
-				});
-
-				if (joinField[0] == null) {
-					if (! opt.force)
-						throw new MyException(E_SERVER, "bad subobj def: `" + opt.sql + "'. require `field=%d` or set `force=true`");
-
+				if (opt.sql == null) {
+					Map<String, Object> param = asMap("cond", sql);
+					if (joinField[0] != null) {
+						// NOTE: GROUP BY也要做调整
+						if (opt.get("gres") != null) {
+							opt.put("gres", "id_," + opt.get("gres"));
+						}
+						param.put("res2", dbExpr(joinField[0] + " id_"));
+					}
+					ret1 = this.querySubObj(k, opt, param);
+				}
+				else {
+					if (joinField[0] != null) {
+						//TODO: 只替换第一个
+						sql = regexReplace(sql, "(?i) from", String.format(", %s id_$0", joinField[0]), 1);
+						sql = regexReplace(sql, "(?i)group by", String.format("$0 id_, ", sql), 1);
+					}
 					ret1 = queryAll(sql, true);
-					Object ret1_o = ret1;
-					if (opt.wantOne) {
-						if (ret1.size() == 0)
-							ret1_o = null;
-						else
-							ret1_o = ret1.get(0);
-					}
-					for (Object e: objArr) {
-						JsObject row = (JsObject)e;
-						row.put(k, ret1_o);
-					}
-					continue;
 				}
-
-				sql = regexReplace(sql, "(?i) from", String.format(", %s id_$0", joinField[0]));
-
-				ret1 = queryAll(sql, true);
 			}
-			else {
+
+			if (joinField[0] == null) {
+				Object ret1_o = ret1;
+				if (opt.wantOne) {
+					if (ret1.size() == 0)
+						ret1_o = null;
+					else
+						ret1_o = ret1.get(0);
+				}
+				for (Object e: objArr) {
+					JsObject row = (JsObject)e;
+					row.put(k, ret1_o);
+				}
 				continue;
 			}
 
@@ -2003,6 +2004,7 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 			return true;
 
 		Vcol vcol = this.vcolMap.get(col);
+		vcol.added = true;
 		if (alias != null) {
 			this.addRes(vcol.def + " " + alias, false, vcolDef.isExt);
 			this.vcolMap.put(alias, vcol); // vcol及其alias同时加入vcolMap并标记已添加"added"

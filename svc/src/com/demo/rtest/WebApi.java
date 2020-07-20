@@ -118,7 +118,7 @@ class AC1_UserA extends AccessControl
 		
 		this.subobj = asMap(
 			"log", new SubobjDef().obj("ApiLog").cond("userId=%d").res("id,tm,ac,addr").isDefault(false),
-			"lastLog", new SubobjDef().obj("ApiLog").cond("id=%d").relatedKey("lastLogId").res("id,tm,ac,addr")
+			"lastLog", new SubobjDef().obj("ApiLog").cond("id={lastLogId}").res("id,tm,ac,addr")
 				.wantOne(true).isDefault(true)
 		);
 
@@ -138,6 +138,13 @@ class AC_ApiLog extends AccessControl
 		this.hiddenFields = asList("ua");
 		
 		this.vcolDefs = asList(
+			new VcolDef().res("u.name userName")
+				.join("LEFT JOIN User u ON u.id=t0.userId")
+				.isDefault(true),
+//			new VcolDef().res(tmCols("t0.tm")),
+			new VcolDef().res("@y:=year(t0.tm) y", "@m:=month(t0.tm) m"),
+			new VcolDef().res("concat(@y, '-', @m) ym")
+				.require("y,m")
 			/* TODO: ext vcol
 			new VcolDef().res("concat(y, '-', m) ym")
 				// 用require指定所有依赖的内层字段
@@ -145,10 +152,6 @@ class AC_ApiLog extends AccessControl
 				// 用isExt指定这是外部虚拟字段
 				.isExt(true),
 			*/
-			new VcolDef().res("u.name userName")
-				.join("LEFT JOIN User u ON u.id=t0.userId")
-				.isDefault(true),
-			new VcolDef().res(tmCols("t0.tm"))
 		);
 	}
 	@Override
@@ -203,12 +206,11 @@ class AC1_UserApiLog extends AC_ApiLog
 
 		this.subobj = asMap(
 			"user", new SubobjDef()
-				.sql("SELECT id,name FROM User u WHERE id=" + this.uid).force(true)
+				.sql("SELECT id,name FROM User u WHERE id=" + this.uid)
 				.wantOne(true),
 			"last3Log", new SubobjDef()
-				.sql(env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3"))
-				.force(true),
-			"user2", new SubobjDef().obj("User").AC("AC1_UserA").cond("id=%d").relatedKey("userId").res("id,name").wantOne(true)
+				.sql(env.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3")),
+			"user2", new SubobjDef().obj("User").AC("AC1_UserA").cond("id={userId}").res("id,name").wantOne(true)
 		);
 	}
 

@@ -635,10 +635,11 @@ keys中最后一个是value.
 	}
 
 /**<pre>
-%fn regexReplace(str, pat, str1) -> String
-%alias regexReplace(str, pat, fn) -> String
+%fn regexReplace(str, pat, str1, maxCnt=0) -> String
+%alias regexReplace(str, pat, fn, maxCnt=0) -> String
 
-用正则表达式替换字符串
+用正则表达式替换字符串.
+maxCnt大于零时，用于指定最大替换次数。
 
 %param fn(Matcher m) -> String
 
@@ -648,24 +649,38 @@ keys中最后一个是value.
 	String phone1 = regexReplace(phone, "^(\\d{3})\\d{4}", m -> { return m.group(1) + "****"; } );
 
  */
-	public static String regexReplace(String str, String pat, String str1) {
+	public static String regexReplace(String str, String pat, String str1, int maxCnt) {
 		Matcher m = regexMatch(str, pat);
 		StringBuffer sb = new StringBuffer();
+		int i = 0;
 		while (m.find()) {
 			m.appendReplacement(sb, str1);
+			++ i;
+			if (maxCnt > 0 && i >= maxCnt)
+				break;
 		}
 		m.appendTail(sb);
 		return sb.toString();
 	}
-	public static String regexReplace(String str, String pat, java.util.function.Function<Matcher, String> fn) {
+	public static String regexReplace(String str, String pat, java.util.function.Function<Matcher, String> fn, int maxCnt) {
 		Matcher m = regexMatch(str, pat);
 		StringBuffer sb = new StringBuffer();
+		int i = 0;
 		while (m.find()) {
 			String str1 = fn.apply(m);
 			m.appendReplacement(sb, str1);
+			++ i;
+			if (maxCnt > 0 && i >= maxCnt)
+				break;
 		}
 		m.appendTail(sb);
 		return sb.toString();
+	}
+	public static String regexReplace(String str, String pat, String str1) {
+		return regexReplace(str, pat, str1, 0);
+	}
+	public static String regexReplace(String str, String pat, java.util.function.Function<Matcher, String> fn) {
+		return regexReplace(str, pat, fn, 0);
 	}
 	
 	public static String join(String sep, Collection<?> ls) {
