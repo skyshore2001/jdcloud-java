@@ -75,21 +75,56 @@ public class Common
 		return idx;
 	}
 
+/**
+@key FunctionalInterface
+
+与Java内置的Consumer函数接口类似，命令更统一，且全部抛出Exception异常。
+
+无返回值用Action/Action1/Action2
+带返回值Fn/Fn1/Fn2
+
+数字表示参数个数，示例：
+
+	void testfn(Action fn1, 
+		Action1<FileItem> fn2,
+		Action2<String, FileItem, Boolean> fn3,
+		Fn<Boolean> fn4, 
+		Fn1<FileItem, Boolean> fn5,
+		Fn2<String, FileItem, Boolean> fn6
+	) {
+		fn1.call();
+		fn2.call(fi);
+		fn3.call(str1, fi);
+
+		boolean rv = fn4.call();
+		boolean rv2 = fn5.call(fi);
+		boolean rv3 = fn6.call(str1, fi);
+	}
+
+*/
 	@FunctionalInterface
-	public interface ConsumerEx<T> {
-		void accept(T t) throws Exception;
+	public interface Action {
+		void call() throws Exception;
 	}
 	@FunctionalInterface
-	public interface ConsumerEx1<T> {
-		boolean accept(T t) throws Exception;
+	public interface Action1<T> {
+		void call(T t) throws Exception;
 	}
 	@FunctionalInterface
-	public interface BiConsumerEx<K,V> {
-		void accept(K k, V v) throws Exception;
+	public interface Action2<T1, T2> {
+		void call(T1 t1, T2 t2) throws Exception;
 	}
 	@FunctionalInterface
-	public interface BiConsumerEx1<K,V> {
-		boolean accept(K k, V v) throws Exception;
+	public interface Fn<Ret> {
+		Ret call() throws Exception;
+	}
+	@FunctionalInterface
+	public interface Fn1<T, Ret> {
+		Ret call(T t) throws Exception;
+	}
+	@FunctionalInterface
+	public interface Fn2<T1, T2, Ret> {
+		Ret call(T1 t1, T2 t2) throws Exception;
 	}
 
 /**<pre>
@@ -112,17 +147,37 @@ public class Common
 		return true;
 	});
 */
-	public static <T> void forEach(List<T> ls, ConsumerEx<T> fn) throws Exception {
+	public static <T> void forEach(List<T> ls, Action1<T> fn) throws Exception {
 		for (T e: ls) {
-			fn.accept(e);
+			fn.call(e);
 		}
 	}
-	public static <T> void forEach(List<T> ls, ConsumerEx1<T> fn) throws Exception {
+	public static <T> void forEach(List<T> ls, Fn1<T, Boolean> fn) throws Exception {
 		for (T e: ls) {
-			boolean rv = fn.accept(e);
+			boolean rv = fn.call(e);
 			if (rv == false)
 				break;
 		}
+	}
+
+/**<pre>
+%fn map(ls, fn(e))
+
+将列表ls通过变换fn，返回新的列表。
+示例：
+
+	List<Object> ids = asList(100,101,102);
+	List<Object> names = map(ids, id -> {
+		return queryOne("SELECT name FROM User WHERE id=" + id);
+	});
+*/
+	public static <T,T1> List<T1> map(List<T> ls, Fn1<T, T1> fn) throws Exception {
+		List<T1> ret = asList();
+		for (T e: ls) {
+			T1 rv = fn.call(e);
+			ret.add(rv);
+		}
+		return ret;
 	}
 /**<pre>
 %fn forEach(map, fn(k, v))
@@ -144,14 +199,14 @@ public class Common
 	});
 
 */
-	public static <K,V> void forEach(Map<K,V> m, BiConsumerEx<K,V> fn) throws Exception {
+	public static <K,V> void forEach(Map<K,V> m, Action2<K,V> fn) throws Exception {
 		for (Map.Entry<K, V> e: m.entrySet()) {
-			fn.accept(e.getKey(), e.getValue());
+			fn.call(e.getKey(), e.getValue());
 		}
 	}
-	public static <K,V> void forEach(Map<K,V> m, BiConsumerEx1<K,V> fn) throws Exception {
+	public static <K,V> void forEach(Map<K,V> m, Fn2<K,V,Boolean> fn) throws Exception {
 		for (Map.Entry<K, V> e: m.entrySet()) {
-			boolean rv = fn.accept(e.getKey(), e.getValue());
+			boolean rv = fn.call(e.getKey(), e.getValue());
 			if (rv == false)
 				break;
 		}
@@ -439,17 +494,25 @@ keys中最后一个是value.
 /**<pre>
 @fn readFileBytes(file, maxLen=-1) -> byte[]
 
+param file: String/File/InputStream
 返回null表示读取失败。
  */
-	public static byte[] readFileBytes(String file) throws IOException
+	public static byte[] readFileBytes(Object file) throws IOException
 	{
 		return readFileBytes(file, -1);
 	}
-	public static byte[] readFileBytes(String file, int maxLen)
+	public static byte[] readFileBytes(Object file, int maxLen)
 	{
 		byte[] bs = null;
 		try {
-			File f = new File(file);
+			if (file instanceof InputStream) {
+				ByteArrayOutputStream out = new ByteArrayOutputStream();
+				InputStream in = (InputStream)file;
+				copyStream(in, out, maxLen);
+				return out.toByteArray();
+			}
+
+			File f = file instanceof String? new File((String)file): (File)file;
 			if (! f.exists())
 				return null;
 			InputStream in = new FileInputStream(f);
@@ -461,7 +524,7 @@ keys中最后一个是value.
 			in.close();
 		}
 		catch (IOException ex) {
-			
+			ex.printStackTrace();
 		}
 		return bs;
 	}
@@ -469,37 +532,55 @@ keys中最后一个是value.
 /**<pre>
 %fn readFile(file, charset="utf-8") -> String
 
+param file: File/String/Reader
+
 返回null表示读取失败。
  */
-	public static String readFile(String file) throws IOException
+	public static String readFile(Object file) throws IOException
 	{
 		return readFile(file, "utf-8");
 	}
-	public static String readFile(String file, String charset) throws IOException
+	public static String readFile(Object file, String charset) throws IOException
 	{
 		byte[] bs = readFileBytes(file);
 		if (bs == null)
 			return null;
 		return new String(bs, charset);
 	}
+	public static String readFile(Reader rd) {
+		StringBuffer sb = new StringBuffer();
+		char[] buf = new char[10*KB];
+		int n = 0;
+		try {
+			while ((n=rd.read(buf)) > 0) {
+				sb.append(buf, 0, n);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return sb.toString();
+	}
+
 
 /**<pre>
-%fn writeFile(in, out, bufSize?)
+%fn writeFile(in, out, maxSize?)
+%alias copyStream(in, out, maxSize)
 
 复制输入到输出。输入、输出可以是文件或流。
 
-%param in String/File/InputStream
-%param out String/File/OutputStream
-%param bufSize 指定buffer大小，设置0使用默认值(10K)
+%param in String(文件内容)/File/InputStream
+%param out String(文件名)/File/OutputStream
+%param maxSize 指定最多拷贝多少字节，设置0或负数表示读完为止
  */
-	public static void writeFile(Object in, Object out, int bufSize) throws IOException
+	public static void writeFile(Object in, Object out, int maxSize) throws IOException
 	{
-		if (bufSize <= 0)
-			bufSize = 10* KB;
+		int bufSize = 10* KB;
+		if (maxSize > 0 && maxSize < bufSize)
+			bufSize = maxSize;
 		InputStream in1 = null;
 		boolean closeIn = true;
 		if (in instanceof String) {
-			in1 = new FileInputStream((String)in);
+			closeIn = false;
 		}
 		else if (in instanceof File) {
 			in1 = new FileInputStream((File)in);
@@ -527,10 +608,25 @@ keys中最后一个是value.
 			throw new IllegalArgumentException("writeFile:out");
 		}
 
-		byte[] buffer = new byte[bufSize];
-		int len = 0;
-		while ((len = in1.read(buffer)) != -1) {
-			out1.write(buffer, 0, len);
+		if (in1 != null) {
+			byte[] buffer = new byte[bufSize];
+			int len = 0, totalLen = 0;
+			while ((len = in1.read(buffer)) != -1) {
+				if (maxSize > 0 && len + totalLen > maxSize)
+					len = maxSize - totalLen;
+				out1.write(buffer, 0, len);
+				totalLen += len;
+				if (maxSize > 0 && totalLen >= maxSize)
+					break;
+			}
+		}
+		else {
+			String content = (String)in;
+			byte[] bs = content.getBytes("utf-8");
+			if (maxSize > 0 && maxSize < bs.length)
+				out1.write(bs, 0, maxSize);
+			else
+				out1.write(bs);
 		}
 		if (closeOut)
 			out1.close();
@@ -539,6 +635,9 @@ keys中最后一个是value.
 	}
 	public static void writeFile(Object in, Object out) throws IOException {
 		writeFile(in, out, 0);
+	}
+	public static void copyStream(InputStream in, OutputStream out, int maxSize) throws IOException {
+		writeFile(in, out, maxSize);
 	}
 
 	public static String jsonEncode(Object o)
@@ -691,6 +790,9 @@ maxCnt大于零时，用于指定最大替换次数。
 			sb.append(o);
 		}
 		return sb.toString();
+	}
+	public static List<String> split(String regex, String str) {
+		return Arrays.asList(str.split(regex));
 	}
 
 /**<pre>
@@ -851,5 +953,17 @@ Close without exception.
 		if (str.length() > 0)
 			str.append(sep);
 		str.append(str1);
+	}
+	
+/**<pre>
+@fn extname(f)
+
+取文件扩展名。没有扩展名时返回空串。
+ */
+	public static String extname(String f) {
+		int pos = f.lastIndexOf(".");
+		if (pos < 0)
+			return "";
+		return f.substring(pos +1).toLowerCase();
 	}
 }

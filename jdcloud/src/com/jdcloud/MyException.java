@@ -27,5 +27,9 @@ public class MyException extends RuntimeException
 	{
 		return debugInfo;
 	}
+	@Override
+	public String toString() {
+		return "MyException[" + code + "]: " + this.getMessage() + " (" + debugInfo + ")";
+	}
 }
 

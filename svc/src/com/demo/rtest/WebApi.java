@@ -1,7 +1,6 @@
 package com.demo.rtest;
 
 import java.lang.reflect.Method;
-import java.util.*;
 import com.jdcloud.*;
 
 public class WebApi extends JDEnvBase

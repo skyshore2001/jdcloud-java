@@ -50,22 +50,43 @@ public class JDApiBase extends Common
 
 	public JDEnvBase env;
 	
+	public static class ForDel { }
+	public static ForDel forDel = new ForDel();
+	
+	public Object _GET(String key) {
+		return env._GET.get(key);
+	}
+	public void _GET(String key, Object val) {
+		if (val == forDel) {
+			env._GET.remove(key);
+			return;
+		}
+		env._GET.put(key, val);
+	}
+	public Object _POST(String key) {
+		return env._POST.get(key);
+	}
+	public void _POST(String key, Object val) {
+		if (val == forDel) {
+			env._POST.remove(key);
+			return;
+		}
+		env._POST.put(key, val);
+	}
+	public Object _SESSION(String key) {
+		return getSession(key);
+	}
+	public void _SESSION(String key, Object val) {
+		if (val == forDel) {
+			this.unsetSession(key);
+			return;
+		}
+		setSession(key, val);
+	}
 	/*
-	public NameValueCollection _GET 
-	{
-		get { return env._GET;}
-	}
-	public NameValueCollection _POST
-	{
-		get { return env._POST;}
-	}
 	public NameValueCollection _SERVER
 	{
 		get { return env.ctx.Request.ServerVariables;}
-	}
-	public HttpSessionState _SESSION
-	{
-		get { return env.ctx.Session;}
 	}
 	*/
 
@@ -754,7 +775,7 @@ name也可以是一个数组，表示至少有一个参数有值，这时返回�
 	public Object mparam(String name, String coll, boolean htmlEscape) {
 		Object val = param(name, null, coll, htmlEscape);
 		if (val == null)
-			throw new MyException(E_PARAM, "require param `" + name + "`");
+			throw new MyException(E_PARAM, "require param `" + name + "`", "缺少参数:" + name);
 		return val;
 	}
 	

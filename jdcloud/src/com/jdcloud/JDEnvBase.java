@@ -17,10 +17,15 @@ import javax.servlet.ServletContext;
 import javax.servlet.http.*;
 import javax.sql.DataSource;
 
+import org.apache.tomcat.util.http.fileupload.FileItem;
+import org.apache.tomcat.util.http.fileupload.disk.DiskFileItemFactory;
+import org.apache.tomcat.util.http.fileupload.servlet.ServletFileUpload;
+import org.apache.tomcat.util.http.fileupload.servlet.ServletRequestContext;
+
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
-public class JDEnvBase
+public class JDEnvBase extends JDApiBase
 {
 	public class CallSvcOpt
 	{
@@ -61,14 +66,21 @@ public class JDEnvBase
 	public String appName, appType;
 	public String clientVer;
 	
-	// 用于内部调用JDApiBase的工具函数
-	protected JDApiBase api = new JDApiBase();
+	// 上传文件配置选项
+	public int uploadMemorySize = 500 * KB; // 默认内存保存500K，超过则保存到文件
+	public long uploadSizeMax() { // 默认最大上传10M内容, 可在配置中修改
+		String val = props.getProperty("uploadSizeMax");
+		if (val == null)
+			return 10 * MB;
+		return Long.parseLong(val);
+	}
 
 	public Connection conn;
 	protected ServletContext ctx;
 	public HttpServletRequest request;
 	public HttpServletResponse response;
 	public JsObject _GET, _POST;
+	public List<FileItem> _FILES = null;
 
 	// JSON对象序列化后
 	protected Object postData;
@@ -200,8 +212,7 @@ public class JDEnvBase
 	{
 		this.ctx = ctx;
 		this.props = props;
-		this.api = new JDApiBase();
-		this.api.env = this;
+		this.env = this; // NOTE: JDEnvBase extends JDApiBase to use app common functions. MUST set env
 
 		String path = (ctx != null? ctx.getRealPath(""): System.getProperty("user.dir"));
 		// end with "/"
@@ -236,6 +247,27 @@ public class JDEnvBase
 		this.dbStrategy.init(this);
 	}
 	
+	public String getContentType() {
+		return this.request.getContentType();
+	}
+	
+	private String content;
+	public String getHttpInput() throws Exception {
+		if (content == null) {
+			Reader rd = this.request.getReader();
+			content = readFile(rd);
+		}
+		return content;
+	}
+	private byte[] contentBS;
+	public byte[] getHttpInputBS() throws Exception {
+		if (contentBS == null) {
+			InputStream in = this.request.getInputStream();
+			contentBS = readFileBytes(in);
+		}
+		return contentBS;
+	}
+	
 	@SuppressWarnings("unchecked")
 	protected String initRequest() throws Exception
 	{
@@ -248,7 +280,7 @@ public class JDEnvBase
 		}
 
 		if (request.getMethod().equals("OPTIONS"))
-			api.exit();
+			exit();
 
 		String enc = request.getCharacterEncoding();
 		if (enc == null)
@@ -297,6 +329,9 @@ public class JDEnvBase
 					throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
 				}
 			}
+			else if (ct.indexOf("multipart/form-data") >= 0) {
+				parseFiles();
+			}
 		}
 		// e.g. "application/xml" 
 		if (this._POST == null) {
@@ -306,10 +341,10 @@ public class JDEnvBase
 		// 注意: request.getReader()只能读一次. 若在处理POST内容前调用getQueryString将导致POST内容无法读取.
 		this._GET = QueryString.getUrlParam(request);
 
-		this.appName = (String)api.param("_app", "user", "G");
+		this.appName = (String)param("_app", "user", "G");
 		this.appType = this.appName.replaceFirst("(\\d+|-\\w+)$", "");
 
-		this.clientVer = (String)api.param("_ver", null, "G");
+		this.clientVer = (String)param("_ver", null, "G");
 		if (this.clientVer == null) {
 			// Mozilla/5.0 (Linux; U; Android 4.1.1; zh-cn; MI 2S Build/JRO03L) AppleWebKit/533.1 (KHTML, like Gecko)Version/4.0 MQQBrowser/5.4 TBS/025440 Mobile Safari/533.1 MicroMessenger/6.2.5.50_r0e62591.621 NetType/WIFI Language/zh_CN
 			String ua = this.request.getHeader("User-Agent");
@@ -325,7 +360,7 @@ public class JDEnvBase
 
 		if (this.isTestMode)
 		{
-			api.header("X-Daca-Test-Mode", "1");
+			header("X-Daca-Test-Mode", "1");
 		}
 
 		// TODO: X-Daca-Mock-Mode
@@ -333,10 +368,42 @@ public class JDEnvBase
 		String rev = JDApiBase.readFile(this.webRootDir + "revision.txt");
 		if (rev != null) {
 			rev = rev.substring(0, 6);
-			api.header("X-Daca-Server-Rev", rev);
+			header("X-Daca-Server-Rev", rev);
 		}
 
 		return ac;
+	}
+	
+/*
+取客户端上传上来的文件，类似php的$_FILES；同时也会设置_POST
+ */
+	private void parseFiles() throws Exception
+	{
+		if (_FILES != null)
+			return;
+		
+		DiskFileItemFactory factory = new DiskFileItemFactory();
+		ServletFileUpload upload = new ServletFileUpload(factory);
+		//upload.setHeaderEncoding("UTF-8");
+		factory.setSizeThreshold(this.uploadMemorySize);
+		//File tmpDir = new File("c:/tmpdir"); // 当超过memorySize的时候，存到一个临时文件夹中
+		//factory.setRepository(tmpDir);
+		upload.setSizeMax(this.uploadSizeMax());
+		List<FileItem> items = upload.parseRequest(new ServletRequestContext(request));
+		this._FILES = asList();
+		for (FileItem item : items) {
+			if (! item.isFormField()) {
+				String fileName = item.getName();
+				if (fileName.length() == 0)
+					continue;
+				_FILES.add(item);
+			}
+			else {
+				if (_POST == null)
+					_POST = new JsObject();
+				_POST.put(item.getName(), item.getString());
+			}
+		}
 	}
 
 	// 回调函数集。在事务结束时调用。
@@ -355,7 +422,7 @@ public class JDEnvBase
 			catch (Exception ex) {
 				StringWriter w = new StringWriter();
 				ex.printStackTrace(new PrintWriter(w));
-				api.logit(w.toString());
+				logit(w.toString());
 				ex.printStackTrace();
 			}
 		}
@@ -385,7 +452,7 @@ public class JDEnvBase
 				ok = true;
 			}
 			else {
-				boolean batchUseTrans = (boolean)api.param("useTrans/b", false, "G");
+				boolean batchUseTrans = (boolean)param("useTrans/b", false, "G");
 				if (useTrans && batchUseTrans)
 					this.beginTrans();
 				else
@@ -446,11 +513,11 @@ public class JDEnvBase
 			if (apiLog != null)
 				apiLog.logAfter();
 
-			Common.safeClose(this.conn);
+			safeClose(this.conn);
 			this.conn = null;
 
 			if (output) {
-				api.echo(this.X_RET_STR);
+				echo(this.X_RET_STR);
 			}
 		}
 		return ret;
@@ -498,16 +565,7 @@ public class JDEnvBase
 		return ret;
 	}
 	
-	@FunctionalInterface
-	public interface Fn {
-		Object call() throws Exception;
-	}
-	@FunctionalInterface
-	public interface Action {
-		void call() throws Exception;
-	}
-
-	public Object tmpEnv(JsObject param, JsObject postParam, Fn fn) throws Exception
+	public Object tmpEnv(JsObject param, JsObject postParam, Fn<Object> fn) throws Exception
 	{
 		JsObject[] bak = new JsObject[] { this._GET, this._POST };
 		this._GET = param != null? param: new JsObject();
@@ -532,9 +590,9 @@ public class JDEnvBase
 			: table==null? onCreateApi(): onCreateAC(table);
 		if (! getCallInfo(clsNames, ac, callInfo)) {
 			if (table == null || callInfo.cls != null)
-				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)", "接口不支持");
+				throw new MyException(E_PARAM, "bad ac=`" + ac + "` (no method)", "接口不支持");
 
-			int code = !this.api.hasPerm(JDApiBase.AUTH_LOGIN) ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
+			int code = !hasPerm(AUTH_LOGIN) ? E_NOAUTH : E_FORBIDDEN;
 			throw new MyException(code, String.format("Operation is not allowed for current user on object `%s`", table));
 		}
 
@@ -575,9 +633,9 @@ public class JDEnvBase
 				return callSvc(ac);
 			});
 		}
-		Matcher m = JDApiBase.regexMatch(ac, "(?U)(\\w+)(?:\\.(\\w+))?$");
+		Matcher m = regexMatch(ac, "(?U)(\\w+)(?:\\.(\\w+))?$");
 		if (!m.find())
-			throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "`", "接口不支持");
+			throw new MyException(E_PARAM, "bad ac=`" + ac + "`", "接口不支持");
 		String ac1 = null;
 		String table = null;
 		String methodName = null;
@@ -614,7 +672,7 @@ public class JDEnvBase
 			}
 			else
 			{
-				throw new MyException(JDApiBase.E_SERVER, "misconfigured ac=`" + ac + "`");
+				throw new MyException(E_SERVER, "misconfigured ac=`" + ac + "`");
 			}
 		}
 		catch (Exception e) {
@@ -735,10 +793,10 @@ public class JDEnvBase
 			}
 		}
 
-		String v1 = JDApiBase.regexReplace(val, "\\{(.+?)\\}", m -> {
+		String v1 = regexReplace(val, "\\{(.+?)\\}", m -> {
 			String expr = m.group(1);
 			RetArrayAccess a = new RetArrayAccess(); 
-			JDApiBase.regexReplace(expr, "\\$(-?\\d+)|\\[(\\d+)\\]|\\.(\\w+)", m1 -> {
+			regexReplace(expr, "\\$(-?\\d+)|\\[(\\d+)\\]|\\.(\\w+)", m1 -> {
 				try {
 					if (m1.group(1) != null) {
 						int idx = Integer.parseInt(m1.group(1));
@@ -778,8 +836,8 @@ public class JDEnvBase
 					Connection connection=ds.getConnection();
 					this.conn = connection;
 				} catch (NamingException | SQLException e) {
-					api.addLog(e.getMessage());
-					throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
+					addLog(e.getMessage());
+					throw new MyException(E_DB, "db connection fails", "数据库连接失败。");
 				}
 				return;
 			}
@@ -792,13 +850,13 @@ public class JDEnvBase
 			try {
 				Class.forName(dbDriver);
 			} catch (ClassNotFoundException e) {
-				throw new MyException(JDApiBase.E_DB, "db driver not found");
+				throw new MyException(E_DB, "db driver not found");
 			}
 			try {
 				this.conn = DriverManager.getConnection(url, user, pwd);
 			} catch (SQLException e) {
-				api.addLog(e.getMessage());
-				throw new MyException(JDApiBase.E_DB, "db connection fails", "数据库连接失败。");
+				addLog(e.getMessage());
+				throw new MyException(E_DB, "db connection fails", "数据库连接失败。");
 			}
 		}
 	}
@@ -861,13 +919,13 @@ public class JDEnvBase
 对于对象型调用，根据对象名(table)返回一个类名数组，用于绑定权限与AC类。注意类名不带包名。
 默认逻辑作为示例：
 
-		if (api.hasPerm(JDApiBase.AUTH_USER)) {
+		if (hasPerm(AUTH_USER)) {
 			return new String[] { "AC1_" + table, "AC_" + table };
 		}
-		else if (api.hasPerm(JDApiBase.AUTH_EMP)) {
+		else if (hasPerm(AUTH_EMP)) {
 			return new String[] { "AC2_" + table };
 		}
-		else if (api.hasPerm(JDApiBase.AUTH_ADMIN)) {
+		else if (hasPerm(AUTH_ADMIN)) {
 			return new String[] { "AC0_" + table, "AccessControl" };
 		}
 		return new String[] {"AC_" + table};
@@ -880,13 +938,13 @@ public class JDEnvBase
  */
 	protected String[] onCreateAC(String table)
 	{
-		if (api.hasPerm(JDApiBase.AUTH_USER)) {
+		if (hasPerm(AUTH_USER)) {
 			return new String[] { "AC1_" + table, "AC_" + table };
 		}
-		else if (api.hasPerm(JDApiBase.AUTH_EMP)) {
+		else if (hasPerm(AUTH_EMP)) {
 			return new String[] { "AC2_" + table };
 		}
-		else if (api.hasPerm(JDApiBase.AUTH_ADMIN)) {
+		else if (hasPerm(AUTH_ADMIN)) {
 			return new String[] { "AC0_" + table, "AccessControl" };
 		}
 		return new String[] {"AC_" + table};
@@ -898,28 +956,28 @@ public class JDEnvBase
 返回权限集合。一般根据session来设置。默认检查uid, empId, adminId三个session变量，如果存在则认为具有用户、员工、超级管理员登录权限。
 
 		int perms = 0;
-		if (api.getSession("uid") != null) {
-			perms |= JDApiBase.AUTH_USER;
+		if (getSession("uid") != null) {
+			perms |= AUTH_USER;
 		}
-		else if (api.getSession("empId") != null) {
-			perms |= JDApiBase.AUTH_EMP;
+		else if (getSession("empId") != null) {
+			perms |= AUTH_EMP;
 		}
-		else if (api.getSession("adminId") != null) {
-			perms |= JDApiBase.AUTH_ADMIN;
+		else if (getSession("adminId") != null) {
+			perms |= AUTH_ADMIN;
 		}
 		return perms;
 */
 	protected int onGetPerms()
 	{
 		int perms = 0;
-		if (api.getSession("uid") != null) {
-			perms |= JDApiBase.AUTH_USER;
+		if (getSession("uid") != null) {
+			perms |= AUTH_USER;
 		}
-		else if (api.getSession("empId") != null) {
-			perms |= JDApiBase.AUTH_EMP;
+		else if (getSession("empId") != null) {
+			perms |= AUTH_EMP;
 		}
-		else if (api.getSession("adminId") != null) {
-			perms |= JDApiBase.AUTH_ADMIN;
+		else if (getSession("adminId") != null) {
+			perms |= AUTH_ADMIN;
 		}
 		return perms;
 	}
@@ -973,7 +1031,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 	{
 		sql = fixTableName(sql);
 		if (this.skipLogCnt <= 0)
-			api.addLog(sql, 9);
+			addLog(sql, 9);
 		else
 			-- this.skipLogCnt;
 		return sql;
@@ -981,7 +1039,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 	
 	private String fixTableName(String sql)
 	{
-		return JDApiBase.regexReplace(sql, "(?isx)(?<= (?:UPDATE | FROM | JOIN | INTO) \\s+ )(?:(\\w+)\\.)?(\\w+)", (m) -> {
+		return regexReplace(sql, "(?isx)(?<= (?:UPDATE | FROM | JOIN | INTO) \\s+ )(?:(\\w+)\\.)?(\\w+)", (m) -> {
 			if (m.group(1) != null)
 				return this.dbStrategy.quoteName(m.group(1)) + "." + this.dbStrategy.quoteName(m.group(2));
 			return this.dbStrategy.quoteName(m.group(2));
@@ -1015,7 +1073,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 		public int getLastInsertId()
 		{
 			try {
-				Object ret = this.env.api.queryOne("SELECT LAST_INSERT_ID()");
+				Object ret = this.env.queryOne("SELECT LAST_INSERT_ID()");
 				return (int)ret;
 			}
 			catch (Exception ex) {
@@ -1045,7 +1103,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 		{
 			try {
 				// or use "SELECT @@IDENTITY"
-				Object ret = this.env.api.queryOne("SELECT SCOPE_IDENTITY()");
+				Object ret = this.env.queryOne("SELECT SCOPE_IDENTITY()");
 				return (int)ret;
 			}
 			catch (Exception ex) {
@@ -1060,9 +1118,9 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 
 		public String fixPaging(String sql)
 		{
-			// api.addLog(sql, 9); // 原始sql，复杂语句出问题时可打开看
+			// addLog(sql, 9); // 原始sql，复杂语句出问题时可打开看
 			// for MSSQL: LIMIT -> TOP+ROW_NUMBER
-			Matcher m = JDApiBase.regexMatch(sql, "(?isx)SELECT(.*) (?: " +
+			Matcher m = regexMatch(sql, "(?isx)SELECT(.*) (?: " +
 "	LIMIT\\s+(\\d+) " +
 "	| (ORDER\\s+BY.*?)\\s*LIMIT\\s+(\\d+),(\\d+)" +
 ")\\s*$" );
@@ -1106,7 +1164,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 		private String myVarExport(Object var, int maxLength)
 		{
 			if (var instanceof String) {
-				String var1 = JDApiBase.regexReplace((String)var, "\\s+", " ");
+				String var1 = regexReplace((String)var, "\\s+", " ");
 				if (var1.length() > maxLength)
 					var1 = var1.substring(0, maxLength) + "...";
 				return var1;
@@ -1143,19 +1201,19 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 		void logBefore()
 		{
 			try {
-				this.startTm = Common.time();
+				this.startTm = time();
 		
 				String type = appType;
 				Object userId = null;
 				// TODO: hard code
 				if (type.equals("user")) {
-					userId = api.getSession("uid");
+					userId = getSession("uid");
 				}
 				else if (type.equals("emp")) {
-					userId = api.getSession("empId");
+					userId = getSession("empId");
 				}
 				else if (type.equals("admin")) {
-					userId = api.getSession("adminId");
+					userId = getSession("adminId");
 				}
 				if (userId == null)
 					userId = "NULL";
@@ -1178,11 +1236,11 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 				String ua = request.getHeader("User-Agent");
 		
 				String sql = String.format("INSERT INTO ApiLog (tm, addr, ua, app, ses, userId, ac, req, reqsz, ver) VALUES ('%s', %s, %s, %s, %s, %s, %s, %s, %s, %s)", 
-					Common.date(), JDApiBase.Q(remoteAddr), JDApiBase.Q(ua), JDApiBase.Q(appName), 
-					JDApiBase.Q(request.getRequestedSessionId()), userId, JDApiBase.Q(this.ac), JDApiBase.Q(content), reqsz, JDApiBase.Q(clientVer)
+					date(), Q(remoteAddr), Q(ua), Q(appName), 
+					Q(request.getRequestedSessionId()), userId, Q(this.ac), Q(content), reqsz, Q(clientVer)
 				);
-				++ api.env.skipLogCnt;
-				this.id = api.execOne(sql, true);
+				++ skipLogCnt;
+				this.id = execOne(sql, true);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -1193,7 +1251,7 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 			if (conn == null)
 				return;
 			try {
-				long iv = Common.time() - this.startTm;
+				long iv = time() - this.startTm;
 				String content = myVarExport(X_RET_STR, 200);
 		
 				String userIdStr = "";
@@ -1201,11 +1259,11 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 					userIdStr = ", userId=" + ((JsObject)X_RET.get(1)).get("id");
 				}
 				String sql = String.format("UPDATE ApiLog SET t=%d, retval=%d, ressz=%d, res=%s %s WHERE id=%s", 
-						iv, X_RET.get(0), X_RET_STR.length(), JDApiBase.Q(content), userIdStr, this.id);
+						iv, X_RET.get(0), X_RET_STR.length(), Q(content), userIdStr, this.id);
 
-				++ api.env.skipLogCnt;
+				++ skipLogCnt;
 				@SuppressWarnings("unused")
-				int rv = api.execOne(sql);
+				int rv = execOne(sql);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}

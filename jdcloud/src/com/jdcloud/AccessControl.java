@@ -1,9 +1,13 @@
 package com.jdcloud;
+import java.io.File;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.regex.*;
+
+import org.apache.tomcat.util.http.fileupload.FileItem;
 
 @SuppressWarnings({"rawtypes", "unchecked"})
 public class AccessControl extends JDApiBase {
@@ -204,6 +208,19 @@ public class AccessControl extends JDApiBase {
 	// 回调函数集。在after中执行（在onAfter回调之后）。
 	protected List<OnAfterAction> onAfterActions = asList();
 
+/**
+@var AccessControl.delField
+
+如果设置该字段(例如设置为disableFlag字段)，则把删除动作当作是设置该字段为1，且在查询接口中跟踪此字段增加过滤。
+必须是flag字段（0/1值）。
+
+示例：
+
+	// onInit中：
+	this.delField = "disableFlag"
+ */
+	protected String delField;
+
 	// for get/query
 	// 注意：sqlConf.res/.cond[0]分别是传入的res/cond参数, sqlConf.orderby是传入的orderby参数, 为空均表示未传值。
 	private SqlConf sqlConf; // {@cond, @res, @join, orderby, @subobj, @gres}
@@ -263,7 +280,7 @@ public class AccessControl extends JDApiBase {
 		return (AccessControl)env.createAC(tbl, ac, cls, null);
 	}
 	
-	final Object callSvc(String tbl, String ac) throws Exception
+	final public Object callSvc(String tbl, String ac) throws Exception
 	{
 		return this.callSvc(tbl, ac, null, null);
 	}
@@ -400,6 +417,9 @@ public class AccessControl extends JDApiBase {
 		}
 
 		this.onQuery();
+		if (this.delField != null) {
+			this.addCond(this.delField + "=0");
+		}
 
 		boolean addDefaultCol = false;
 		// 确保res/gres参数符合安全限定
@@ -968,13 +988,14 @@ public class AccessControl extends JDApiBase {
 		}
 	}
 
-
 	public Object api_del() throws Exception
 	{
 		this.onValidateId();
 		this.id = (int)mparam("id");
 
-		String sql = String.format("DELETE FROM %s WHERE id=%s", table, id);
+		String sql = this.delField == null
+			? String.format("DELETE FROM %s WHERE id=%s", table, id)
+			: String.format("UPDATE %s SET %s=1 WHERE id=%s", table, delField, id);
 		int cnt = execOne(sql);
 		if (cnt != 1)
 			throw new MyException(E_PARAM, String.format("not found id=%s", id));
@@ -1089,7 +1110,9 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	public Object api_delIf() throws Exception
 	{
 		CondSql cond = genCondSql();
-		String sql = String.format("DELETE t0 FROM %s WHERE %s", cond.tblSql, cond.condSql);
+		String sql = this.delField == null
+			? String.format("DELETE t0 FROM %s WHERE %s", cond.tblSql, cond.condSql)
+			: String.format("UPDATE %s SET t0.%s=1 WHERE %s AND t0.%s=0", cond.tblSql, delField, cond.condSql, delField);
 		int cnt = execOne(sql);
 		return cnt;
 	}
@@ -1802,7 +1825,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		return false;
 	}
 
-/**
+/**<pre>
 @fn AccessControl::addCond(cond, prepend=false)
 
 @param prepend 为true时将条件排到前面。
@@ -1961,7 +1984,10 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		}
 	}
 
-/**
+ 	final int VCOL_ADD_RES = 0x2;
+ 	final int VCOL_ADD_SUBOBJ = 0x4;
+
+/**<pre>
 @fn AccessControl::addVCol(col, ignoreError=false, alias=null)
 
 根据列名找到vcolMap中的一项，添加到最终查询语句中.
@@ -1976,8 +2002,6 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 @see AccessControl::addRes
  */
 	// ignoreError?=false, alias?=null
- 	final int VCOL_ADD_RES = 0x2;
- 	final int VCOL_ADD_SUBOBJ = 0x4;
 	protected boolean addVCol(String col, Object ignoreError /*= false*/, String alias /*= null*/, boolean isHiddenField)
 	{
 		if (! this.vcolMap.containsKey(col)) {
@@ -2082,7 +2106,7 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 		this.addVCol(col, VCOL_ADD_RES | VCOL_ADD_SUBOBJ, null, true);
 	}
 
-/**
+/**<pre>
 @fn AccessControl::isFileExport()
 
 返回是否为导出文件请求。
@@ -2093,5 +2117,432 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 			return false;
 		Object fmt = param("fmt");
 		return fmt != null && !Objects.equals(fmt, "list") && !Objects.equals(fmt, "one") && !Objects.equals(fmt, "one?");
+	}
+	
+/**<pre>
+@fn AccessControl::api_batchAdd()
+
+批量添加（导入）。返回导入记录数cnt及编号列表idList
+
+	Obj.batchAdd(title?)(...) -> {cnt, @idList}
+
+在一个事务中执行，一行出错后立即失败返回，该行前面已导入的内容也会被取消（回滚）。
+
+- title: List(fieldName). 指定标题行(即字段列表). 如果有该参数, 则忽略POST内容或文件中的标题行.
+ 如"title=name,-,addr"表示导入第一列name和第三列addr, 其中"-"表示忽略该列，不导入。
+ 字段列表以逗号或空白分隔, 如"title=name - addr"与"title=name, -, addr"都可以.
+
+支持三种方式上传：
+
+1. 直接在HTTP POST中传输内容，数据格式为：首行为标题行(即字段名列表)，之后为实际数据行。
+行使用"\n"分隔, 列使用"\t"分隔.
+接口为：
+
+	{Obj}.batchAdd(title?)(标题行，数据行)
+	(Content-Type=text/plain)
+
+前端JS调用示例：
+
+	var data = "name\taddr\n" + "门店1\t地址1\n门店2\t地址2\n";
+	callSvr("Store.batchAdd", function (ret) {
+		app_alert("成功导入" + ret.cnt + "条数据！");
+	}, data, {contentType:"text/plain"});
+
+或指定title参数:
+
+	var data = "门店名\t地址\n" + "门店1\t地址1\n门店2\t地址2\n";
+	callSvr("Store.batchAdd", {title: "name,addr"}, function (ret) {
+		app_alert("成功导入" + ret.cnt + "条数据！");
+	}, data, {contentType:"text/plain"});
+
+示例: 在chrome console中导入数据
+
+	callSvr("Vendor.batchAdd", {title: "-,name, tel, idCard, addr, email, legalAddr, weixin, qq, area, picId"}, $.noop, `编号	姓名	手机号码	身份证号	通讯地址	邮箱	户籍地址	微信号	QQ号	负责安装的区域	身份证图
+	112	郭志强	15384813214	150221199211215000	内蒙古呼和浩特赛罕区丰州路法院小区二号楼	815060695@qq.com	内蒙古包头市	15384813214	815060695	内蒙古	532
+	111	高长平	18375998418	500226198312065000	重庆市南岸区丁香路同景国际W组	1119780700@qq.com	荣昌	18375998418	1119780700	重庆	534
+	`, {contentType:"text/plain"});
+		
+2. 标准csv/txt文件上传：
+
+上传的文件首行当作标题列，如果这一行不是后台要求的标题名称，可通过URL参数title重新定义。
+一般使用excel csv文件（编码一般为gbk），或txt文件（以"\t"分隔列）。
+接口为：
+
+	{Obj}.batchAdd(title?)(csv/txt文件)
+	(Content-Type=multipart/form-data, 即html form默认传文件的格式)
+
+后端处理时, 将自动判断文本编码(utf-8或gbk).
+
+前端HTML:
+
+	<input type="file" name="f" accept=".csv,.txt">
+
+前端JS示例：
+
+	var fd = new FormData();
+	fd.append("file", frm.f.files[0]);
+	callSvr("Store.batchAdd", {title: "name,addr"}, function (ret) {
+		app_alert("成功导入" + ret.cnt + "条数据！");
+	}, fd);
+
+或者使用curl等工具导入：
+从excel中将数据全选复制到1.txt中(包含标题行，也可另存为csv格式文件)，然后导入。
+下面示例用curl工具调用VendorA.batchAdd导入：
+
+	#/bin/sh
+	baseUrl=http://localhost/p/anzhuang/api.php
+	param=title=name,phone,idCard,addr,email,legalAddr,weixin,qq,area
+	curl -v -F "file=@1.txt" "$baseUrl/VendorA.batchAdd?$param"
+
+如果要调试(php/xdebug)，可加URL参数`XDEBUG_SESSION_START=1`或Cookie中加`XDEBUG_SESSION=1`
+
+3. 传入对象数组
+格式为 {list: [...]}
+
+	var data = {
+		list: [
+			{name: "郭志强", tel: "15384813214"},
+			{name: "高长平", tel: "18375998418"}
+		]
+	};
+	callSvr("Store.batchAdd", function (ret) {
+		app_alert("成功导入" + ret.cnt + "条数据！");
+	}, data, {contentType:"application/json"});
+
+*/
+	protected BatchAddLogic batchAddLogic;
+	public Object api_batchAdd() throws Exception
+	{
+		BatchAddStrategy st = BatchAddStrategy.create(this.batchAddLogic, this);
+		int n = 0;
+		List titleRow = null;
+		JsArray idList = new JsArray();
+		Object row = null; // 可以是List或Map类型。当isTable=true时返回List是值数组形式。
+		int cnt = 0;
+		while ((row = st.getRow()) != null) {
+			++ n;
+			if (st.isTable() && n == 1) {
+				titleRow = (List)row;
+				continue;
+			}
+			List row1 = null;
+			Map row2 = null;
+			if (row instanceof List) {
+				row1 = (List)row;
+				cnt = row1.size();
+			}
+			else if (row instanceof Map) {
+				row2 = (Map)row;
+				cnt = row2.size();
+			}
+			if (cnt == 0)
+				continue;
+
+			JsObject postParam = new JsObject();
+			if (row1 != null) { // list
+				int i = 0;
+				for (Object e0: titleRow) {
+					String e = (String)e0;
+					if (i >= cnt)
+						break;
+					if (e.equals("-")) {
+						++ i;
+						continue;
+					}
+					Object val = row1.get(i);
+					++ i;
+					if (Objects.equals(val, ""))
+						val = null;
+					postParam.put(e, val);
+				}
+			}
+			else {
+				postParam.putAll(row2);
+			}
+			Object id = null;
+			try {
+				st.beforeAdd(postParam, row);
+				id = this.callSvc(null, "add", env._GET, postParam);
+			}
+			catch (DirectReturn ex) {
+				id = ex.retVal;
+//				throw new MyException(E_SERVER, "bad DirectReturn", String.format("第%d行出错(\"%s\"): 批量添加不支持返回DirectReturn", n, row));
+			}
+			catch (Exception ex) {
+				Throwable e1 = ex;
+				if (e1 instanceof InvocationTargetException) {
+					do {
+						e1 = e1.getCause();
+					}
+					while (e1 != null && e1 instanceof InvocationTargetException);
+				}
+				String msg = e1.getMessage();
+				if (e1 instanceof DirectReturn) {
+					id = ((DirectReturn)e1).retVal;
+				}
+				else {
+					e1.printStackTrace();
+					throw new MyException(E_PARAM, e1.toString(), String.format("第%d行出错(\"%s\"): %s", n, row, msg));
+				}
+			}
+			idList.add(id);
+		}
+		return asMap(
+			"cnt", idList.size(),
+			"idList", idList
+		);
+	}
+
+/**
+@class BatchAddLogic
+
+用于定制批量导入行为。
+示例，实现接口：
+
+	Task.batchAdd(orderId, task1)(city, brand, vendorName, storeName)
+
+其中vendorName和storeName字段需要通过查阅修正为vendorId和storeId字段。
+
+	class TaskBatchAddLogic extends BatchAddLogic
+	{
+		protected $vendorCache = [];
+		function __construct () {
+			// 每个对象添加时都会用的字段，加在$this->params数组中
+			$this->params["orderId"] = mparam("orderId", "G"); // mparam要求必须指定该字段
+			$this->params["task1"] = param("task1", null, "G");
+		}
+		// $params为待添加数据，可在此修改，如用`$params["k1"]=val1`添加或更新字段，用unset($params["k1"])删除字段。
+		// $row为原始行数据数组。
+		function beforeAdd(&$params, $row) {
+			// vendorName -> vendorId
+			// 如果会大量重复查询vendorName,可以将结果加入cache来优化性能
+			if (! $this->vendorCache)
+				$this->vendorCache = new SimpleCache(); // name=>vendorId
+			$vendorId = $this->vendorCache->get($params["vendorName"], function () use ($params) {
+				$id = queryOne("SELECT id FROM Vendor", false, ["name" => $params["vendorName"]] );
+				if (!$id) {
+					// throw new MyException(E_PARAM, "请添加供应商", "供应商未注册: " . $params["vendorName"]);
+					// 自动添加
+					$id = callSvcInt("Vendor.add", null, [
+						"name" => $params["vendorName"],
+						"tel" => $params["vendorPhone"]
+					]);
+				}
+				return $id;
+			});
+			$params["vendorId"] = $vendorId;
+			unset($params["vendorName"]);
+			unset($params["vendorPhone"]);
+
+			// storeName -> storeId 类似处理 ...
+		}
+		// 处理原始标题行数据, $row1是通过title参数传入的标题数组，可能为空
+		function onGetTitleRow($row, $row1) {
+		}
+	}
+
+	class AC2_Task extends AC0_Task
+	{
+		function api_batchAdd() {
+			$this->batchAddLogic = new TaskBatchAddLogic();
+			return parent::api_batchAdd();
+		}
+	}
+
+@see api_batchAdd
+*/
+	public static class BatchAddLogic
+	{
+		public JsObject params = new JsObject();
+
+		// postParam为待添加的数据，row为原始行数据数组。
+		public void beforeAdd(JsObject postParam, Object row) {
+		}
+		// 处理原始标题行数据, row1是通过title参数传入的标题数组，可能为空
+		public void onGetTitleRow(Object row, List row1) {
+		}
+	}
+
+/*
+分析符合下列格式的HTTP POST内容：
+
+- 以"\n"为行分隔，以"\t"为列分隔的文本数据表。
+- 第1行: 标题(如果有URL参数title，则忽略该行)，第2行开始为数据
+
+若需要定制其它导入方式，可继承和改写该类，如CsvBatchAddStrategy，改写以下方法
+
+	onInit
+	onGetRow
+
+通过BatchAddLogic::create来创建合适的类。
+*/
+	static class BatchAddStrategy
+	{
+		protected int rowIdx = 0;
+		protected BatchAddLogic logic;
+		private String[] rows;
+		protected char delim;
+
+		protected JDEnvBase env;
+		protected AccessControl api;
+
+		public static BatchAddStrategy create(BatchAddLogic logic, AccessControl api) {
+			BatchAddStrategy st = null;
+			if (api.env._POST != null && api.env._POST.containsKey("list")) {
+				st = new JsonBatchAddStrategy();
+			}
+			/* TODO: 目前是BatchAddLogic中直接支持简单的csv。但对于有引号、换行等特殊csv不支持。
+			else if (api.env._FILES == null) {
+				st = new CsvBatchAddStrategy();
+			}
+			*/
+			else {
+				st = new BatchAddStrategy();
+			}
+			if (logic == null)
+				st.logic = new BatchAddLogic();
+			else
+				st.logic = logic;
+			st.api = api;
+			st.env = api.env;
+			return st;
+		}
+
+		public void beforeAdd(JsObject postParam, Object row) {
+			postParam.putAll(this.logic.params);
+			this.logic.beforeAdd(postParam, row);
+		}
+
+		// true: h,d分离的格式, false: objarr格式
+		public boolean isTable() {
+			return true;
+		}
+
+		protected void onInit() throws Exception {
+			String content = null;
+			if (env._FILES == null) {
+				content = this.api.env.getHttpInput();
+				if (content == null || content.length() == 0)
+					throw new MyException(E_PARAM, "no file", "上传内容为空");
+				backupFile(content, null);
+			}
+			else {
+				if (env._FILES.size() == 0)
+					throw new MyException(E_PARAM, "no file", "没有文件上传");
+				FileItem f = env._FILES.get(0);
+				if (f.getSize() <= 0)
+					throw new MyException(E_PARAM, "error file", "文件数据出错");
+				File bakF = backupFile(null, f);
+				content = Common.readFile(bakF);
+				
+				// TODO: utf-8编码
+			}
+			this.rows = content.split("\\s*\\n");
+			if (this.rows.length > 0) {
+				if (rows[0].contains("\t"))
+					this.delim = '\t';
+				else
+					this.delim = ',';
+			}
+		}
+		protected Object onGetRow() {
+			if (this.rowIdx >= this.rows.length)
+				return null;
+			String rowStr = this.rows[this.rowIdx];
+			List row = null;
+			if (Objects.equals(rowStr, "")) {
+				row = asList();
+			}
+			else if (this.delim == ',') {
+				row = Common.split(" *, *", rowStr);
+			}
+			else {
+				row = Common.split(" *\t *", rowStr);
+			}
+			return row;
+		}
+
+		public Object getRow() throws Exception {
+			if (this.rowIdx == 0) {
+				this.onInit();
+			}
+			Object row = this.onGetRow();
+			if (row == null)
+				return null;
+			if (++ this.rowIdx == 1) {
+				String title = (String)api.param("title", null, "G");
+				List row1 = null;
+				if (title != null) {
+					row1 = Arrays.asList(title.split("[\\s,]+"));
+				}
+				this.logic.onGetTitleRow(row, row1);
+				if (row1 != null)
+					row = row1;
+			}
+			return row;
+		}
+
+		// 保存http请求的内容.
+		File backupFile(String content, FileItem fi) throws Exception {
+			File dir = new File(env.baseDir + "/upload/import");
+			if (!dir.isDirectory()) {
+				if (! dir.mkdirs()) // TODO: file mode 777
+					throw new MyException(E_SERVER, "fail to create folder: dir");
+			}
+			String fname = dir.getPath() + "/" + date("yyyyMMdd_HHmmss", null);
+			String orgName = fi != null? fi.getName(): "(content)";
+			String ext = Common.extname(orgName);
+			if (ext.length() == 0)
+				ext = "txt";
+			int n = 0;
+			File bakF = null;
+			do {
+				if (n == 0)
+					bakF = new File(String.format("%s.%s", fname, ext));
+				else
+					bakF = new File(String.format("%s_%d.%s", fname, n, ext));
+				++ n;
+			} while (bakF.exists());
+
+			if (content != null) {
+				writeFile(content, bakF);
+			}
+			else {
+				fi.write(bakF);
+			}
+
+			String title = (String)api.param("title", null, "G");
+			if (title == null) {
+				title = "(line 1)";
+			}
+			api.logit(String.format("import file: %s, backup: %s, title: %s", orgName, bakF.getPath(), title));
+			return bakF;
+		}
+	}
+
+	/*
+	支持csv, txt两种文件，分别以","和"\t"分隔。
+	标题栏为数据第一行，也可通过title参数来覆盖。
+	public static class CsvBatchAddStrategy extends BatchAddStrategy
+	{
+		protected void onInit() {
+		}
+	}
+	*/
+
+	public static class JsonBatchAddStrategy extends BatchAddStrategy
+	{
+		private List rows;
+		protected void onInit() {
+			this.rows = cast(env._POST.get("list"));
+		}
+		protected Object onGetRow() {
+			if (this.rowIdx < 0 || this.rowIdx >= this.rows.size())
+				return null;
+			return this.rows.get(this.rowIdx);
+		}
+		public boolean isTable() {
+			return false;
+		}
 	}
 }

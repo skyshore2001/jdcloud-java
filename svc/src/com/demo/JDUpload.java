@@ -3,25 +3,22 @@ package com.demo;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.*;
-import java.util.function.Consumer;
 
 import javax.imageio.ImageIO;
 
+import org.apache.commons.io.FilenameUtils;
+/*
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
-import org.apache.commons.io.FilenameUtils;
+*/
+import org.apache.tomcat.util.http.fileupload.FileItem;
+import org.apache.tomcat.util.http.fileupload.FileUploadException;
 
 import com.jdcloud.*;
 
 public class JDUpload extends JDApiBase {
-	
-// TODO: read config from file
-	// 配置选项
-	public static int memorySize = 500 * KB; // 默认内存保存500K，超过则保存到文件
-	public static long uploadSizeMax = 10 * MB; // 默认最大上传10M内容
-
 	static class PicSize {
 		int w, h;
 		PicSize(int w1, int h1) {
@@ -125,9 +122,8 @@ public class JDUpload extends JDApiBase {
 	}
 
 	@FunctionalInterface
-	interface UploadHandler
+	interface UploadHandler extends Fn1<FileItem, Object>
 	{
-		Object exec(FileItem fi) throws Exception;
 	}
 	
 /**<pre>
@@ -146,27 +142,18 @@ public class JDUpload extends JDApiBase {
  */
 	public JsArray handleUpload(UploadHandler handler) throws Exception
 	{
-		DiskFileItemFactory factory = new DiskFileItemFactory();
-		ServletFileUpload upload = new ServletFileUpload(factory);
-		//upload.setHeaderEncoding("UTF-8");
-		factory.setSizeThreshold(memorySize);
-		//File tmpDir = new File("c:/tmpdir"); // 当超过memorySize的时候，存到一个临时文件夹中
-		//factory.setRepository(tmpDir);
-		upload.setSizeMax(uploadSizeMax);
-
 		JsArray ret = new JsArray();
+		if (env._FILES == null || env._FILES.size() == 0)
+			return ret;
 		try {
-			List<FileItem> items = upload.parseRequest(env.request);
-			for (FileItem item : items) {
-				if (! item.isFormField()) {
-					String fileName = item.getName();
-					if (fileName.length() == 0)
-						continue;
-					Object rv = handler.exec(item);
-					ret.add(rv);
-					if (rv.equals(false))
-						break;
-				}
+			for (FileItem item : env._FILES) {
+				String fileName = item.getName();
+				if (fileName.length() == 0)
+					continue;
+				Object rv = handler.call(item);
+				ret.add(rv);
+				if (rv.equals(false))
+					break;
 			}
 		} catch (FileUploadException e) {
 			throw new MyException(E_PARAM, e.getMessage()); // TODO
@@ -198,7 +185,7 @@ public class JDUpload extends JDApiBase {
 		class HandleOneFile
 		{
 			// in?=null, 当文件没有扩展名时从in中读前几个字节猜测文件类型。必须可以in.reset()
-			void apply(String fname, String type, String mimeType, Consumer<File> writeFile, JsObject ret, InputStream in) throws Exception
+			void apply(String fname, String type, String mimeType, Action1<File> writeFile, JsObject ret, InputStream in) throws Exception
 			{
 				// 检查文件类型
 				String ext = FilenameUtils.getExtension(fname).toLowerCase();
@@ -236,7 +223,7 @@ public class JDUpload extends JDApiBase {
 				} while(mainFile.exists());
 	
 	
-				writeFile.accept(mainFile);
+				writeFile.call(mainFile);
 				
 				if (autoResize && isPic(ext) && mainFile.length() > 500*KB) {
 					resizeImage(mainFile, 1920, 1920, mainFile);
@@ -267,6 +254,7 @@ public class JDUpload extends JDApiBase {
 		HandleOneFile handleOneFile = new HandleOneFile();
 		if (fmt.equals("raw") || fmt.equals("raw_b64")) {
 			JsObject ret1 = new JsObject();
+			long uploadSizeMax = env.uploadSizeMax();
 			if (uploadSizeMax > 0 && contentLen > uploadSizeMax) {
 				throw new MyException(E_PARAM, String.format("file is too large: contentLen(%s) > uploadSizeMax(%s)", contentLen, uploadSizeMax), "文件太大，禁止上传");
 			}
@@ -276,49 +264,21 @@ public class JDUpload extends JDApiBase {
 
 			handleOneFile.apply(fileName, type, null, f -> {
 				// for upload raw/raw_b64
-				try {
-					InputStream in = fmt.equals("raw_b64")?
-						Base64.getDecoder().wrap(env.request.getInputStream()) :
-						env.request.getInputStream();
-					writeFile(in, f);
-				} catch (IOException e) {
-					throw new MyException(E_PARAM, e.getMessage());
-				}
+				InputStream in = fmt.equals("raw_b64")?
+					Base64.getDecoder().wrap(env.request.getInputStream()) :
+					env.request.getInputStream();
+				writeFile(in, f);
 			}, ret1, null);
 			ret = new JsArray(ret1);
 		}
 		else {
-			DiskFileItemFactory factory = new DiskFileItemFactory();
-			ServletFileUpload upload = new ServletFileUpload(factory);
-			//upload.setHeaderEncoding("UTF-8");
-			factory.setSizeThreshold(memorySize);
-			//File tmpDir = new File("c:/tmpdir"); // 当超过memorySize的时候，存到一个临时文件夹中
-			//factory.setRepository(tmpDir);
-			upload.setSizeMax(uploadSizeMax);
-	
-			try {
-				List<FileItem> items = upload.parseRequest(env.request);
-				ret = new JsArray();
-				for (FileItem item : items) {
-					if (! item.isFormField()) {
-						fileName = item.getName();
-						if (fileName.length() == 0)
-							continue;
-						JsObject ret1 = new JsObject();
-						handleOneFile.apply(fileName, type, item.getContentType(), f -> { 
-							try {
-								item.write(f);
-							} catch (Exception e) {
-								throw new MyException(E_PARAM, e.getMessage());
-							} 
-						}, ret1, item.getInputStream() );
-						ret.add(ret1);
-					}
-				}
-	
-			} catch (FileUploadException e) {
-				throw new MyException(E_PARAM, e.getMessage()); // TODO
-			}
+			ret = this.handleUpload(item -> {
+				JsObject ret1 = new JsObject();
+				handleOneFile.apply(item.getName(), type, item.getContentType(), f -> { 
+					item.write(f);
+				}, ret1, item.getInputStream() );
+				return ret1;
+			});
 		}
 		if (ret == null || ret.size() == 0) {
 			throw new MyException(E_PARAM, "no file uploaded. upload size=" + contentLen, "没有文件上传或文件过大。");

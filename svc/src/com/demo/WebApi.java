@@ -1,7 +1,6 @@
 package com.demo;
 
 import java.lang.reflect.Method;
-import java.util.*;
 import com.jdcloud.*;
 
 public class WebApi extends JDEnvBase
@@ -28,7 +27,7 @@ public class WebApi extends JDEnvBase
 	protected int onGetPerms() {
 		int perms = super.onGetPerms();
 		if ((perms | JDApiBase.AUTH_EMP) != 0) {
-			String[] permArr = (String[]) api.getSession("perms");
+			String[] permArr = (String[]) _SESSION("perms");
 			if (permArr != null) {
 				for (String perm : permArr) {
 					if (perm.equals("mgr")) {
