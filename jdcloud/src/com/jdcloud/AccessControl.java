@@ -1487,10 +1487,10 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		StringBuilder rv = new StringBuilder();
 		rv.append("<table border=1 cellspacing=0>");
 		if (tbl.containsKey("h")) {
-			rv.append("<tr><th>").append(Common.join("</th><th>", (JsArray)tbl.get("h"))).append("</th></tr>\n");
+			rv.append("<tr><th>").append(join("</th><th>", (JsArray)tbl.get("h"))).append("</th></tr>\n");
 		}
 		forEach ((JsArray)tbl.get("d"), row -> {
-			rv.append("<tr><td>").append(Common.join("</td><td>", (JsArray)row)).append("</td></tr>\n");
+			rv.append("<tr><td>").append(join("</td><td>", (JsArray)row)).append("</td></tr>\n");
 		});
 		rv.append("</table>");
 		if (retStr)
@@ -2376,12 +2376,11 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 
 通过BatchAddLogic::create来创建合适的类。
 */
-	static class BatchAddStrategy
+	public static class BatchAddStrategy
 	{
 		protected int rowIdx = 0;
 		protected BatchAddLogic logic;
-		private String[] rows;
-		protected char delim;
+		private List<List<String>> rows;
 
 		protected JDEnvBase env;
 		protected AccessControl api;
@@ -2391,7 +2390,7 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 			if (api.env._POST != null && api.env._POST.containsKey("list")) {
 				st = new JsonBatchAddStrategy();
 			}
-			/* TODO: 目前是BatchAddLogic中直接支持简单的csv。但对于有引号、换行等特殊csv不支持。
+			/* 统一用BatchAddLogic处理，支持有引号、换行等特殊csv文件，支持自动检测以逗号或tab分隔。
 			else if (api.env._FILES == null) {
 				st = new CsvBatchAddStrategy();
 			}
@@ -2433,33 +2432,19 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 				if (f.getSize() <= 0)
 					throw new MyException(E_PARAM, "error file", "文件数据出错");
 				File bakF = backupFile(null, f);
-				content = Common.readFile(bakF);
-				
-				// TODO: utf-8编码
+				content = readFile(bakF);
 			}
-			this.rows = content.split("\\s*\\n");
-			if (this.rows.length > 0) {
-				if (rows[0].contains("\t"))
-					this.delim = '\t';
-				else
-					this.delim = ',';
-			}
+			int pos = content.indexOf('\n');
+			String line1 = pos<0? content: content.substring(0, pos);
+			String sep = ",";
+			if (line1.contains("\t"))
+				sep = "\\t";
+			this.rows = parseCsv(content, sep);
 		}
 		protected Object onGetRow() {
-			if (this.rowIdx >= this.rows.length)
+			if (this.rowIdx >= this.rows.size())
 				return null;
-			String rowStr = this.rows[this.rowIdx];
-			List row = null;
-			if (Objects.equals(rowStr, "")) {
-				row = asList();
-			}
-			else if (this.delim == ',') {
-				row = Common.split(" *, *", rowStr);
-			}
-			else {
-				row = Common.split(" *\t *", rowStr);
-			}
-			return row;
+			return rows.get(this.rowIdx);
 		}
 
 		public Object getRow() throws Exception {
@@ -2491,7 +2476,7 @@ vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vco
 			}
 			String fname = dir.getPath() + "/" + date("yyyyMMdd_HHmmss", null);
 			String orgName = fi != null? fi.getName(): "(content)";
-			String ext = Common.extname(orgName);
+			String ext = extname(orgName);
 			if (ext.length() == 0)
 				ext = "txt";
 			int n = 0;

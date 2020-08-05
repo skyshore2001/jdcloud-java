@@ -1,6 +1,11 @@
 package com.jdcloud;
 
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.function.*;
@@ -538,7 +543,10 @@ param file: File/String/Reader
  */
 	public static String readFile(Object file) throws IOException
 	{
-		return readFile(file, "utf-8");
+		byte[] bs = readFileBytes(file);
+		if (bs == null)
+			return null;
+		return bytes2String(bs, "utf-8", "gbk");
 	}
 	public static String readFile(Object file, String charset) throws IOException
 	{
@@ -966,4 +974,75 @@ Close without exception.
 			return "";
 		return f.substring(pos +1).toLowerCase();
 	}
+	
+/**
+@fn parseCsv(content, sep?=",") -> List<List<String>>
+
+支持带引号，带换行等情况。
+
+	String content = "111,222,\"3,33\"\n\n444,\"55\n5\",666\n";
+	List<List<String>> ret = parseCsv(content, ",");
+	// [[111, 222, 3,33], [444, 55\n5, 666]]
+
+ */
+	public static List<List<String>> parseCsv(String content, String sep)
+	{
+		if (sep.equals("\t"))
+			sep = "\\t";
+		Matcher m = regexMatch(content, "(?Uxsm)(?: ([^\"]*?) | \"(.*?[^\"])\" ) (" + sep + "|$)");
+		List<List<String>> ret = asList();
+		List<String> row = asList();
+		while (m.find()) {
+			String val = m.group(1);
+			if (val != null) // 普通值
+				val = val.trim();
+			else // 带引号
+				val = m.group(2).replace("\"\"","\"");
+			row.add(val);
+			if (m.group(3).length() == 0) {
+				// 去除空行: row.size()==1 且 值为空
+				if (row.size() > 0 && !(row.size() == 1 && val.length() == 0)) {
+					ret.add(row);
+				}
+				row = asList();
+			}
+		}
+		return ret;
+	}
+	public static List<List<String>> parseCsv(String content)
+	{
+		return parseCsv(content, ",");
+	}
+
+/**<pre>
+@fn bytes2String(bs, ...encs)
+
+byte数组转String，可指定多个编码一一尝试。
+
+	String s = bytes2String(bs, "utf-8", "gbk");
+ */
+	public static String bytes2String(byte[] input, String ...encs) {
+		for (String enc: encs) {
+			CharsetDecoder cs = Charset.forName(enc).newDecoder();
+			try {
+				CharBuffer cb = cs.decode(ByteBuffer.wrap(input));
+				return cb.toString();
+			}
+			catch(CharacterCodingException e){
+			}
+		}
+		return null;
+	}
+	/*
+	public static boolean isValidUTF8(byte[] input) {
+	    CharsetDecoder cs = Charset.forName("UTF-8").newDecoder();
+	    try {
+	        cs.decode(ByteBuffer.wrap(input));
+	        return true;
+	    }
+	    catch(CharacterCodingException e){
+	        return false;
+	    }
+	}
+	*/
 }
