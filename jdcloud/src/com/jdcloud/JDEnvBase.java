@@ -832,7 +832,7 @@ public class JDEnvBase extends JDApiBase
 		return v1;
 	}
 
-	public void dbconn() throws MyException
+	public void dbconn() throws Exception
 	{
 		if (this.conn == null) {
 			String dbDriver = props.getProperty("P_DB_DRIVER", "com.mysql.jdbc.Driver");
@@ -846,6 +846,7 @@ public class JDEnvBase extends JDApiBase
 					DataSource ds=(DataSource)envContext.lookup(url); // e.g. "jdbc/jdcloud"
 					Connection connection=ds.getConnection();
 					this.conn = connection;
+					this.onDbconn();
 				} catch (NamingException | SQLException e) {
 					addLog(e.getMessage());
 					throw new MyException(E_DB, "db connection fails", "数据库连接失败。");
@@ -864,7 +865,13 @@ public class JDEnvBase extends JDApiBase
 				throw new MyException(E_DB, "db driver not found");
 			}
 			try {
-				this.conn = DriverManager.getConnection(url, user, pwd);
+				Properties p = new Properties();
+				p.setProperty("characterEncoding", "utf-8");
+				p.setProperty("jdbcCompliantTruncation", "false"); // NOTE:不要默认开启strict模式，避免数据长于字段时抛出错误。
+				p.setProperty("user", user);
+				p.setProperty("password", pwd);
+				this.conn = DriverManager.getConnection(url, p);
+				this.onDbconn();
 			} catch (SQLException e) {
 				addLog(e.getMessage());
 				throw new MyException(E_DB, "db connection fails", "数据库连接失败。");
@@ -1002,7 +1009,24 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 	this.props.setProperty("enableApiLog", "0");	
 
  */
-	protected void onApiInit() {
+	protected void onApiInit() throws Exception {
+	}
+	
+/**<pre>
+%fn env.onDbconn()
+
+连接数据库后回调，用于设置连接选项，或切换数据库。示例：
+
+	@Override
+	protected void onDbconn() throws Exception {
+		String project = this.ctx.getContextPath();
+		if (project.indexOf("-hg") > 0) {
+			this.conn.setCatalog("pdi_hg");
+		}
+	}
+
+ */
+	protected void onDbconn() throws Exception {
 	}
 
 	// coll: "G"-GET, "P"-POST, null-BOTH

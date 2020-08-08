@@ -115,11 +115,11 @@ public class JDApiBase extends Common
 		return "'" + s.toString().replace("'", "\\'") + "'";
 	}
 	
-	public JsArray queryAll(String sql) throws SQLException
+	public JsArray queryAll(String sql) throws Exception
 	{
 		return this.queryAll(sql, false);
 	}
-	public JsArray queryAll(String sql, boolean assoc) throws SQLException
+	public JsArray queryAll(String sql, boolean assoc) throws Exception
 	{
 		sql = env.getSqlForExec(sql);
 		env.dbconn();
@@ -221,7 +221,7 @@ public class JDApiBase extends Common
 		return ret;
 	}
 	
-	public int execOne(String sql) throws SQLException {
+	public int execOne(String sql) throws Exception {
 		return execOne(sql, false);
 	}
 
@@ -244,7 +244,7 @@ public class JDApiBase extends Common
 	int hongbaoId = execOne(sql, true);
 
  */
-	public int execOne(String sql, boolean getNewId) throws SQLException
+	public int execOne(String sql, boolean getNewId) throws Exception
 	{
 		sql = env.getSqlForExec(sql);
 		env.dbconn();
@@ -273,7 +273,7 @@ e.g.
 	));
 
 */
-	public int dbInsert(String table, Map<String,Object> kv) throws SQLException
+	public int dbInsert(String table, Map<String,Object> kv) throws Exception
 	{
 		StringBuffer keys = new StringBuffer();
 		StringBuffer values = new StringBuffer();
@@ -340,7 +340,7 @@ e.g.
 		"tm", dbExpr("now()")  // 使用dbExpr，表示是SQL表达式
 	), "tm IS NULL);
 */
-	public int dbUpdate(String table, Map<String,Object> kv, Object cond) throws SQLException
+	public int dbUpdate(String table, Map<String,Object> kv, Object cond) throws Exception
 	{
 		if (cond != null && cond instanceof Integer)
 			cond = String.format("id=%s", cond);

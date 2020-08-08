@@ -770,6 +770,14 @@ param file: File/String/Reader
 	public static Matcher regexMatch(String str, String pat) {
 		return Pattern.compile(pat).matcher(str);
 	}
+/**<pre>
+%fn regexMatches(str, pat) -> boolean
+
+正则表达式是否匹配
+*/
+	public static boolean regexMatches(String str, String pat) {
+		return Pattern.compile(pat).matcher(str).find();
+	}
 
 /**<pre>
 %fn regexReplace(str, pat, str1, maxCnt=0) -> String
