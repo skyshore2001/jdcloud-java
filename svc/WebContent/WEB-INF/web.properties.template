@@ -19,3 +19,6 @@ P_ADMIN_CRED=admin:admin123
 
 # P_TEST_MODE=1
 # P_DEBUG=9
+
+## P_DEBUG_LOG: 0: no log to 'debug.log' 1: all log, 2: error log
+# P_DEBUG_LOG=2

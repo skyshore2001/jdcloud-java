@@ -417,9 +417,10 @@ e.g.
 	// level?=0
 	public void addLog(String s, int level)
 	{
-		if (env.isTestMode && env.debugLevel >= level)
+		if (env.debugLevel >= level)
 		{
-			System.err.println(s);
+			if (env.isTestMode)
+				System.err.println(s);
 			env.debugInfo.add(s);
 		}
 	}

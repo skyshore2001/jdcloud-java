@@ -216,7 +216,7 @@ public class JDEnvBase extends JDApiBase
 
 		String path = (ctx != null? ctx.getRealPath(""): System.getProperty("user.dir"));
 		// end with "/"
-		this.webRootDir = JDApiBase.getPath(path, true);
+		this.webRootDir = getPath(path, true);
 		// TODO: static
 		this.baseDir = props.getProperty("baseDir");
 		if (this.baseDir == null) {
@@ -229,11 +229,12 @@ public class JDEnvBase extends JDApiBase
 		else if (! this.baseDir.matches("^([/\\\\]|\\w:)")) { // /dir1 c:/dir1
 			this.baseDir = this.webRootDir + this.baseDir;
 		}
-		this.baseDir = JDApiBase.getPath(this.baseDir, false);
+		this.baseDir = getPath(this.baseDir, false);
 		new File(this.baseDir).mkdirs();
 		
-		this.isTestMode = JDApiBase.parseBoolean(props.getProperty("P_TEST_MODE", "0"));
-		// TODO: debugLevel在test模式下有效；且可通过_debug参数指定
+		this.isTestMode = parseBoolean(props.getProperty("P_TEST_MODE", "0"));
+		// debugLevel可通过_debug参数(TODO)或P_DEBUG配置指定
+		// this.debugLevel = (int)param("_debug/i", Integer.parseInt(props.getProperty("P_DEBUG", "0")), "G");
 		this.debugLevel = Integer.parseInt(props.getProperty("P_DEBUG", "0"));
 		this.dbType = props.getProperty("P_DBTYPE", "mysql");
 
@@ -242,7 +243,7 @@ public class JDEnvBase extends JDApiBase
 		else if (this.dbType.equals("mssql"))
 			this.dbStrategy = new MsSQLStrategy();
 		else
-			throw new MyException(JDApiBase.E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
+			throw new MyException(E_SERVER, "bad dbType=`" + this.dbType + "` in web.properties");
 		
 		this.dbStrategy.init(this);
 	}
@@ -300,12 +301,12 @@ public class JDEnvBase extends JDApiBase
 
 		String pathInfo = request.getPathInfo();
 		if (pathInfo == null)
-			throw new MyException(JDApiBase.E_PARAM, "bad ac");
+			throw new MyException(E_PARAM, "bad ac");
 		// parse ac
 		Pattern re = Pattern.compile("([\\w|.]+)$");
 		Matcher m = re.matcher(pathInfo);
 		if (! m.find()) {
-			throw new MyException(JDApiBase.E_PARAM, "bad ac");
+			throw new MyException(E_PARAM, "bad ac");
 		}
 		String ac = m.group(1);
 
@@ -325,7 +326,7 @@ public class JDEnvBase extends JDApiBase
 					this.postData = new Gson().fromJson(rd, type);
 				}
 				catch (Exception e) {
-					throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
+					throw new MyException(E_PARAM, "bad post content: " + e.getMessage());
 				}
 				if (this.postData instanceof Map) {
 					this._POST = new JsObject();
@@ -337,7 +338,7 @@ public class JDEnvBase extends JDApiBase
 					this._POST = QueryString.getPostParam(request);
 				}
 				catch (Exception e) {
-					throw new MyException(JDApiBase.E_PARAM, "bad post content: " + e.getMessage());
+					throw new MyException(E_PARAM, "bad post content: " + e.getMessage());
 				}
 			}
 			else if (ct.indexOf("multipart/form-data") >= 0) {
@@ -359,7 +360,7 @@ public class JDEnvBase extends JDApiBase
 		if (this.clientVer == null) {
 			// Mozilla/5.0 (Linux; U; Android 4.1.1; zh-cn; MI 2S Build/JRO03L) AppleWebKit/533.1 (KHTML, like Gecko)Version/4.0 MQQBrowser/5.4 TBS/025440 Mobile Safari/533.1 MicroMessenger/6.2.5.50_r0e62591.621 NetType/WIFI Language/zh_CN
 			String ua = this.request.getHeader("User-Agent");
-			if (ua!=null && (m=JDApiBase.regexMatch(ua, "MicroMessenger\\/([0-9.]+)")).find()) {
+			if (ua!=null && (m=regexMatch(ua, "MicroMessenger\\/([0-9.]+)")).find()) {
 				this.clientVer = "wx/" + m.group(1);
 			}
 			else {
@@ -376,7 +377,7 @@ public class JDEnvBase extends JDApiBase
 
 		// TODO: X-Daca-Mock-Mode
 		// X-Daca-Server-Rev
-		String rev = JDApiBase.readFile(this.webRootDir + "revision.txt");
+		String rev = readFile(this.webRootDir + "revision.txt");
 		if (rev != null) {
 			rev = rev.substring(0, 6);
 			header("X-Daca-Server-Rev", rev);
@@ -418,7 +419,7 @@ public class JDEnvBase extends JDApiBase
 	}
 
 	// 回调函数集。在事务结束时调用。
-	public List<Action> onAfterActions = JDApiBase.asList();
+	public List<Action> onAfterActions = asList();
 
 	public void service(HttpServletRequest request, HttpServletResponse response) {
 		this.request = request;
@@ -449,7 +450,7 @@ public class JDEnvBase extends JDApiBase
 		try {
 			if (isDefaultCall) {
 				ac = initRequest();
-				if (JDApiBase.parseBoolean(props.getProperty("enableApiLog", "1"))) {
+				if (parseBoolean(props.getProperty("enableApiLog", "1"))) {
 					apiLog = new ApiLog(ac);
 					apiLog.logBefore();
 				}
@@ -487,9 +488,9 @@ public class JDEnvBase extends JDApiBase
 		}
 		catch (Exception ex)
 		{
-			int code = ex instanceof SQLException? JDApiBase.E_DB: JDApiBase.E_SERVER;
+			int code = ex instanceof SQLException? E_DB: E_SERVER;
 			ret.set(0, code);
-			ret.set(1, JDApiBase.GetErrInfo(code));
+			ret.set(1, GetErrInfo(code));
 			if (this.isTestMode) 
 			{
 				String msg = ex.getMessage();
@@ -513,11 +514,20 @@ public class JDEnvBase extends JDApiBase
 
 		if (useTrans)
 			this.endTrans(ok);
+		
+		String debugLogStr = null;
+		if (isDefaultCall) {
+			String val = getenv("P_DEBUG_LOG", "0");
+			if (val.equals("1") || (val.equals("2") && (int)ret.get(0) != 0)) {
+				debugLogStr = "ac=" + ac + ", apiLogId=" + (apiLog!=null?apiLog.id:"null") + ", ret=" + jsonEncode(ret)
+					+ ", dbgInfo=" + jsonEncode(this.debugInfo, true);
+			}
+		}
 		if (this.debugInfo.size() > 0) {
 			ret.add(this.debugInfo);
 		}
 
-		this.X_RET_STR = JDApiBase.jsonEncode(ret, this.isTestMode);
+		this.X_RET_STR = jsonEncode(ret, this.isTestMode);
 		this.X_RET = ret;
 
 		if (isDefaultCall) {
@@ -530,6 +540,9 @@ public class JDEnvBase extends JDApiBase
 			if (output) {
 				echo(this.X_RET_STR);
 			}
+
+			if (debugLogStr != null)
+				logit(debugLogStr, true, "debug");
 		}
 		return ret;
 	}
@@ -537,10 +550,10 @@ public class JDEnvBase extends JDApiBase
 	// ref_ok[0]: 是否提交事务
 	private JsArray batchCall(boolean useTrans, boolean[] ref_ok) {
 		if (! request.getMethod().equals("POST"))
-			throw new MyException(JDApiBase.E_PARAM, "batch MUST use `POST' method");
+			throw new MyException(E_PARAM, "batch MUST use `POST' method");
 
 		if (! (this.postData instanceof List))
-			throw new MyException(JDApiBase.E_PARAM, "bad batch request");
+			throw new MyException(E_PARAM, "bad batch request");
 
 		JsArray ret = new JsArray();
 		int retCode = 0;
@@ -548,11 +561,11 @@ public class JDEnvBase extends JDApiBase
 		List<CallCtx> ctxList = (List<CallCtx>)this.postData;
 		for (CallCtx ctx : ctxList) {
 			if (useTrans && retCode != 0) {
-				ret.add(new JsArray(JDApiBase.E_ABORT, "事务失败，取消执行", "batch call cancelled."));
+				ret.add(new JsArray(E_ABORT, "事务失败，取消执行", "batch call cancelled."));
 				continue;
 			}
 			if (ctx.ac == null) {
-				ret.add(new JsArray(JDApiBase.E_PARAM, "参数错误", "bad batch request: require `ac'"));
+				ret.add(new JsArray(E_PARAM, "参数错误", "bad batch request: require `ac'"));
 				continue;
 			}
 
@@ -974,13 +987,13 @@ public class JDEnvBase extends JDApiBase
 返回权限集合。一般根据session来设置。默认检查uid, empId, adminId三个session变量，如果存在则认为具有用户、员工、超级管理员登录权限。
 
 		int perms = 0;
-		if (getSession("uid") != null) {
+		if (_SESSION("uid") != null) {
 			perms |= AUTH_USER;
 		}
-		else if (getSession("empId") != null) {
+		else if (_SESSION("empId") != null) {
 			perms |= AUTH_EMP;
 		}
-		else if (getSession("adminId") != null) {
+		else if (_SESSION("adminId") != null) {
 			perms |= AUTH_ADMIN;
 		}
 		return perms;
@@ -988,13 +1001,13 @@ public class JDEnvBase extends JDApiBase
 	protected int onGetPerms()
 	{
 		int perms = 0;
-		if (getSession("uid") != null) {
+		if (_SESSION("uid") != null) {
 			perms |= AUTH_USER;
 		}
-		else if (getSession("empId") != null) {
+		else if (_SESSION("empId") != null) {
 			perms |= AUTH_EMP;
 		}
-		else if (getSession("adminId") != null) {
+		else if (_SESSION("adminId") != null) {
 			perms |= AUTH_ADMIN;
 		}
 		return perms;
@@ -1242,13 +1255,13 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 				Object userId = null;
 				// TODO: hard code
 				if (type.equals("user")) {
-					userId = getSession("uid");
+					userId = _SESSION("uid");
 				}
 				else if (type.equals("emp")) {
-					userId = getSession("empId");
+					userId = _SESSION("empId");
 				}
 				else if (type.equals("admin")) {
-					userId = getSession("adminId");
+					userId = _SESSION("adminId");
 				}
 				if (userId == null)
 					userId = "NULL";
