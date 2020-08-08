@@ -909,10 +909,27 @@ names是一个数组，表示至少有一个参数有值，返回JsArray，包�
 		return ret;
 	}
 
+/**
+%fn header(key)
+%fn header(key, val)
+%fn header(key, val, true)
 
+获取或设置header. 第三种形式表示追加header
+*/
+	public String header(String key)
+	{
+		return env.request.getHeader(key);
+	}
 	public void header(String key, String value)
 	{
-		env.response.addHeader(key, value);
+		header(key, value, false);
+	}
+	public void header(String key, String value, boolean isAppend)
+	{
+		if (isAppend)
+			env.response.addHeader(key, value);
+		else
+			env.response.setHeader(key, value);
 	}
 	public void echo(Object... objs)
 	{

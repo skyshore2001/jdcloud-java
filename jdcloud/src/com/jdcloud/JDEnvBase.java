@@ -274,9 +274,20 @@ public class JDEnvBase extends JDApiBase
 		String origin = request.getHeader("Origin");
 		if (origin != null)
 		{
-			response.setHeader("Access-Control-Allow-Origin", origin);
-			response.setHeader("Access-Control-Allow-Credentials", "true");
-			response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+			header("Access-Control-Allow-Origin", origin);
+			header("Access-Control-Allow-Credentials", "true");
+			header("Access-Control-Expose-Headers", "X-Daca-Server-Rev, X-Daca-Test-Mode, X-Daca-Mock-Mode");
+
+			// NOTE: 根据安全策略可限制val的范围
+			String val = header("Access-Control-Request-Headers");
+			if (val != null) {
+				header("Access-Control-Allow-Headers", val);
+			}
+			// NOTE: 根据安全策略可限制val的范围
+			val = header("Access-Control-Request-Method");
+			if (val != null) {
+				header("Access-Control-Allow-Methods", val);
+			}
 		}
 
 		if (request.getMethod().equals("OPTIONS"))
