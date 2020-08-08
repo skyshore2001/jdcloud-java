@@ -657,11 +657,16 @@ public class AccessControl extends JDApiBase {
 	private String fixUserQuery(String q)
 	{
 		this.initVColMap();
-		if (regexMatch(q, "(?i)select").find()) {
-			throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
+		// group(0)匹配：禁止各类函数（以后面跟括号来识别）和select子句）
+		Matcher m = regexMatch(q, "(?ix)\\b \\w+ (?=\\s*\\() | \\b select \\b");
+		while (m.find()) {
+			String key = m.group(0);
+			if (! contains_ignoreCase(new String[] {"AND", "OR", "IN"}, key))
+				throw new MyException(E_FORBIDDEN, String.format("forbidden `%s` in param cond", key));
 		}
+		
 		// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null"
-		Matcher m = regexMatch(q, "(?iU)[\\w.]+(?=\\s*[=><]|\\s+(IS|LIKE|BETWEEN|IN|NOT)\\s)");
+		m = regexMatch(q, "(?iU)[\\w.]+(?=\\s*[=><]|\\s+(IS|LIKE|BETWEEN|IN|NOT)\\s)");
 		StringBuffer sb = new StringBuffer();
 		while (m.find()) {
 			// 't0.0' for col, or 'voldef' for vcol
@@ -784,10 +789,10 @@ public class AccessControl extends JDApiBase {
 			if (! (m=regexMatch(col, "^(?iU)(\\w+)(?:\\s+(?:AS\\s+)?([^,]+))?$")).find())
 			{
 				// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum，如"count(distinct ac) cnt", "sum(qty*price) docTotal"
-				if (!gres && (m=regexMatch(col, "^(?iU)(\\w+)\\(([a-z0-9_.\'* ,+-\\/]+)\\)\\s+(?:AS\\s+)?([^,]+)$")).find())
+				if (!gres && (m=regexMatch(col, "^(?iU)(\\w+)\\(([a-z0-9_.\'* ,+-\\/]*)\\)\\s+(?:AS\\s+)?([^,]+)$")).find())
 				{
 					fn = m.group(1).toUpperCase();
-					if (!fn.equals("COUNT") && !fn.equals("SUM") && !fn.equals("AVG"))
+					if (!fn.equals("COUNT") && !fn.equals("SUM") && !fn.equals("AVG") && !fn.equals("MAX") && !fn.equals("MIN"))
 						throw new MyException(E_FORBIDDEN, String.format("function not allowed: `%s`", fn));
 					String expr = m.group(2);
 					alias = m.group(3);

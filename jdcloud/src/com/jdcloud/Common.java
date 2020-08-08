@@ -62,11 +62,13 @@ public class Common
 	
 /**<pre>
 %fn indexOf(arr, e) -> index
+%fn contains(arr, e)
 
 数组查找。返回找到的索引，找不到返回-1。
 
-	JsArray arr = new JsArray("aa", "bbb");
+	String[] arr = new String[]("aa", "bbb");
 	int idx = indexOf(arr, "bbb"); // idx =1
+	boolean rv = contains(arr, "bbb"); // true
 	
 */
 	public static <T> int indexOf(T[] arr, T e) {
@@ -78,6 +80,34 @@ public class Common
 			}
 		}
 		return idx;
+	}
+	public static <T> boolean contains(T[] arr, T e) {
+		return indexOf(arr, e) >= 0;
+	}
+
+/**<pre>
+%fn indexOf_ignoreCase(arr, e) -> index
+%fn contains_ignoreCase(arr, e)
+
+字符串数组中查找串。返回找到的索引，找不到返回-1。
+
+	String[] arr = new String[]("aa", "bbb");
+	int idx = indexOf_ignoreCase(arr, "Bbb"); // idx =1
+	boolean rv = contains_ignoreCase(arr, "Bbb"); // true
+	
+*/
+	public static <T> int indexOf_ignoreCase(String[] arr, String e) {
+		int idx = -1;
+		for (int i=0; i<arr.length; ++i	) {
+			if (arr[i].equalsIgnoreCase(e)) {
+				idx = i;
+				break;
+			}
+		}
+		return idx;
+	}
+	public static <T> boolean contains_ignoreCase(String[] arr, String e) {
+		return indexOf_ignoreCase(arr, e) >= 0;
 	}
 
 /**

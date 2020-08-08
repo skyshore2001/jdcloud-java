@@ -96,7 +96,8 @@ public class JDApiBase extends Common
 		E_NOAUTH, "未登录",
 		E_DB, "数据库错误",
 		E_SERVER, "服务器错误",
-		E_FORBIDDEN, "禁止操作"
+		E_FORBIDDEN, "禁止操作",
+		E_ABORT, "中止执行"
 	);
 
 	public static String GetErrInfo(int code)
