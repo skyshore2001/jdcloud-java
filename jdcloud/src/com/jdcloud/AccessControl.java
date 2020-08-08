@@ -1919,8 +1919,6 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		if (this.vcolMap.containsKey(colName)) {
 			if (!added)
 				throw new MyException(E_SERVER, String.format("redefine vcol `%s.%s`", this.table, colName), "虚拟字段定义重复");
-			if (added && this.vcolMap.get(colName).added)
-				throw new MyException(E_SERVER, String.format("res for col `%s` has added: `%s`", colName, res));
 			this.vcolMap.get(colName).added = true;
 		}
 		else {
