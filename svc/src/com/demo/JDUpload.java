@@ -337,8 +337,8 @@ public class JDUpload extends JDApiBase {
 			exit();
 		}
 	
-		String fileAbs = env.baseDir + "/" + file;
-		if (! new File(fileAbs).exists()) {
+		File fileAbs = new File(env.baseDir + "/" + file);
+		if (! fileAbs.exists()) {
 			env.response.setStatus(404);
 			exit();
 		}

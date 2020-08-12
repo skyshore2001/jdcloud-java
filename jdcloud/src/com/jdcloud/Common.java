@@ -1028,7 +1028,8 @@ Close without exception.
 	{
 		if (sep.equals("\t"))
 			sep = "\\t";
-		Matcher m = regexMatch(content, "(?Uxsm)(?: ([^\"]*?) | \"(.*?[^\"])\" ) (" + sep + "|$)");
+		// NOTE: 要么非引号开头直到分隔符，要么引号开头引号结束紧接着分隔符；这种情况不支持：""",",
+		Matcher m = regexMatch(content, "(?Uxsm)(?: ([^\"].*?) | \"(.*?)\" ) (" + sep + "|$)");
 		List<List<String>> ret = asList();
 		List<String> row = asList();
 		while (m.find()) {
