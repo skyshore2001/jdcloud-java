@@ -25,7 +25,7 @@ import org.apache.tomcat.util.http.fileupload.servlet.ServletRequestContext;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
-public class JDEnvBase extends JDApiBase
+public class JDEnvBase extends JDApiBase implements Closeable
 {
 	public class CallSvcOpt
 	{
@@ -534,8 +534,7 @@ public class JDEnvBase extends JDApiBase
 			if (apiLog != null)
 				apiLog.logAfter();
 
-			safeClose(this.conn);
-			this.conn = null;
+			this.close();
 
 			if (output) {
 				echo(this.X_RET_STR);
@@ -867,7 +866,9 @@ public class JDEnvBase extends JDApiBase
 				return;
 			}
 		
-			String dbcred = props.getProperty("P_DBCRED", "");
+			String dbcred = props.getProperty("P_DBCRED");
+			if (dbcred == null)
+				throw new MyException(E_DB, "P_DBCRED is not set");
 			String[] arr = dbcred.split(":");
 			String user = arr[0];
 			String pwd = arr[1];
@@ -1316,5 +1317,11 @@ API调用前的回调函数。例如设置选项、检查客户版本等。
 				e.printStackTrace();
 			}
 		}
+	}
+
+	@Override
+	public void close() {
+		safeClose(this.conn);
+		this.conn = null;
 	}
 }

@@ -220,6 +220,74 @@ public class JDApiBase extends Common
 		stmt.close();
 		return ret;
 	}
+
+/**<pre>
+%fn testConnection()
+
+用于在单任务长连接数据库应用中, 每次处理前测试数据库连接是否断开, 若断开则尝试自动重连. 
+MySQL5以上默认关闭8小时内无通讯的连接, 因而长时间放置后再使用数据库会出现查询异常 (MySQL选项wait_timeout=28800).
+示例:
+
+	JDEnvBase env = JDEnvBase.createEnv();
+	while ( true ) {
+		env.testConnection();
+		Object cnt = env.queryOne("SELECT COUNT(*) From ApiLog");
+		System.out.println("cnt=" + cnt.toString());
+		Thread.sleep(6000);
+	}
+
+注意: 如果是多线程处理(是线程池管理的线程), 则每个线程里使用独立的db连接, 结束后等待回收, 相当于短连接处理, 
+当线程被重用时，可能其中的数据库连接已超时断开，所以也会有连接长时间放置后断开的情况。
+这种情况一般在处理完任务后调用`env.close()`来及时关闭DB连接即可（可使用DB连接池优化），也可在每次开头调用本函数测试（不建议）。
+
+%key validationQuery 数据库连接池属性
+
+如果使用Tomcat DBCP连接池, 应设置连接池属性用于在重用连接时先测试（其中可能发起重连）:
+
+	validationQuery="SELECT 1"
+
+示例: 在Tomcat的/etc/tomcat/context.xml中配置连接池：(假设DB名为pdi)
+
+	<Context>
+		<Resource name="jdbc/pdi"
+			auth="Container"
+			type="javax.sql.DataSource"
+			factory="org.apache.commons.dbcp.BasicDataSourceFactory"
+			username="demo"
+			password="demo123"
+			maxIdle="30"
+			maxWait="10000"
+			maxActive="100"
+			driverClassName="com.mysql.jdbc.Driver"
+			validationQuery="SELECT 1"
+			url="jdbc:mysql://localhost:3306/pdi?characterEncoding=utf-8" />
+
+	</Context>
+
+在web.properties中使用连接池(参考web.properties.template中的示例):
+
+	P_DBTYPE=mysql
+	P_DB_DRIVER=DataSource
+	P_DB=jdbc/pdi
+	
+*/
+	public void testConnection() throws Exception
+	{
+		int tryCnt = 1;
+		Object rv = null;
+		do {
+			try {
+				rv = queryOne("SELECT 1");
+			}
+			catch (SQLException ex) {
+				if (tryCnt <= 0)
+					throw ex;
+				logit("retry DB connection");
+				-- tryCnt;
+				env.close();
+			}
+		} while (rv == null);
+	}
 	
 	public int execOne(String sql) throws Exception {
 		return execOne(sql, false);

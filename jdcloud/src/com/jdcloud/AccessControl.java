@@ -586,9 +586,13 @@ public class AccessControl extends JDApiBase {
 	}
 
 	// 用于onHandleRow或enumFields中，从结果中取指定列数据，避免直接用$row[$col]，因为字段有可能用的是别名。
-	final protected Object getAliasVal(JsObject row, String col) {
+	final protected Object getAliasVal(Map row, String col) {
 		String alias = this.aliasMap.get(col);
 		return row.get(alias != null? alias: col);
+	}
+	final protected Object setAliasVal(Map row, String col, Object val) {
+		String alias = this.aliasMap.get(col);
+		return row.put(alias != null? alias: col, val);
 	}
 
 	private void handleRow(JsObject rowData, int idx, int rowCnt) throws Exception
@@ -937,8 +941,7 @@ public class AccessControl extends JDApiBase {
 
 	public Object api_set() throws Exception
 	{
-		this.onValidateId();
-		this.id = (int)mparam("id");
+		this.validateId();
 		this.validate();
 		this.handleSubObjForAddSet();
 
@@ -995,8 +998,7 @@ public class AccessControl extends JDApiBase {
 
 	public Object api_del() throws Exception
 	{
-		this.onValidateId();
-		this.id = (int)mparam("id");
+		this.validateId();
 
 		String sql = this.delField == null
 			? String.format("DELETE FROM %s WHERE id=%s", table, id)
@@ -1389,12 +1391,20 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			}
 		}
 	}
+	
+	protected void validateId() throws Exception
+	{
+		this.onValidateId();
+		if (this.id == 0)
+			this.id = (int)mparam("id");
+	
+		// TODO: checkCond (refer to jdcloud-php)
+	}
 
 	// return: JsObject
 	public Object api_get() throws Exception
 	{
-		this.onValidateId();
-		this.id = (int)mparam("id");
+		this.validateId();
 		this.initQuery();
 
 		JsObject ret;
@@ -1722,7 +1732,11 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 	protected Object queryRet(JsArray objArr, Object nextkey, Object totalCnt, int fixedColCnt) throws Exception
 	{
 		String fmt = (String)param("fmt");
+		if (Objects.equals(fmt, "array"))
+			return objArr;
+		
 		JsObject ret = null;
+		Matcher m = null;
 		if (fmt != null && fmt.equals("list")) {
 			ret = new JsObject("list", objArr);
 		}
@@ -1738,6 +1752,36 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 			if (row1.size() == 1)
 				return row1.values().iterator().next();
 			return objArr.get(0);
+		}
+		// hash
+		// hash:keyField
+		// hash:keyField,valueField
+		// multihash
+		// multihash:keyField
+		// multihash:keyField,valueField
+		else if (fmt != null && (m=regexMatch(fmt, "(?xU)^(multi)?hash (: (\\w+)? (,(\\w+))? )?$")).find()) {
+			String isMulti = m.group(1);
+			String keyField = m.group(3);
+			String valueField = m.group(5);
+			JsObject ret1 = new JsObject();
+			forEach(objArr, row0 -> {
+				Map row = cast(row0);
+				String k = keyField != null? row.get(keyField).toString(): row.values().iterator().next().toString();
+				Object v = valueField != null? row.get(valueField): row;
+				if (isMulti != null) {
+					if (ret1.containsKey(k)) {
+						JsArray arr = cast(ret1.get(k));
+						arr.add(v);
+					}
+					else {
+						ret1.put(k, new JsArray(v));
+					}
+				}
+				else {
+					ret1.put(k, v);
+				}
+			});
+			return ret1;
 		}
 		else {
 			ret = objarr2table(objArr, fixedColCnt);

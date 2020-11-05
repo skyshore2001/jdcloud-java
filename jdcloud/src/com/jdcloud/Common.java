@@ -1098,4 +1098,35 @@ byte数组转String，可指定多个编码一一尝试。
 			return cacheData.get(key);
 		}
 	}
+	
+/**
+%fn round(val, n)
+
+主要用于解决double数值显示问题。
+
+	double v = 4997;
+	v *= 0.1; // v=499.700000005
+	String s = round(v, 1); // "499.7"
+	String s2 = round(v, 2); // "499.7"
+
+注意：如果小数点后有多余的0，不会显示。若要精确显示指定小数位数，可以用:
+
+	String s3 = String.format("%.2f", v); // "499.70"
+
+*/
+	public static String round(double val, int n)
+	{
+		StringBuilder fmt = new StringBuilder();
+		fmt.append("#");
+		if (n > 0) {
+			fmt.append(".");
+			for (int i=0; i<n; ++i) {
+				fmt.append("#");
+			}
+		}
+		else if (n < 0) {
+			// 不支持负数
+		}
+		return new java.text.DecimalFormat(fmt.toString()).format(val);
+	}
 }
