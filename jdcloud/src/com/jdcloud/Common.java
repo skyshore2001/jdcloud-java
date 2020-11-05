@@ -402,7 +402,11 @@ public class Common
 	String str = "{ \"id\": 100, \"name\": \"f1\", \"persons\": [ {\"id\": 1001, \"name\": \"p1\"}, {\"id\": 1002, \"name\": \"p2\"} ] }";
 	Object obj = jsonDecode(str);
 	Object v1 = getJsValue(obj, "id"); // 相当于js的obj.id: 100. 注意: jsonDecode在未指定类型时, 所有数值均解析成Double类型
-	int id = castInt(v1);
+	int id = intValue(v1);
+	Integer id1 = IntValue(v1);
+	double v = doubleValue(v1);
+	Double v1 = DoubleValue(v1);
+
 	// 注意cast失败会抛出异常. 若想失败返回null应使用castOrNull
 	List persons = cast(getJsValue(obj, "persons")); // 取List
 	Map person = cast(getJsValue(obj, "persons", 1)); // 取Map

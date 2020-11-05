@@ -1575,6 +1575,8 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		String fmt = (String)param("fmt");
 		if (Objects.equals(fmt, "one") || Objects.equals(fmt, "one?"))
 			pagesz = 1;
+		else if (Objects.equals(fmt, "array") && pagesz == null)
+			pagesz = -1;
 		else if (pagesz == null || pagesz == 0)
 			pagesz = 20;
 
@@ -1734,10 +1736,10 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		String fmt = (String)param("fmt");
 		if (Objects.equals(fmt, "array"))
 			return objArr;
-		
+
 		JsObject ret = null;
 		Matcher m = null;
-		if (fmt != null && fmt.equals("list")) {
+		if (Objects.equals(fmt, "list")) {
 			ret = new JsObject("list", objArr);
 		}
 		else if (Objects.equals(fmt, "one")) {

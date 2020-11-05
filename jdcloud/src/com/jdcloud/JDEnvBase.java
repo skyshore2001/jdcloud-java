@@ -171,6 +171,38 @@ public class JDEnvBase extends JDApiBase implements Closeable
 
 	public String X_RET_STR;
 	public JsArray X_RET;
+	
+/**<pre>
+@var X_RET_FN
+
+默认接口调用后输出筋斗云的`[0, data]`格式。
+若想修改返回格式，可设置该回调函数。
+
+- 如果返回对象，则输出json格式。
+- 如果返回false，应自行用echo输出。注意API日志中仍记录筋斗云返回数据格式。
+
+示例：返回 `{code, data}`格式：
+
+	env.X_RET_FN = (ret) -> {
+		int code = intValue(getJsValue(ret, 0));
+		Object val = getJsValue(ret, 1);
+		return new JsObject("code", code, "data", val);
+	};
+	_GET("fmt", "array", true); // true表示如果未指定fmt，则设置值为"array"
+	return env.callSvc("User.query");
+
+示例：返回xml格式：
+
+	env.X_RET_FN = (ret) -> {
+		header("Content-Type: application/xml");
+		int code = intValue(getJsValue(ret, 0));
+		Object val = getJsValue(ret, 1);
+		echo(String.format("<xml><code>%d</code><data>%s</data></xml>", code, jsonEncode(val)));
+		return false;
+	};
+	
+*/
+	public Fn1<Object, Object> X_RET_FN;
 
 	public static JDEnvBase createEnv(ServletContext ctx) throws Exception
 	{
@@ -509,6 +541,7 @@ public class JDEnvBase extends JDApiBase implements Closeable
 				}
 				ret.add(trace);
 			}
+			logit(ex.toString());
 			ex.printStackTrace();
 		}
 
@@ -523,12 +556,28 @@ public class JDEnvBase extends JDApiBase implements Closeable
 					+ ", dbgInfo=" + jsonEncode(this.debugInfo, true);
 			}
 		}
-		if (this.debugInfo.size() > 0) {
+		if (this.isTestMode && this.debugInfo.size() > 0) {
 			ret.add(this.debugInfo);
 		}
 
-		this.X_RET_STR = jsonEncode(ret, this.isTestMode);
 		this.X_RET = ret;
+		if (this.X_RET_FN == null) {
+			this.X_RET_STR = jsonEncode(ret, this.isTestMode);
+		}
+		else {
+			try {
+				Object ret1 = this.X_RET_FN.call(ret);
+				if (Objects.equals(ret1, false)) {
+					output = false;
+				}
+				else {
+					this.X_RET_STR = jsonEncode(ret1, this.isTestMode);
+				}
+			}
+			catch (Exception ex) {
+				logit(ex.toString());
+			}
+		}
 
 		if (isDefaultCall) {
 			if (apiLog != null)

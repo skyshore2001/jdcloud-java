@@ -1,9 +1,16 @@
 JDEnv=com.demo.WebApi
 
+# mysql 5
 P_DBTYPE=mysql
 P_DB_DRIVER=com.mysql.jdbc.Driver
 P_DB=jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8
 P_DBCRED=demo:demo123
+
+# mysql8示例（使用JDBC驱动mysql-connector-java-8.0.22.jar）
+#P_DBTYPE=mysql
+#P_DB_DRIVER=com.mysql.cj.jdbc.Driver
+#P_DB=jdbc:mysql://127.0.0.1:3306/pm_demo?characterEncoding=utf8&serverTimezone=PRC
+#P_DBCRED=demo:demo123
 
 # 使用连接池：需在context.xml中定义resource, 名字与P_DB一致。
 #P_DBTYPE=mysql

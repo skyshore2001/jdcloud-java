@@ -63,6 +63,11 @@ public class JDApiBase extends Common
 		}
 		env._GET.put(key, val);
 	}
+	public void _GET(String key, Object val, boolean skipIfExists) {
+		if (skipIfExists && env._GET.containsKey(key))
+			return;
+		_GET(key, val);
+	}
 	public Object _POST(String key) {
 		return env._POST.get(key);
 	}
@@ -72,6 +77,11 @@ public class JDApiBase extends Common
 			return;
 		}
 		env._POST.put(key, val);
+	}
+	public void _POST(String key, Object val, boolean skipIfExists) {
+		if (skipIfExists && env._POST.containsKey(key))
+			return;
+		_POST(key, val);
 	}
 	public Object _SESSION(String key) {
 		return getSession(key);
