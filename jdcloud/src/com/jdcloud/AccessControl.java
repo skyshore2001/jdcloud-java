@@ -419,6 +419,7 @@ public class AccessControl extends JDApiBase {
 		this.onQuery();
 		if (this.delField != null) {
 			this.addCond(this.delField + "=0");
+			this.hiddenFields.add(this.delField);
 		}
 
 		boolean addDefaultCol = false;
