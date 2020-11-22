@@ -1429,7 +1429,7 @@ setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更�
 		return ret;
 	}
 
-	static DecimalFormat numberFormat = new DecimalFormat("#");
+	static DecimalFormat numberFormat = new DecimalFormat("#.######");
 	void outputCsvLine(JsArray row, String enc)
 	{
 		boolean firstCol = true;
