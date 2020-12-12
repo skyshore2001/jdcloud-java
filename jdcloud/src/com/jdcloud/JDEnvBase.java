@@ -523,12 +523,12 @@ public class JDEnvBase extends JDApiBase implements Closeable
 			int code = ex instanceof SQLException? E_DB: E_SERVER;
 			ret.set(0, code);
 			ret.set(1, GetErrInfo(code));
-			if (this.isTestMode) 
+			if (this.debugLevel > 0) 
 			{
 				String msg = ex.getMessage();
 				if (msg == null)
 					msg = ex.getClass().getName();
-				ret.add(msg);
+				this.debugInfo.add(msg);
 				List<String> trace = new ArrayList<String>();
 				for (StackTraceElement st: ex.getStackTrace()) {
 					String cls = st.getClassName();
@@ -539,7 +539,7 @@ public class JDEnvBase extends JDApiBase implements Closeable
 					if (trace.size() >= 10)
 						break;
 				}
-				ret.add(trace);
+				this.debugInfo.add(trace);
 			}
 			logit(ex.toString());
 			ex.printStackTrace();
@@ -658,9 +658,21 @@ public class JDEnvBase extends JDApiBase implements Closeable
 	{
 		if (callInfo == null)
 			callInfo = new CallInfo();
-		String[] clsNames = cls != null? new String[] {cls}
-			: table==null? onCreateApi(): onCreateAC(table);
-		if (! getCallInfo(clsNames, ac, callInfo)) {
+		String[] clsNames = null;
+		if (cls != null) {
+			clsNames = new String[] {cls};
+		}
+		else if (table == null) {
+			clsNames = onCreateApi();
+		}
+		else if (Objects.equals(this.appType, "admin")) {
+			if (hasPerm(AUTH_ADMIN))
+				clsNames = new String[] { "AC0_" + table, "AccessControl" };
+		}
+		else {
+			clsNames = onCreateAC(table);
+		}
+		if (clsNames == null || ! getCallInfo(clsNames, ac, callInfo)) {
 			if (table == null || callInfo.cls != null)
 				throw new MyException(E_PARAM, "bad ac=`" + ac + "` (no method)", "接口不支持");
 
@@ -997,38 +1009,38 @@ public class JDEnvBase extends JDApiBase implements Closeable
 /**<pre>
 %fn env.onCreateAC(table) -> String[]
 
-对于对象型调用，根据对象名(table)返回一个类名数组，用于绑定权限与AC类。注意类名不带包名。
+对于对象型调用，根据对象名(table)返回一个类名数组或null(表示无权限或未登录)，用于绑定权限与AC类。注意类名不带包名。
 默认逻辑作为示例：
 
-		if (hasPerm(AUTH_USER)) {
-			return new String[] { "AC1_" + table, "AC_" + table };
+		if (Objects.equals(this.appType, "user")) {
+			if (hasPerm(AUTH_USER))
+				return new String[] { "AC1_" + table, "AC_" + table };
+			return new String[] {"AC_" + table};
 		}
-		else if (hasPerm(AUTH_EMP)) {
-			return new String[] { "AC2_" + table };
+		else if (Objects.equals(this.appType, "emp")) {
+			if (hasPerm(AUTH_EMP))
+				return new String[] { "AC2_" + table };
 		}
-		else if (hasPerm(AUTH_ADMIN)) {
-			return new String[] { "AC0_" + table, "AccessControl" };
-		}
-		return new String[] {"AC_" + table};
+		return null;
 
 它表示：
 
 - 用户登录(AUTH_USER)尝试AC1和AC类
 - 员工登录(AUTH_EMP)尝试AC2类
-- 超级管理员登录(AUTH_ADMIN)尝试AC0类和AccessControl类。
+- 框架自动管理超级管理员登录(AUTH_ADMIN): 会尝试AC0类和AccessControl类。
  */
 	protected String[] onCreateAC(String table)
 	{
-		if (hasPerm(AUTH_USER)) {
-			return new String[] { "AC1_" + table, "AC_" + table };
+		if (Objects.equals(this.appType, "user")) {
+			if (hasPerm(AUTH_USER))
+				return new String[] { "AC1_" + table, "AC_" + table };
+			return new String[] {"AC_" + table};
 		}
-		else if (hasPerm(AUTH_EMP)) {
-			return new String[] { "AC2_" + table };
+		else if (Objects.equals(this.appType, "emp")) {
+			if (hasPerm(AUTH_EMP))
+				return new String[] { "AC2_" + table };
 		}
-		else if (hasPerm(AUTH_ADMIN)) {
-			return new String[] { "AC0_" + table, "AccessControl" };
-		}
-		return new String[] {"AC_" + table};
+		return null;
 	}
 
 /**<pre>

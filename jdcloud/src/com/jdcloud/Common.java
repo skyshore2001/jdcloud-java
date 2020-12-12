@@ -1,6 +1,7 @@
 package com.jdcloud;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -322,6 +323,9 @@ public class Common
 	{
 		if (obj == null)
 			return null;
+		if (obj instanceof BigDecimal) {
+			return ((BigDecimal)obj).intValue();
+		}
 		if (obj instanceof Integer) {
 			return (Integer)obj;
 		}
@@ -357,7 +361,10 @@ public class Common
 	{
 		if (obj == null)
 			return null;
-		if (obj instanceof Integer) {
+		if (obj instanceof BigDecimal) {
+			return ((BigDecimal)obj).doubleValue();
+		}
+ 		if (obj instanceof Integer) {
 			return (double)(Integer)obj;
 		}
 		if (obj instanceof Double) {

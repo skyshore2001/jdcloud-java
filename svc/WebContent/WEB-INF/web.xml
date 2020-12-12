@@ -5,9 +5,10 @@
   xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">  
 
 <session-config>  
-  <session-timeout>30</session-timeout>  
+  <session-timeout>720</session-timeout>  
   <cookie-config>  
-    <name>jdcloudId</name>  
+    <name>jdcloudId</name>
+    <path>/</path>    
   </cookie-config>  
 </session-config>
 </web-app>
