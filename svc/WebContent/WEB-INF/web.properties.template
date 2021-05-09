@@ -1,4 +1,4 @@
-JDEnv=com.demo.WebApi
+JDEnv=com.jdcloud.app.WebApi
 
 # mysql 5
 P_DBTYPE=mysql

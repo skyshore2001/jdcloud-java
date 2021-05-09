@@ -1,4 +1,4 @@
-package com.demo;
+package com.jdcloud.app;
 
 import java.util.regex.*;
 import com.jdcloud.*;

@@ -1,0 +1,873 @@
+<html>
+<head>
+<meta charset="utf-8">
+<title>API参考 - 筋斗云服务端JAVA版</title>
+<style>
+h3,h4,h5,h6 {
+	font-size: 1em;
+}
+
+pre {
+	border-left: 1px solid #ccc;
+	margin: 0 1em;
+	padding: 0 0.5em;
+	tab-size:4;
+}
+
+code {
+	font-family: "Courier New";
+    padding: 0px 3px;
+    display: inline-block;
+}
+
+.toc {
+	margin: 2em;
+}
+
+.toc p {
+	margin: 0.3em 0;
+}
+
+.block {
+	border-bottom: 1px solid #ccc;
+}
+
+</style>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="doc.css" />
+<script src="refdoc.js"></script>
+</head>
+
+<body>
+<h1>API参考 - 筋斗云服务端JAVA版</h1>
+<div>最后更新：2020-11-04</div>
+<div id="menu">
+<h2>Keywords</h2>
+<div class="toc">
+<p><a href="#AccessControl.delField">AccessControl.delField (var)</a></p>
+<p><a href="#AccessControl.enumFields">AccessControl.enumFields (var)</a></p>
+<p><a href="#AccessControl.getCondParam">AccessControl.getCondParam (fn)</a></p>
+<p><a href="#AccessControl.qsearch">AccessControl.qsearch (fn)</a></p>
+<p><a href="#AccessControl.queryRet">AccessControl.queryRet (fn)</a></p>
+<p><a href="#AccessControl::addCond">AccessControl::addCond (fn)</a></p>
+<p><a href="#AccessControl::addJoin">AccessControl::addJoin (fn)</a></p>
+<p><a href="#AccessControl::addVCol">AccessControl::addVCol (fn)</a></p>
+<p><a href="#AccessControl::api_batchAdd">AccessControl::api_batchAdd (fn)</a></p>
+<p><a href="#AccessControl::api_delIf">AccessControl::api_delIf (fn)</a></p>
+<p><a href="#AccessControl::api_setIf">AccessControl::api_setIf (fn)</a></p>
+<p><a href="#AccessControl::callSvc">AccessControl::callSvc (fn)</a></p>
+<p><a href="#AccessControl::checkSetFields">AccessControl::checkSetFields (fn)</a></p>
+<p><a href="#AccessControl::isFileExport">AccessControl::isFileExport (fn)</a></p>
+<p><a href="#BatchAddLogic">BatchAddLogic (class)</a></p>
+<p><a href="#JDEnvBase.skipLogCnt">JDEnvBase.skipLogCnt (var)</a></p>
+<p><a href="#callSvc">callSvc (fn)</a></p>
+<p><a href="#callSvc">callSvc (fn)</a></p>
+<p><a href="#dbExpr">dbExpr (fn)</a></p>
+<p><a href="#dbInsert">dbInsert (fn)</a></p>
+<p><a href="#dbUpdate">dbUpdate (fn)</a></p>
+<p><a href="#destroySession">destroySession (fn)</a></p>
+<p><a href="#enumFields">enumFields (alias)</a></p>
+<p><a href="#env.appName">env.appName (var)</a></p>
+<p><a href="#env.appType">env.appType (var)</a></p>
+<p><a href="#env.baseDir">env.baseDir (var)</a></p>
+<p><a href="#env.debugLevel">env.debugLevel (var)</a></p>
+<p><a href="#env.isTestMode">env.isTestMode (var)</a></p>
+<p><a href="#env.onApiInit">env.onApiInit (fn)</a></p>
+<p><a href="#env.onCreateAC">env.onCreateAC (fn)</a></p>
+<p><a href="#env.onCreateApi">env.onCreateApi (fn)</a></p>
+<p><a href="#env.onDbconn">env.onDbconn (fn)</a></p>
+<p><a href="#env.onGetPerms">env.onGetPerms (fn)</a></p>
+<p><a href="#env.props">env.props (var)</a></p>
+<p><a href="#execOne">execOne (fn)</a></p>
+<p><a href="#exit">exit (fn)</a></p>
+<p><a href="#getAppType">getAppType (key)</a></p>
+<p><a href="#getBaseUrl">getBaseUrl (fn)</a></p>
+<p><a href="#getCred">getCred (fn)</a></p>
+<p><a href="#getPath">getPath (fn)</a></p>
+<p><a href="#getSession">getSession (fn)</a></p>
+<p><a href="#getenv">getenv (fn)</a></p>
+<p><a href="#hashPwd">hashPwd (fn)</a></p>
+<p><a href="#header">header (fn)</a></p>
+<p><a href="#header">header (fn)</a></p>
+<p><a href="#header">header (fn)</a></p>
+<p><a href="#httpCall">httpCall (fn)</a></p>
+<p><a href="#issetval">issetval (fn)</a></p>
+<p><a href="#jdcloud-config">jdcloud-config (key)</a></p>
+<p><a href="#list2varr">list2varr (fn)</a></p>
+<p><a href="#logit">logit (fn)</a></p>
+<p><a href="#mparam">mparam (fn)</a></p>
+<p><a href="#mparam">mparam (fn)</a></p>
+<p><a href="#myEncrypt">myEncrypt (fn)</a></p>
+<p><a href="#param">param (fn)</a></p>
+<p><a href="#parseBoolean">parseBoolean (fn)</a></p>
+<p><a href="#parseDate">parseDate (fn)</a></p>
+<p><a href="#parseDate">parseDate (fn)</a></p>
+<p><a href="#parseKvList">parseKvList (fn)</a></p>
+<p><a href="#queryOne">queryOne (fn)</a></p>
+<p><a href="#setSession">setSession (fn)</a></p>
+<p><a href="#table2objarr">table2objarr (fn)</a></p>
+<p><a href="#tmCols">tmCols (fn)</a></p>
+<p><a href="#unsetSession">unsetSession (fn)</a></p>
+<p><a href="#varr2objarr">varr2objarr (fn)</a></p>
+<p><a href="#web.properties">web.properties (key)</a></p>
+</div><hr>
+</div>
+<div class="block">
+<h2 id="env.isTestMode">%var env.isTestMode</h2>
+<p>是否为测试模式。</p></div>
+<div class="block">
+<h2 id="env.debugLevel">%var env.debugLevel</h2>
+<p>0-9间的调试等级。</p></div>
+<div class="block">
+<h2 id="env.appName">%var env.appName</h2>
+<p class="var"><strong>@var <a id="env.appType">env.appType</a></strong> </p>
+<p class="key"><strong>@key <a id="getAppType">getAppType</a></strong> ()</p>
+<p>获取appName, appType</p></div>
+<div class="block">
+<h2 id="env.baseDir">%var env.baseDir</h2>
+<p>应用程序的主目录，用于写文件。默认为 {user.home}/jd-data/{project}.</p>
+<p>在CentOS下运行tomcat时，往往默认位置为 /usr/share/tomcat/jd-data/{project}<br />
+如果在web.properties中设置了</p>
+<pre><code>baseDir=.</code></pre>
+<p>表示以项目部署目录为基本目录。</p></div>
+<div class="block">
+<h2 id="env.props">%var env.props</h2><div class="toc"><p style="margin-left:0em"><a href="#env.props-1 应用入口 JDEnv">1 应用入口 JDEnv</a></p>
+<p style="margin-left:0em"><a href="#env.props-2 数据库连接">2 数据库连接</a></p>
+<p style="margin-left:0em"><a href="#env.props-3 应用程序选项">3 应用程序选项</a></p>
+</div>
+<p class="key"><strong>@key <a id="web.properties">web.properties</a></strong> </p>
+<p class="key"><strong>@key <a id="jdcloud-config">jdcloud-config</a></strong> </p>
+<p>配置选项。从WEB-INF/web.properties中加载，也可以在env.onApiInit回调函数中修改。</p>
+<h4 id="env.props-1 应用入口 JDEnv">1 应用入口 JDEnv</h4>
+<ul>
+<li>JDEnv: 类名。应继承于com.jdcloud.JDEnvBase。</li>
+</ul>
+<p>作为WebApi应用程序入口。<br />
+所有的接口实现都应与该类在同一个包中。</p>
+<h4 id="env.props-2 数据库连接">2 数据库连接</h4>
+<ul>
+<li>P_DBTYPE: String. 默认为&quot;mysql&quot;。还支持mssql</li>
+<li>P_DB_DRIVER: 类名. 驱动程序库。特别地，&quot;DataSource&quot;表示jdbc数据源及连接池（在context及web.xml中定义连接池资源）。</li>
+<li>P_DB: String. 数据库连接字符串</li>
+<li>P_DBCRED: String. 数据库用户密码，格式为 &quot;{用户名:密码}&quot;</li>
+</ul>
+<p>示例：连接mysql, 使用库mysql-connector-java-5.1.34.jar</p>
+<pre><code>P_DBTYPE=mysql
+P_DB_DRIVER=com.mysql.jdbc.Driver
+P_DB=jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8
+P_DBCRED=demo:demo123</code></pre>
+<p>示例：连接sqlserver(mssql)，使用库sqljdbc42.jar</p>
+<pre><code>P_DBTYPE=mssql
+P_DB_DRIVER=com.microsoft.sqlserver.jdbc.SQLServerDriver
+P_DB=jdbc:sqlserver://localhost:1433;instanceName=MSSQL1;databaseName=jdcloud;integratedSecurity=false;
+P_DBCRED=sa:demo123</code></pre>
+<p>示例：连接mysql, 且使用连接池，在web.properties中设置：</p>
+<pre><code>P_DBTYPE=mysql
+P_DB_DRIVER=DataSource
+P_DB=jdbc/jdcloud
+
+在web.xml的&lt;web-app&gt;标签中增加：
+
+&lt;resource-ref&gt; 
+  &lt;res-ref-name&gt;jdbc/jdcloud&lt;/res-ref-name&gt;  
+  &lt;res-type&gt;javax.sql.DataSource&lt;/res-type&gt;  
+  &lt;res-auth&gt;Container&lt;/res-auth&gt; 
+&lt;/resource-ref&gt;
+
+在&lt;Context&gt;标签中增加Resource定义：
+
+&lt;Resource name="jdbc/jdcloud" auth="Container" driverClassName="com.mysql.jdbc.Driver" factory="org.apache.tomcat.jdbc.pool.DataSourceFactory" 
+  maxActive="100" username="demo" password="demo123" type="javax.sql.DataSource" url="jdbc:mysql://server-pc:3306/jdcloud?characterEncoding=utf8"/&gt; </code></pre>
+<h4 id="env.props-3 应用程序选项">3 应用程序选项</h4>
+<ul>
+<li>P_TEST_MODE: Boolean. 默认为0。测试模式。可用env.isTestMode获取。</li>
+<li>
+<p>P_DEBUG: Integer. 0-9之间，默认为0. 调试等级。为9时输出SQL日志。可用env.debugLevel获取。</p>
+</li>
+<li>enableApiLog: Boolean. 默认为1。记录ApiLog。</li>
+<li>baseDir: String. 应用数据目录，默认为 {user.home}/jd-data/{project}。在写文件时可用env.baseDir作为目录。注意目录分隔符用&quot;/&quot;，注意不以&quot;/&quot;结尾。<br />
+一般用绝对路径，如&quot;/home/data/myproject&quot;, &quot;c:\data&quot;等；也可以使用相对路径，如&quot;data&quot;，将以项目servlet目录作为当前路径。</li>
+</ul></div>
+<div class="block">
+<h2 id="callSvc">%fn callSvc(ac)</h2>
+<p class="fn"><strong>@fn <a id="callSvc">callSvc</a></strong> (ac, param, postParam, opt={backupEnv, isCleanCall, asAdmin})</p>
+<p>调用接口，获得返回值。<br />
+如果指定了非空的param, postParam参数，则会并入当前环境的GET, POST参数中。<br />
+通过opt参数可调整行为。</p>
+<p class="param"><strong>@param opt.backupEnv</strong>  如果为true, 调用完成后恢复原先的GET, POST参数等。</p>
+<p class="param"><strong>@param opt.isCleanCall</strong>  如果为true，不使用原先环境，只用param, postParam作为GET/POST环境。</p>
+<p class="param"><strong>@param opt.asAdmin</strong>  TODO: 以超级管理员权限调用。</p>
+<pre><code>JsObject rv = (JsObject)callSvc("User.get");</code></pre>
+<p>它不额外处理事务、不写ApiLog。</p></div>
+<div class="block">
+<h2 id="env.onCreateApi">%fn env.onCreateApi() -> String[]</h2>
+<p>对于函数型调用，返回接口实现类(应继承JDApiBase)列表。默认为&quot;Global&quot;：</p>
+<pre><code>return new String[] { "Global" };</code></pre>
+<p>也可以从多个类加载，常用于添加插件，如：</p>
+<pre><code>return new String[] { "Global", "JDLogin", "JDUpload" };</code></pre></div>
+<div class="block">
+<h2 id="env.onCreateAC">%fn env.onCreateAC(table) -> String[]</h2>
+<p>对于对象型调用，根据对象名(table)返回一个类名数组，用于绑定权限与AC类。注意类名不带包名。<br />
+默认逻辑作为示例：</p>
+<pre><code>    if (hasPerm(AUTH_USER)) {
+        return new String[] { "AC1_" + table, "AC_" + table };
+    }
+    else if (hasPerm(AUTH_EMP)) {
+        return new String[] { "AC2_" + table };
+    }
+    else if (hasPerm(AUTH_ADMIN)) {
+        return new String[] { "AC0_" + table, "AccessControl" };
+    }
+    return new String[] {"AC_" + table};</code></pre>
+<p>它表示：</p>
+<ul>
+<li>用户登录(AUTH_USER)尝试AC1和AC类</li>
+<li>员工登录(AUTH_EMP)尝试AC2类</li>
+<li>超级管理员登录(AUTH_ADMIN)尝试AC0类和AccessControl类。</li>
+</ul></div>
+<div class="block">
+<h2 id="env.onGetPerms">%fn env.onGetPerms() -> perms/i</h2>
+<p>返回权限集合。一般根据session来设置。默认检查uid, empId, adminId三个session变量，如果存在则认为具有用户、员工、超级管理员登录权限。</p>
+<pre><code>    int perms = 0;
+    if (_SESSION("uid") != null) {
+        perms |= AUTH_USER;
+    }
+    else if (_SESSION("empId") != null) {
+        perms |= AUTH_EMP;
+    }
+    else if (_SESSION("adminId") != null) {
+        perms |= AUTH_ADMIN;
+    }
+    return perms;</code></pre></div>
+<div class="block">
+<h2 id="env.onApiInit">%fn env.onApiInit()</h2>
+<p>API调用前的回调函数。例如设置选项、检查客户版本等。<br />
+示例：关闭ApiLog</p>
+<pre><code>this.props.setProperty("enableApiLog", "0");</code></pre></div>
+<div class="block">
+<h2 id="env.onDbconn">%fn env.onDbconn()</h2>
+<p>连接数据库后回调，用于设置连接选项，或切换数据库。示例：</p>
+<pre><code>@Override
+protected void onDbconn() throws Exception {
+    String project = this.ctx.getContextPath();
+    if (project.indexOf("-hg") &gt; 0) {
+        this.conn.setCatalog("pdi_hg");
+    }
+}</code></pre></div>
+<div class="block">
+<h2 id="JDEnvBase.skipLogCnt">@var JDEnvBase.skipLogCnt</h2>
+<p>如果想忽略输出一条SQL日志，可以在调用SQL查询前设置skipLogCnt，如：</p>
+<pre><code>++ env.skipLogCnt; // 若要忽略两条就用 env.skipLogCnt+=2;
+execOne(...);</code></pre>
+<p class="see"><strong>@see <a href="#queryAll">queryAll</a> <a href="#execOne">execOne</a> <a href="#dbconn">dbconn</a></strong> </p></div>
+<div class="block">
+<h2 id="queryOne">%fn queryOne(sql, assoc?=false) </h2>
+<p>执行查询语句，只返回一行数据，如果行中只有一列，则直接返回该列数值。<br />
+如果查询不到，返回false，可以用Objects.equals(rv, false)来判断。注意返回值可能为null，不要用rv.equals(false)判断。</p>
+<p>示例：查询用户姓名与电话，默认返回值数组(JsArray)：</p>
+<pre><code>Object rv = queryOne("SELECT name,phone FROM User WHERE id=" + id);
+if (Objects.equals(rv, false))
+    throw new MyException(E_PARAM, "bad user id");
+JsArray row = (JsArray)rv;
+// row = ["John", "13712345678"]</code></pre>
+<p>指定参数assoc=true时，返回关联数组:</p>
+<pre><code>Object rv = queryOne("SELECT name,phone FROM User WHERE id=" + id, true);
+if (Objects.equals(rv, false))
+    throw new MyException(E_PARAM, "bad user id");
+JsObject row = (JsObject)rv;
+// row = {"name": "John",  "phone":"13712345678"}</code></pre>
+<p>当查询结果只有一列且参数assoc=false时，直接返回该数值。</p>
+<pre><code>Object phone = queryOne("SELECT phone FROM User WHERE id="+id);
+if (Objects.equals(phone, false))
+    throw new MyException(E_PARAM, "bad user id");
+// phone = "13712345678"</code></pre>
+<p class="see"><strong>@see <a href="#queryAll">queryAll</a></strong> </p></div>
+<div class="block">
+<h2 id="execOne">%fn execOne(sql, getInsertId?=false)</h2>
+<p class="param"><strong>@param getInsertId</strong> ?=false 取INSERT语句执行后得到的id. 仅用于INSERT语句。</p>
+<p>执行SQL语句，如INSERT, UPDATE等。执行SELECT语句请使用queryOne/queryAll.</p>
+<pre><code>String token = (String)mparam("token");
+execOne("UPDATE Cinf SET appleDeviceToken=" . Q(token));</code></pre>
+<p>注意：在拼接SQL语句时，对于传入的String类型参数，应使用Q函数进行转义，避免SQL注入攻击。</p>
+<p>对于INSERT语句，当设置参数getInsertId=true时, 可返回新加入数据行的id. 例：</p>
+<pre><code>String sql = String.format("INSERT INTO Hongbao (userId, createTm, src, expireTm, vdays) VALUES (%s, '%s', '%s', '%s', %s)",
+    userId, createTm, src, expireTm, vdays);
+int hongbaoId = execOne(sql, true);</code></pre></div>
+<div class="block">
+<h2 id="dbInsert">@fn dbInsert(table, kv) -> newId</h2>
+<p>字段值可以是数值、日期、字符串等类型的变量。<br />
+如果值为null或空串会被忽略。<br />
+e.g. </p>
+<pre><code>int orderId = dbInsert("Ordr", new JsObject(
+    "tm", new Date(), // 支持Date类型
+    "tm1", dbExpr("now()"), // 使用dbExpr直接提供SQL表达式
+    "amount", 100,
+    "dscr", null // null字段会被忽略
+));</code></pre></div>
+<div class="block">
+<h2 id="dbUpdate">@fn dbUpdate(table, kv, id_or_cond?) -> cnt</h2>
+<p class="param"><strong>@param id_or_cond</strong>  查询条件，如果是数值比如100或"100"，则当作条件"id=100"处理；否则直接作为查询表达式，比如"qty<0"；如果未指定则无查询条件。</p>
+<p>e.g.</p>
+<pre><code>// UPDATE Ordr SET ... WHERE id=100
+int cnt = dbUpdate("Ordr", new JsObject(
+    "amount", 30,
+    "dscr", "test dscr",
+    "tm", "null", // 用""或"null"对字段置空；用"empty"对字段置空串。
+    "tm1", null // null会被忽略
+), 100);
+
+// UPDATE Ordr SET tm=now() WHERE tm IS NULL
+int cnt = dbUpdate("Ordr", new JsObject(
+    "tm", dbExpr("now()")  // 使用dbExpr，表示是SQL表达式
+), "tm IS NULL);</code></pre></div>
+<div class="block">
+<h2 id="dbExpr">@fn dbExpr($val)</h2>
+<p>用于在dbInsert/dbUpdate(插入或更新数据库)时，使用表达式：</p>
+<pre><code>int id = dbInsert("Ordr", asMap(
+    "tm", dbExpr("now()") // 使用dbExpr直接提供SQL表达式
+));</code></pre></div>
+<div class="block">
+<h2 id="logit">%fn logit(str, addHeader?=true, type?="trace")</h2>
+<p>记录日志到文件。type参数指定日志文件名，例如默认为trace，则日志写到trace.log。</p></div>
+<div class="block">
+<h2 id="parseBoolean">%fn parseBoolean(val) -> boolVal</h2>
+<p>val支持多种类型。</p>
+<ul>
+<li>null或数值0表示false</li>
+<li>字符串&quot;0&quot;, &quot;false&quot;, &quot;off&quot;, &quot;no&quot;表示false </li>
+<li>字符串&quot;1&quot;, &quot;true&quot;, &quot;on&quot;, &quot;yes&quot;表示true, 特别地, 空串(&quot;&quot;, empty)表示true</li>
+</ul>
+<p>示例：</p>
+<pre><code>boolean forTest = param("test/b", false); 
+boolean isTestMode = parseBoolean(getenv("P_TEST_MODE", "0")); // 仅用作示例，可以直接用 env.isTestMode</code></pre></div>
+<div class="block">
+<h2 id="parseDate">%fn parseDate(str, onlyDatePart?=false) -> dateVal</h2>
+<p>支持以下日期格式：</p>
+<pre><code>"2010/1/1 10:10", "2011-2-1 8:8:8", "2010.3.4", "2011-02-01T10:10:10Z"</code></pre>
+<p>如果格式无法解析，返回null。<br />
+如果onlyDatePart=true，则只取日期部分，忽略时间部分。</p></div>
+<div class="block">
+<h2 id="parseDate">%fn parseDate(str, fmt) -> dateVal</h2>
+<pre><code>java.util.Date tm = parseDate("20180101121030", "yyyyMMddHHmmss");
+if (tm == null) // fail to parse
+    return;
+String tmstr = date("yyyy-MM-dd HH:mm:ss", tm); // "2018-01-01 12:10:30"</code></pre>
+<p>如果格式无法解析，返回null。</p></div>
+<div class="block">
+<h2 id="param">%fn param(name, defVal?, col?, doHtmlEscape=true)</h2>
+<p class="param"><strong>@param col</strong>  null - (默认)先取URL参数(env._GET)再取POST参数(api._POST)，"G" - 从env.GET中取; "P" - 从env.POST中取</p>
+<p>获取名为name的参数。<br />
+name中可以指定类型，返回值根据类型确定。如果该参数未定义或是空串，直接返回缺省值defVal。</p>
+<p>name中指定类型的方式如下：</p>
+<ul>
+<li>名为&quot;id&quot;, 或以&quot;Id&quot;或&quot;/i&quot;结尾: 返回Integer类型</li>
+<li>以&quot;/b&quot;结尾: 返回Boolean类型. 可接受的字符串值为: &quot;1&quot;/&quot;true&quot;/&quot;on&quot;/&quot;yes&quot;=&gt;true, &quot;0&quot;/&quot;false&quot;/&quot;off&quot;/&quot;no&quot; =&gt; false</li>
+<li>以&quot;/dt&quot;或&quot;/tm&quot;结尾: 返回java.util.Date类型。如果是&quot;/dt&quot;则只有日期部分。</li>
+<li>以&quot;/n&quot;结尾: 数值型(numeric)，返回Double类型</li>
+<li>以&quot;/s&quot;结尾（缺省）: 返回String类型. 缺省为防止XSS攻击会做html编码，如&quot;a&amp;b&quot;处理成&quot;a&amp;b&quot;，设置参数doHtmlEscape=false可禁用这个功能。</li>
+<li>复杂类型：以&quot;/i+&quot;结尾: 整数数组如&quot;82,93,105&quot;，常用于传输id列表，返回ArrayList<Integer>类型。</li>
+<li>TODO: 复杂类型：以&quot;/js&quot;结尾: json object</li>
+<li>复杂类型：List类型（以&quot;,&quot;分隔行，以&quot;:&quot;分隔列），类型定义如&quot;/i:n:b:dt:tm&quot; （列只支持简单类型，不可为复杂类型），返回JsArray类型。</li>
+</ul>
+<p>示例：</p>
+<pre><code>Integer id = (Integer)param("id");
+Integer svcId = (Integer)param("svcId/i", 99);
+Boolean wantArray = (Boolean)param("wantArray/b", false);
+Date startTm = (Date)param("startTm/dt", new Date());
+List&lt;Integer&gt; idList = (List&lt;Integer&gt;)param("idList/i+");</code></pre>
+<p>List类型示例。假设参数&quot;items&quot;类型在文档中定义为</p>
+<pre><code>items
+: list(id/Integer, qty/Double, dscr/String)</code></pre>
+<p>这样取该参数，返回值为JsArray类型，数组中每一项又是JsArray类型（下面用中括号表示JsArray）：</p>
+<pre><code>JsArray items = (JsArray)param("items/i:n:s");
+// 假设 items="100:1:洗车,101:1:打蜡"
+// 返回 [ [ 100, 1.0, "洗车"], [101, 1.0, "打蜡"] ]</code></pre>
+<p>如果某列可缺省，用&quot;?&quot;表示，如 <code>param("items/i:n?:s?")</code> 来获取值 <code>items=100:1,101::打蜡</code><br />
+得到</p>
+<pre><code>[ [ 100, 1.0, null], [101, null, "打蜡"] ]</code></pre>
+<p>TODO: 直接支持 param(&quot;items/(id,qty?/n,dscr?)&quot;), 添加param_objarr函数，去掉parseList函数。上例将返回</p>
+<pre><code>[
+    [ "id"=&gt;100, "qty"=&gt;1.0, dscr=&gt;null],
+    [ "id"=&gt;101, "qty"=&gt;null, dscr=&gt;"打蜡"]
+]</code></pre></div>
+<div class="block">
+<h2 id="mparam">%fn mparam(name, coll?=null, htmlEscape?=true)</h2>
+<p>必填参数(mandatory param)</p>
+<p>参考param函数，查看name如何支持各种类型。</p>
+<p>示例：</p>
+<pre><code>String svcId = (String)mparam("svcId");
+Integer svcId = (Integer)mparam("svcId/i");
+List&lt;Integer&gt; itts = (List&lt;Integer&gt;)mparam("itts/i+");</code></pre>
+<p>name也可以是一个数组，表示至少有一个参数有值，这时返回每个参数的值。</p>
+<pre><code>JsArray rv = mparam(new String[] {"svcId/i", "itts/i+"}); // require one of the 2 params
+Integer svcId = rv.get(0);
+List&lt;Integer&gt; itts = rv.get(1);</code></pre></div>
+<div class="block">
+<h2 id="mparam">%fn mparam(names, coll?=null)</h2>
+<p>几个参数，必填其一(mandatory param)<br />
+names是一个数组，表示至少有一个参数有值，返回JsArray，包含每个参数的值，其中有且只有一个非null。</p>
+<pre><code>JsArray rv = mparam(new String[] {"svcId/i", "itts/i+"}); // require one of the 2 params
+Integer svcId = rv.get(0);
+List&lt;Integer&gt; itts = rv.get(1); 
+if (svcId != null) {
+}
+else if (itts != null) {
+}</code></pre></div>
+<div class="block">
+<h2 id="header">%fn header(key)</h2>
+<p class="fn"><strong>@fn <a id="header">header</a></strong> (key, val)</p>
+<p class="fn"><strong>@fn <a id="header">header</a></strong> (key, val, true)</p>
+<p>获取或设置header. 第三种形式表示追加header</p></div>
+<div class="block">
+<h2 id="getSession">%fn getSession(name) -> Object</h2>
+<p class="see"><strong>@see <a href="#setSession">setSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#unsetSession">unsetSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#destroySession">destroySession</a></strong> </p></div>
+<div class="block">
+<h2 id="setSession">%fn setSession(name, value)</h2>
+<p class="see"><strong>@see <a href="#getSession">getSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#unsetSession">unsetSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#destroySession">destroySession</a></strong> </p></div>
+<div class="block">
+<h2 id="unsetSession">%fn unsetSession(name)</h2>
+<p class="see"><strong>@see <a href="#setSession">setSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#getSession">getSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#destroySession">destroySession</a></strong> </p></div>
+<div class="block">
+<h2 id="destroySession">%fn destroySession()</h2>
+<p class="see"><strong>@see <a href="#getSession">getSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#setSession">setSession</a></strong> </p>
+<p class="see"><strong>@see <a href="#unsetSession">unsetSession</a></strong> </p></div>
+<div class="block">
+<h2 id="table2objarr">@fn table2objarr</h2>
+<p>将table格式转为 objarr, 即前端的rs2Array, 如：</p>
+<pre><code>table2objarr(
+    [
+        "h"=&gt;["id", "name"],
+        "d"=&gt;[ 
+            [100,"A"], 
+            [101,"B"]
+           ] 
+    ]
+) -&gt; [ ["id"=&gt;100, "name"=&gt;"A"], ["id"=&gt;101, "name"=&gt;"B"] ]</code></pre></div>
+<div class="block">
+<h2 id="varr2objarr">@fn varr2objarr(d, h)</h2>
+<p>将值数组类型 d (仅有值的二维数组, elem=[$col1, $col2] ) 转为对象数组objarr, elem={col1=&gt;cell1, col2=&gt;cell2})</p>
+<p>例：</p>
+<pre><code>varr2objarr(
+    [ [100, "A"], [101, "B"] ], 
+    ["id", "name"] )
+-&gt; [ ["id"=&gt;100, "name"=&gt;"A"], ["id"=&gt;101, "name"=&gt;"B"] ]</code></pre></div>
+<div class="block">
+<h2 id="list2varr">@fn list2varr(ls, colSep=':', rowSep=',')</h2>
+<ul>
+<li>ls: 代表二维表的字符串，有行列分隔符。</li>
+<li>colSep, rowSep: 列分隔符，行分隔符。</li>
+</ul>
+<p>将字符串代表的压缩表(&quot;v1:v2:v3,...&quot;)转成值数组。</p>
+<p>e.g.</p>
+<pre><code>$users = "101:andy,102:beddy";
+$varr = list2varr($users);
+// $varr = [["101", "andy"], ["102", "beddy"]];
+
+$cmts = "101\thello\n102\tgood";
+$varr = list2varr($cmts, "\t", "\n");
+// $varr=[["101", "hello"], ["102", "good"]]</code></pre></div>
+<div class="block">
+<h2 id="getenv">%fn getenv(name, defVal?)</h2>
+<p>取全局设置。</p>
+<pre><code>String cred = getenv("P_ADMIN_CRED");
+boolean isTestMode = parseBoolean(getenv("P_TEST_MODE", "0")); // 仅用作示例，可以直接用 env.isTestMode
+int debugLevel = Integer.parseInt(getenv("P_DEBUG", "0"));  // 仅用作示例，可以直接用 env.debugLevel</code></pre></div>
+<div class="block">
+<h2 id="myEncrypt">%fn myEncrypt(data, op, key?="jdcloud") -> String</h2>
+<p>对字符串data加密，生成base64编码的字符串。<br />
+或者反过来，对base64编辑的data解密返回原文。<br />
+出错返回null。</p>
+<p>算法：DES加密。</p>
+<p class="param"><strong>@param op</strong>  "E"-加密(encrypt); "D"-解密(decrypt)</p></div>
+<div class="block">
+<h2 id="getCred">%fn getCred(cred) -> [user, pwd]</h2>
+<p>cred为&quot;{user}:{pwd}&quot;格式，支持使用base64编码。<br />
+返回2元素字符数组，表示user和pwd。<br />
+出错时返回null。</p>
+<p>示例：</p>
+<pre><code>String[] cred = getCred(getenv("P_ADMIN_CRED"));
+if (cred == null) {
+    // 未设置用户名密码
+}
+String user = cred[0], pwd = cred[1];</code></pre></div>
+<div class="block">
+<h2 id="hashPwd">%fn hashPwd(pwd) -> pwd1</h2>
+<p>对密码进行加密处理。如果已加密过，则直接返回。</p></div>
+<div class="block">
+<h2 id="getPath">%fn getPath(path, withSep) -> path</h2>
+<p>用于获得以&quot;/&quot;结尾或不以&quot;/&quot;结尾的路径。</p>
+<pre><code>String path = getPath("dir1/dir2/", true); // "dir1/dir2/"
+String path = getPath("dir1/dir2", true); // "dir1/dir2/"
+String path = getPath("dir1/dir2", false); // "dir1/dir2"
+String path = getPath("dir1/dir2/", false); // "dir1/dir2"</code></pre></div>
+<div class="block">
+<h2 id="getBaseUrl">%fn getBaseUrl(wantHost) -> String</h2>
+<p>返回项目的URL，以&quot;/&quot;结尾。</p>
+<pre><code>String url = getBaseUrl(true); // "http://myserver/myapp/"
+String url1 = getBaseUrl(false); // "/myapp/"</code></pre></div>
+<div class="block">
+<h2 id="exit">%fn exit()</h2>
+<p>立即返回，不再处理，不自动输出任何内容。<br />
+如果想输出返回数据，请自行用echo输出后再调用exit，或直接用DirectReturn(val)返回<code>[0,val]</code>标准格式.</p>
+<p class="see"><strong>@see <a href="#DirectReturn">DirectReturn</a></strong> </p></div>
+<div class="block">
+<h2 id="tmCols">%fn tmCols(fieldName = "t0.tm")</h2>
+<p>为查询添加时间维度单位: y,q,m,w,d,wd,h (年，季度，月，周，日，周几，时)。</p>
+<ul>
+<li>wd: 1-7表示周一到周日</li>
+<li>w: 一年中第一周，从该年第一个周一开始(mysql week函数模式7).</li>
+</ul>
+<p>示例：</p>
+<pre><code>this.vcolDefs = asList(
+    new VcolDef().res(tmCols())
+);
+
+this.vcolDefs = asList(
+    new VcolDef().res(tmCols("log_cr.tm")).require("createTm")
+);</code></pre></div>
+<div class="block">
+<h2 id="issetval">%fn issetval(fieldName)</h2>
+<p>判断POST内容中是否对该字段设置值，示例：<br />
+(在onValidate回调中)</p>
+<pre><code>if (issetval("pwd")) {
+    String pwd = (String)env._POST.get("pwd");
+    env._POST.put("pwd", hashPwd(pwd));
+}</code></pre></div>
+<div class="block">
+<h2 id="parseKvList">@fn parseKvList(kvListStr, sep, sep2)</h2>
+<p>解析key-value列表字符串。如果出错抛出异常。<br />
+注意：sep, sep2为行、列分隔符的正则式。</p>
+<p>示例：</p>
+<pre><code>Map&lt;String, Object&gt; map = parseKvList("CR:新创建;PA:已付款", ";", ":");
+// map: {"CR": "新创建", "PA":"已付款"}</code></pre></div>
+<div class="block">
+<h2 id="httpCall">%fn httpCall(url, urlParams, postParams, opt)</h2>
+<p>postParams非空使用POST请求，否则使用GET请求。<br />
+postParams可以是字符串、map或list等数据结构。默认contentType为&quot;x-www-form-urlencoded&quot;格式。如果postParams为list等结构，则使用&quot;json&quot;格式。<br />
+如果要明确指定格式，可以设置opt.contentType参数，如</p>
+<pre><code>String rv = httpCall(baseUrl, urlParams, postParams, asMap("contentType", "application/json"));</code></pre>
+<ul>
+<li>opt: {contentType, async}</li>
+</ul>
+<p>e.g.</p>
+<pre><code>String baseUrl = "http://oliveche.com/echo.php";
+// 常用asMap或new JsObject
+Map&lt;String, Object&gt; urlParams = asMap("intval", 100, "floatval", 12.345, "strval", "hello");
+JsObject postParams = new JsObject("postintval", 100, "poststrval", "中文");
+String rv = httpCall(baseUrl, urlParams, postParams, null);</code></pre>
+<ul>
+<li>opt.async: 当设置为true时，不等服务端响应就关闭连接。</li>
+</ul></div>
+<div class="block">
+<h2 id="AccessControl.enumFields">@var AccessControl.enumFields 枚举支持及自定义字段处理</h2>
+<p class="alias"><strong>@alias <a id="enumFields">enumFields</a></strong> (fieldName, EnumFieldFn)</p>
+<p>(版本v1.1)</p>
+<p>格式为{field =&gt; map/fn(val, row) }</p>
+<p>作为比onHandleRow/onAfterActions等更易用的工具，enumFields可对返回字段做修正。例如，想要对返回的status字段做修正，如&quot;CR&quot;显示为&quot;Created&quot;，可设置：</p>
+<pre><code>Map&lt;String, Object&gt; map = asMap("CR","Created", "CA","Cancelled");
+this.enumFields("status", map)</code></pre>
+<p>也可以设置为自定义函数，如：</p>
+<pre><code>this.enumFields("status", (v, row) -&gt; {
+    if (map.containsKey(v))
+        return String.format("%s-%s", v, map.get(v));
+    return v;
+});</code></pre>
+<p>此外，枚举字段可直接由请求方通过res参数指定描述值，如：</p>
+<pre><code>Ordr.query(res="id, status =CR:Created;CA:Cancelled")
+或指定alias:
+Ordr.query(res="id 编号, status 状态=CR:Created;CA:Cancelled")</code></pre>
+<p>更多地，设置enumFields也支持逗号分隔的枚举列表，比如字段值为&quot;CR,CA&quot;，实际可返回&quot;Created,Cancelled&quot;。</p></div>
+<div class="block">
+<h2 id="AccessControl.delField">@var AccessControl.delField</h2>
+<p>如果设置该字段(例如设置为disableFlag字段)，则把删除动作当作是设置该字段为1，且在查询接口中跟踪此字段增加过滤。<br />
+必须是flag字段（0/1值）。</p>
+<p>示例：</p>
+<pre><code>// onInit中：
+this.delField = "disableFlag"</code></pre></div>
+<div class="block">
+<h2 id="AccessControl::callSvc">@fn AccessControl::callSvc(tbl, ac, param=null, postParam=null)</h2>
+<p>直接调用指定类的接口，如内部直接调用&quot;PdiRecord.query&quot;方法：</p>
+<pre><code>// 假如当前是AC2权限，对应的AC类为AC2_PdiRecord:
+AccessControl acObj = new AC2_PdiRecord();
+acObj.env = env; // 别忘记指定env
+acObj.callSvc("PdiRecord", "query");</code></pre>
+<p>这相当于调用<code>callSvc("PdiRecord.query")</code>。<br />
+区别是，用本方法可自由指定任意AC类，无须根据当前权限自动匹配类。</p>
+<p>例如，&quot;PdiRecord.query&quot;接口不对外开放，只对内开放，我们就可以只定义<code>class PdiRecord extends AccessControl</code>（无AC前缀，外界无法访问），在内部访问它的query接口：</p>
+<pre><code>AccessControl acObj = new PdiRecord();
+acObj.env = env;
+acObj.callSvc("PdiRecord", "query");</code></pre>
+<p>如果未指定param/postParam，则使用当前GET/POST环境参数执行，否则使用指定环境执行，并在执行后恢复当前环境。</p>
+<p>也适用于AC类内的调用，这时可不传table，例如调用当前类的add接口：</p>
+<pre><code>Object rv = this.callSvc(null, "add", null, postParam);</code></pre>
+<p>示例：通过手机号发优惠券时，支持批量发量，用逗号分隔的多个手机号，接口：</p>
+<pre><code>手机号userPhone只有一个时：
+Coupon.add()(userPhone, ...) -&gt; id
+
+如果userPhone包含多个手机号：（用逗号隔开，支持中文逗号，支持有空格）
+Coupon.add()(userPhone, ...) -&gt; {cnt, idList}</code></pre>
+<p>重载add接口，如果是批量添加则通过callSvc再调用add接口：</p>
+<pre><code>public Object api_add() {
+    if (this._POST.containsKey("userPhone")) {
+        String userPhone = (String)this._POST.get("userPhone");
+        String[] arr = userPhone.split("(?U)[,，]"); // 支持中文逗号
+        if (arr.length &gt; 1) {
+            List idList = new ArrayList();
+            JsObject postParam = new JsObject();
+            postParam.putAll(this._POST);
+            for (String e: arr) {
+                postParam.put("userPhone", e.trim());
+                idList.add(this.callSvc(null, "add", null, postParam));
+            }
+            setRet(0, asMap(
+                "cnt", idList.size(),
+                "idList", idList
+            );
+            throw new DirectReturn();
+        }
+    }
+    return super.api_add();
+}</code></pre>
+<p>框架自带的批量添加接口api_batch也是类似调用。</p>
+<p class="see"><strong>@see <a href="#callSvc">callSvc</a></strong> </p>
+<p class="see"><strong>@see <a href="#callSvcSafe">callSvcSafe</a></strong> </p></div>
+<div class="block">
+<h2 id="AccessControl::checkSetFields">@fn AccessControl::checkSetFields(allowedFields)</h2>
+<p>&quot;set&quot;/&quot;setIf&quot;接口中，限定可设置的字段。<br />
+不可设置的字段用readonlyFields/readonlyFields2来设置。</p>
+<p>e.g.<br />
+void onValidate()<br />
+{<br />
+if (this.ac.equals(&quot;set&quot;))<br />
+checkSetFields(asList(&quot;status&quot;, &quot;cmt&quot;));<br />
+}</p></div>
+<div class="block">
+<h2 id="AccessControl::api_setIf">@fn AccessControl::api_setIf()</h2>
+<p>批量更新。</p>
+<p>setIf接口会检测readonlyFields及readonlyFields2中定义的字段不可更新。<br />
+也可以直接用checkSetFields指定哪些字段允许更新。<br />
+返回更新记录数。<br />
+示例：</p>
+<pre><code>class AC2_Ordr extends AccessControl {
+    @Override
+    public Object api_setIf() throws Exception {
+        checkAuth(App.PERM_MGR);
+        this.checkSetFields(asList("dscr", "amount"));
+        Object empId = getSession("empId");
+        addCond("t0.empId=" + empId);
+        // addJoin("...");
+        return super.api_setIf();
+    }
+}</code></pre></div>
+<div class="block">
+<h2 id="AccessControl::api_delIf">@fn AccessControl::api_delIf()</h2>
+<p>批量删除。返回删除记录数。<br />
+示例：</p>
+<pre><code>class AC2_Ordr extends AccessControl {
+    @Override
+    public Object api_delIf() throws Exception {
+        checkAuth(App.PERM_MGR);
+        return super.api_delIf();
+    }
+}</code></pre></div>
+<div class="block">
+<h2 id="AccessControl.getCondParam">@fn AccessControl.getCondParam(paramName)</h2>
+<p>由于cond参数的特殊性，不宜用param(&quot;cond&quot;)来取，可以使用：</p>
+<pre><code>String cond = getCondParam("cond");</code></pre>
+<p>支持GET/POST中各有一个cond/gcond条件。而且支持其中含有&quot;&gt;&quot;,&quot;&lt;&quot;等特殊字符。<br />
+没有cond则返回null</p></div>
+<div class="block">
+<h2 id="AccessControl.queryRet">@fn AccessControl.queryRet(objArr, nextkey?, totalCnt?, fixedColCnt?=0)</h2>
+<p>处理objArr，按照fmt参数指定的格式返回，与query接口返回相同。例如，默认的<code>h-d</code>表格式, <code>list</code>格式，<code>excel</code>等。</p></div>
+<div class="block">
+<h2 id="AccessControl.qsearch">@fn AccessControl.qsearch(fields, q)</h2>
+<p>模糊查询</p>
+<p>示例接口：</p>
+<pre><code>Obj.query(q) -&gt; 同query接口返回</code></pre>
+<p>查询匹配参数q的内容（比如查询name, label等字段）。<br />
+参数q是一个字符串，或多个以空格分隔的字符串。例如&quot;aa bb&quot;表示字段包含&quot;aa&quot;且包含&quot;bb&quot;。<br />
+每个字符串中可以用通配符&quot;<em>&quot;，如&quot;a</em>&quot;表示以a开头，&quot;<em>a&quot;表示以a结尾，而&quot;</em>a*&quot;和&quot;a&quot;是效果相同的。</p>
+<p>实现：</p>
+<pre><code>protected function onQuery() {
+    this.qsearch(asList("name", "label", "content"), param("q"));
+}</code></pre></div>
+<div class="block">
+<h2 id="AccessControl::addCond">@fn AccessControl::addCond(cond, prepend=false)</h2>
+<p class="param"><strong>@param prepend</strong>  为true时将条件排到前面。</p>
+<p>调用多次addCond时，多个条件会依次用&quot;AND&quot;连接起来。</p>
+<p>添加查询条件。<br />
+示例：假如设计有接口：</p>
+<pre><code>Ordr.query(q?) . tbl(..., payTm?)
+参数：
+q:: 查询条件，值为"paid"时，查询10天内已付款的订单。且结果会多返回payTm/付款时间字段。</code></pre>
+<p>实现时，在onQuery中检查参数&quot;q&quot;并定制查询条件：</p>
+<pre><code>protected void onQuery()
+{
+    // 限制只能看用户自己的订单
+    uid = _SESSION["uid"];
+    this.addCond("t0.userId=uid");
+
+    q = param("q");
+    if (isset(q) &amp;&amp; q.equals("paid")) {
+        validDate = date("Y-m-d", strtotime("-9 day"));
+        this.addRes("olpay.tm payTm");
+        this.addJoin("INNER JOIN OrderLog olpay ON olpay.orderId=t0.id");
+        this.addCond("olpay.action='PA' AND olpay.tm&gt;'validDate'");
+    }
+}</code></pre>
+<p class="see"><strong>@see <a href="#AccessControl::addRes">AccessControl::addRes</a></strong> </p>
+<p class="see"><strong>@see <a href="#AccessControl::addJoin">AccessControl::addJoin</a></strong> </p></div>
+<div class="block">
+<h2 id="AccessControl::addJoin">@fn AccessControl::addJoin(joinCond)</h2>
+<p>添加Join条件.</p>
+<p class="see"><strong>@see <a href="#AccessControl::addCond">AccessControl::addCond</a></strong>  其中有示例</p></div>
+<div class="block">
+<h2 id="AccessControl::addVCol">@fn AccessControl::addVCol(col, ignoreError=false, alias=null)</h2>
+<p>根据列名找到vcolMap中的一项，添加到最终查询语句中.<br />
+vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vcolDef中可以包含多列。</p>
+<p class="param"><strong>@param col</strong>  必须是一个英文词, 不允许"col as col1"形式; 该列必须在 vcolDefs 中已定义.</p>
+<p class="param"><strong>@param alias</strong>  列的别名。可以中文. 特殊字符"-"表示不加到最终res中(只添加join/cond等定义), 由addVColDef内部调用时使用.</p>
+<p class="return"><strong>@return Boolean</strong>  T/F</p>
+<p>用于AccessControl子类添加已在vcolDefs中定义的vcol. 一般应先考虑调用addRes(col)函数.</p>
+<p class="see"><strong>@see <a href="#AccessControl::addRes">AccessControl::addRes</a></strong> </p></div>
+<div class="block">
+<h2 id="AccessControl::isFileExport">@fn AccessControl::isFileExport()</h2>
+<p>返回是否为导出文件请求。</p></div>
+<div class="block">
+<h2 id="AccessControl::api_batchAdd">@fn AccessControl::api_batchAdd()</h2>
+<p>批量添加（导入）。返回导入记录数cnt及编号列表idList</p>
+<pre><code>Obj.batchAdd(title?)(...) -&gt; {cnt, @idList}</code></pre>
+<p>在一个事务中执行，一行出错后立即失败返回，该行前面已导入的内容也会被取消（回滚）。</p>
+<ul>
+<li>title: List(fieldName). 指定标题行(即字段列表). 如果有该参数, 则忽略POST内容或文件中的标题行.<br />
+如&quot;title=name,-,addr&quot;表示导入第一列name和第三列addr, 其中&quot;-&quot;表示忽略该列，不导入。<br />
+字段列表以逗号或空白分隔, 如&quot;title=name - addr&quot;与&quot;title=name, -, addr&quot;都可以.</li>
+</ul>
+<p>支持三种方式上传：</p>
+<ol>
+<li>
+<p>直接在HTTP POST中传输内容，数据格式为：首行为标题行(即字段名列表)，之后为实际数据行。<br />
+行使用&quot;\n&quot;分隔, 列使用&quot;\t&quot;分隔.<br />
+接口为：</p>
+<p>{Obj}.batchAdd(title?)(标题行，数据行)<br />
+(Content-Type=text/plain)</p>
+</li>
+</ol>
+<p>前端JS调用示例：</p>
+<pre><code>var data = "name\taddr\n" + "门店1\t地址1\n门店2\t地址2\n";
+callSvr("Store.batchAdd", function (ret) {
+    app_alert("成功导入" + ret.cnt + "条数据！");
+}, data, {contentType:"text/plain"});</code></pre>
+<p>或指定title参数:</p>
+<pre><code>var data = "门店名\t地址\n" + "门店1\t地址1\n门店2\t地址2\n";
+callSvr("Store.batchAdd", {title: "name,addr"}, function (ret) {
+    app_alert("成功导入" + ret.cnt + "条数据！");
+}, data, {contentType:"text/plain"});</code></pre>
+<p>示例: 在chrome console中导入数据</p>
+<pre><code>callSvr("Vendor.batchAdd", {title: "-,name, tel, idCard, addr, email, legalAddr, weixin, qq, area, picId"}, $.noop, `编号 姓名  手机号码    身份证号    通讯地址    邮箱  户籍地址    微信号 QQ号 负责安装的区域 身份证图
+112 郭志强 15384813214 150221199211215000  内蒙古呼和浩特赛罕区丰州路法院小区二号楼    815060695@qq.com    内蒙古包头市  15384813214 815060695   内蒙古 532
+111 高长平 18375998418 500226198312065000  重庆市南岸区丁香路同景国际W组 1119780700@qq.com   荣昌  18375998418 1119780700  重庆  534
+`, {contentType:"text/plain"});</code></pre>
+<ol>
+<li>标准csv/txt文件上传：</li>
+</ol>
+<p>上传的文件首行当作标题列，如果这一行不是后台要求的标题名称，可通过URL参数title重新定义。<br />
+一般使用excel csv文件（编码一般为gbk），或txt文件（以&quot;\t&quot;分隔列）。<br />
+接口为：</p>
+<pre><code>{Obj}.batchAdd(title?)(csv/txt文件)
+(Content-Type=multipart/form-data, 即html form默认传文件的格式)</code></pre>
+<p>后端处理时, 将自动判断文本编码(utf-8或gbk).</p>
+<p>前端HTML:</p>
+<pre><code>&lt;input type="file" name="f" accept=".csv,.txt"&gt;</code></pre>
+<p>前端JS示例：</p>
+<pre><code>var fd = new FormData();
+fd.append("file", frm.f.files[0]);
+callSvr("Store.batchAdd", {title: "name,addr"}, function (ret) {
+    app_alert("成功导入" + ret.cnt + "条数据！");
+}, fd);</code></pre>
+<p>或者使用curl等工具导入：<br />
+从excel中将数据全选复制到1.txt中(包含标题行，也可另存为csv格式文件)，然后导入。<br />
+下面示例用curl工具调用VendorA.batchAdd导入：</p>
+<pre><code>#/bin/sh
+baseUrl=http://localhost/p/anzhuang/api.php
+param=title=name,phone,idCard,addr,email,legalAddr,weixin,qq,area
+curl -v -F "file=@1.txt" "$baseUrl/VendorA.batchAdd?$param"</code></pre>
+<p>如果要调试(php/xdebug)，可加URL参数<code>XDEBUG_SESSION_START=1</code>或Cookie中加<code>XDEBUG_SESSION=1</code></p>
+<ol>
+<li>
+<p>传入对象数组<br />
+格式为 {list: [...]}</p>
+<p>var data = {<br />
+list: [<br />
+{name: &quot;郭志强&quot;, tel: &quot;15384813214&quot;},<br />
+{name: &quot;高长平&quot;, tel: &quot;18375998418&quot;}<br />
+]<br />
+};<br />
+callSvr(&quot;Store.batchAdd&quot;, function (ret) {<br />
+app_alert(&quot;成功导入&quot; + ret.cnt + &quot;条数据！&quot;);<br />
+}, data, {contentType:&quot;application/json&quot;});</p>
+</li>
+</ol></div>
+<div class="block">
+<h2 id="BatchAddLogic">@class BatchAddLogic</h2>
+<p>用于定制批量导入行为。<br />
+示例，实现接口：</p>
+<pre><code>Task.batchAdd(orderId, task1)(city, brand, vendorName, storeName)</code></pre>
+<p>其中vendorName和storeName字段需要通过查阅修正为vendorId和storeId字段。</p>
+<pre><code>class TaskBatchAddLogic extends BatchAddLogic
+{
+    protected $vendorCache = [];
+    function __construct () {
+        // 每个对象添加时都会用的字段，加在$this-&gt;params数组中
+        $this-&gt;params["orderId"] = mparam("orderId", "G"); // mparam要求必须指定该字段
+        $this-&gt;params["task1"] = param("task1", null, "G");
+    }
+    // $params为待添加数据，可在此修改，如用`$params["k1"]=val1`添加或更新字段，用unset($params["k1"])删除字段。
+    // $row为原始行数据数组。
+    function beforeAdd(&amp;$params, $row) {
+        // vendorName -&gt; vendorId
+        // 如果会大量重复查询vendorName,可以将结果加入cache来优化性能
+        if (! $this-&gt;vendorCache)
+            $this-&gt;vendorCache = new SimpleCache(); // name=&gt;vendorId
+        $vendorId = $this-&gt;vendorCache-&gt;get($params["vendorName"], function () use ($params) {
+            $id = queryOne("SELECT id FROM Vendor", false, ["name" =&gt; $params["vendorName"]] );
+            if (!$id) {
+                // throw new MyException(E_PARAM, "请添加供应商", "供应商未注册: " . $params["vendorName"]);
+                // 自动添加
+                $id = callSvcInt("Vendor.add", null, [
+                    "name" =&gt; $params["vendorName"],
+                    "tel" =&gt; $params["vendorPhone"]
+                ]);
+            }
+            return $id;
+        });
+        $params["vendorId"] = $vendorId;
+        unset($params["vendorName"]);
+        unset($params["vendorPhone"]);
+
+        // storeName -&gt; storeId 类似处理 ...
+    }
+    // 处理原始标题行数据, $row1是通过title参数传入的标题数组，可能为空
+    function onGetTitleRow($row, $row1) {
+    }
+}
+
+class AC2_Task extends AC0_Task
+{
+    function api_batchAdd() {
+        $this-&gt;batchAddLogic = new TaskBatchAddLogic();
+        return parent::api_batchAdd();
+    }
+}</code></pre>
+<p class="see"><strong>@see <a href="#api_batchAdd">api_batchAdd</a></strong> </p></div>
+<div style="text-align:center">Generated by jdcloud-gendoc</div>
+</body>
+
+</html>

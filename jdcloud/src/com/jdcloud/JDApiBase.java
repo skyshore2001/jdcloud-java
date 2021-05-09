@@ -298,6 +298,196 @@ MySQL5以上默认关闭8小时内无通讯的连接, 因而长时间放置后�
 			}
 		} while (rv == null);
 	}
+
+/**<pre>
+%fn getQueryCond(cond)
+
+根据cond生成查询条件字符串。其中cond可以是
+
+- null，忽略
+
+- 条件字符串，参考SQL语句WHERE条件语法（不支持函数、子查询等），示例：
+
+		"100"或100 生成 "id=100"
+		"id=1"
+		"id>=1 and id<100"
+		"status='CR'"  注意字符串要加引号
+		"status IN ('CR','PA')"
+		"tm>='2020-1-1' AND tm<'2020-2-1'"
+		"name like 'wang%' OR dscr like 'want%'"
+		"name IS NULL OR dscr IS NOT NULL"
+
+- 键值对，键为字段名，值为查询条件，使用更加直观（如字符串不用加引号），如：
+
+		asMap("id",1, "status","CR", "name","null", "dscr",null, "f1","", "f2","empty")
+		生成 "id=1 AND status='CR'" AND name IS NULL AND f2=''
+		注意，当值为null或空串时会忽略掉该条件，用"null"表示"IS NULL"条件，用"empty"表示空串。
+
+		可以使用符号： > < >= <= !(not) ~(like匹配)
+		asMap("id","<100", "tm",">2020-1-1", "status","!CR", "name","~wang%", "dscr","~aaa", "dscr2","!~aaa")
+		生成 "id<100 AND tm>'2020-1-1" AND status<>'CR' AND name LIKE 'wang%' AND dscr LIKE '%aaa%' AND dscr2 NOT LIKE '%aaa%'"
+		like用于字符串匹配，字符串中用"%"或"*"表示通配符，如果不存在通配符，则表示包含该串(即生成'%xxx%')
+
+		asMap("b","!null", "d","!empty")
+		生成 "b IS NOT NULL AND d<>''"
+
+	可用AND或OR连接多个条件，但不可加括号嵌套：
+
+		asMap("tm",">=2020-1-1 AND <2020-2-1", "tm2","<2020-1-1 OR >=2020-2-1")
+		生成 "(tm>='2020-1-1' AND tm<'2020-2-1') AND (tm2<'2020-1-1' OR tm2>='2020-2-1')"
+
+		asMap("id",">=1 AND <100", "status","CR OR PA", "status2","!CR AND !PA OR null")
+		生成 "(id>=1 AND id<100) AND (status='CR' OR status='PA') AND (status2<>'CR" AND status2<>'PA' OR status2 IS NULL)"
+
+		asMap("a","null OR empty", "b","!null AND !empty", "_or",1);
+		生成 "(a IS NULL OR a='') OR (b IS NOT NULL AND b<>'')", 默认为AND条件, `_or`选项用于指定OR条件
+
+
+- 数组，每个元素是上述条件字符串或键值对，如：
+
+		asList("id>=1", "id<100", "name LIKE 'wang%'")
+		或
+		asList("id>=1 AND id<100", asMap("name","~wang%"))
+		或
+		asMap("id",">=1 AND <100", "name", "~wang%") 注意不可用 asMap("id",">=1", "id","<100") 因为key重复了，只有后面的生效
+		生成"id>=1 AND id<100 AND name LIKE 'wang%'"
+
+		asList("id=1", "id=2", "_or")
+		_or"表示用或条件，生成"id=1 OR id=2"
+
+支持前端传入的get/post参数中同时有cond参数，且cond参数允许为数组，比如传
+
+	URL中：cond[]=a=1&cond[]=b=2
+	POST中：cond=c=3
+
+后端处理
+
+	getQueryCond([$_GET["cond"], $_POST["cond"]]);
+
+最终得到cond参数为"a=1 AND b=2 AND c=3"。
+
+前端callSvr示例: url参数或post参数均可支持数组或键值对：
+
+	callSvr("Hub.query", {res:"id", cond: {id: ">=1 AND <100"}})
+	callSvr("Hub.query", {res:"id", cond: ["id>=1", "id<100"]}, $.noop, {cond: {name:"~wang%", dscr:"~111"}})
+
+*/
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public static String getQueryCond(Object cond)
+	{
+		if (cond == null || Objects.equals(cond, "") || Objects.equals(cond, "ALL"))
+			return null;
+		if (isNumeric(cond))
+			return "id=" + cond.toString();
+		if (cond instanceof String)
+			return (String)cond;
+		
+		
+		List<String> condArr = asList();
+		boolean isOR = false;
+		if (cond instanceof List) {
+			for (Object v: (List)cond) {
+				if (Objects.equals(v, "_or")) {
+					isOR = true;
+					continue;
+				}
+				String exp = getQueryCond(v);
+				if (exp == null)
+					continue;
+				condArr.add(exp);
+			}
+		}
+		else if (cond instanceof Map){
+			if (((Map<String, Object>)cond).containsKey("_or")) {
+				isOR = true;
+			}
+			try {
+				forEach((Map<String, Object>)cond, (k,v) -> {
+					if (k.charAt(0) == '_' || v == null || Objects.equals(v, ""))
+						return;
+
+					// key => value, e.g. { id: ">100 AND <20", name: "~wang*", status: "CR OR PA", status2: "!CR AND !PA OR null"}
+					String exp = regexReplace(v.toString(), "(?i)(.+?)(\\s+(AND|OR)\\s+|$)", ms -> {
+						return getQueryExp(k, ms.group(1)) + ms.group(2);
+					});
+					if (exp == null)
+						return;
+					condArr.add(exp);
+				});
+			}
+			catch (Exception ex) {
+				ex.printStackTrace();
+				return "ERROR";
+			}
+		}
+		if (condArr.size() == 0)
+			return null;
+		// 超过1个条件时，对复合条件自动加括号
+		if (condArr.size() > 1) {
+			int i = 0;
+			for (String exp: (List<String>)condArr) {
+				if (regexMatches(exp, "(?i) (and|or) ")) {
+					condArr.set(i, "(" + exp + ")");
+				}
+				++ i;
+			}
+		}
+		return join(isOR?" OR ":" AND ", condArr);
+	}
+
+	// similar to h5 getexp but not same
+	public static String getQueryExp(String k, String v)
+	{
+		// <=10: 排除11位手机号等大数字
+		if (v.length() <= 10 && isNumeric(v))
+			return k + "=" + v;
+		if (Objects.equals(v, "null"))
+			return k + " IS NULL";
+		if (Objects.equals(v, "!null"))
+			return k + " IS NOT NULL";
+
+		String[] op = new String[] {"="};
+		v = regexReplace(v, "^[><=!~]+", ms -> {
+			String m0 = ms.group(0);
+			if (m0.equals("!") || m0.equals("!="))
+				op[0] = "<>";
+			else if (m0.equals("~"))
+				op[0] = " LIKE ";
+			else if (m0.equals("!~"))
+				op[0] = " NOT LIKE ";
+			else
+				op[0] = m0;
+			return "";
+		});
+		if (v.equals("empty"))
+			v = "";
+		if (regexMatches(op[0], "(?i) LIKE ")) {
+			v = v.replace("*", "%");
+			if (! v.contains("%"))
+				v = "%" + v + "%";
+		}
+		return k + op[0] + (v.length() <= 10 && isNumeric(v)? v: Q(v));
+	}
+
+/**<pre>
+%fn genQuery(sql, cond)
+
+连接SELECT主语句(不带WHERE条件)和查询条件。
+示例：
+
+	genQuery("SELECT id FROM Vendor", asMap("name",name, "phone",phone));
+	genQuery("SELECT id FROM Vendor", asMap("name",name, "phone","!null"));
+	genQuery("SELECT id FROM Vendor", asMap("name",name, "phone",phone, "_or",true)); // "name='eric' OR phone='13700000001'"
+
+%see getQueryCond
+*/
+	public static String genQuery(String sql, Object cond) throws Exception
+	{
+		String condStr = getQueryCond(cond);
+		if (condStr == null)
+			return sql;
+		return sql + " WHERE " + condStr;
+	}
 	
 	public int execOne(String sql) throws Exception {
 		return execOne(sql, false);
@@ -722,11 +912,22 @@ TODO: 直接支持 param("items/(id,qty?/n,dscr?)"), 添加param_objarr函数，
 		[ "id"=>100, "qty"=>1.0, dscr=>null],
 		[ "id"=>101, "qty"=>null, dscr=>"打蜡"]
 	]
+
+(v6) 对cond参数或cond类型是特别处理的，会自动从GET/POST中取值，并且支持字符串、数组、键值对多种形式，参考getQueryCond：
+
+	cond = mparam("cond");
+	gcond = param("gcond/cond");
+
 */
 	public Object param(String name, Object defVal, Object coll, boolean doHtmlEscape) {
 		String[] a = parseType(name);
 		String type = a[0];
 		name = a[1];
+
+		// cond特别处理
+		if (Objects.equals(name, "cond") || Objects.equals(type, "cond"))
+			return getQueryCond(asList(_GET(name), _POST(name)));
+
 		@SuppressWarnings("unchecked")
 		Object ret = (coll == null || coll instanceof String)? 
 				env.getParam(name, (String)coll)
@@ -1381,6 +1582,7 @@ cred为"{user}:{pwd}"格式，支持使用base64编码。
 /**<pre>
 %fn exit()
 
+(obsolete) 应统一使用jdRet.
 立即返回，不再处理，不自动输出任何内容。
 如果想输出返回数据，请自行用echo输出后再调用exit，或直接用DirectReturn(val)返回`[0,val]`标准格式.
 
@@ -1723,5 +1925,49 @@ e.g.
 			ret.add(v);
 		});
 		return ret;
+	}
+	
+/**<pre>
+%fn jdRet(code?, internalMsg?, msg?)
+
+直接返回（可用echo自行输出返回内容，否则系统不自动输出）：
+
+	echo("{\"code\": 0, \"msg\": \"hello\"}");
+	jdRet();
+	// 返回`{"code": 0, "msg": "hello"}`，注意不是标准筋斗云返回格式
+
+成功返回：
+
+	jdRet(E_OK);
+	jdRet(E_OK, asMap("id", 100));
+	// 返回 [0, {"id": 100}]
+
+出错返回：
+
+	jdRet(E_PARAM);
+	jdRet(E_PARAM, "bad param");
+	jdRet(E_PARAM, "bad param", "参数错");
+	// 返回 [1, "参数错", "bad param"]
+
+若要自定义返回内容，用echo无法将输出结果记录到debug或ApiLog日志。可以使用更规范的 X_RET_FN 机制。
+%see X_RET_FN
+*/
+	public static void jdRet(int code, Object internalMsg, String msg)
+	{
+		if (code != 0)
+			throw new MyException(code, internalMsg, msg);
+		throw new DirectReturn(internalMsg);
+	}
+	public static void jdRet(int code, Object internalMsg)
+	{
+		jdRet(code, internalMsg, null);
+	}
+	public static void jdRet(int code)
+	{
+		jdRet(code, null, null);
+	}
+	public static void jdRet()
+	{
+		throw new DirectReturn(0, null, false);
 	}
 }

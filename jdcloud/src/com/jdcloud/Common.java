@@ -96,8 +96,12 @@ public class Common
 	int idx = indexOf_ignoreCase(arr, "Bbb"); // idx =1
 	boolean rv = contains_ignoreCase(arr, "Bbb"); // true
 	
+也可用于字符串中包含子串：(String对象自带indexOf/contains但不支持忽略大小写)
+
+	boolean rv = contains_ignoreCase("Hello, world", "hello"); // true
+
 */
-	public static <T> int indexOf_ignoreCase(String[] arr, String e) {
+	public static int indexOf_ignoreCase(String[] arr, String e) {
 		int idx = -1;
 		for (int i=0; i<arr.length; ++i	) {
 			if (arr[i].equalsIgnoreCase(e)) {
@@ -107,8 +111,12 @@ public class Common
 		}
 		return idx;
 	}
-	public static <T> boolean contains_ignoreCase(String[] arr, String e) {
+	public static boolean contains_ignoreCase(String[] arr, String e) {
 		return indexOf_ignoreCase(arr, e) >= 0;
+	}
+
+	public static boolean contains_ignoreCase(String str, String e) {
+		return regexMatches(str, "(?i)" + e);
 	}
 
 /**
@@ -182,6 +190,13 @@ public class Common
 		names.put(queryOne("SELECT name FROM User WHERE id=" + id);
 		return true;
 	});
+
+	// 支持用arr.set(i,val)设置数组值
+	List arr = asList("hello", 123, 300.0, null, 30);
+	forEach(arr, (e,i) -> {
+		if (i == 1)
+			arr.set(i, 99);
+	});
 */
 	public static <T> void forEach(List<T> ls, Action1<T> fn) throws Exception {
 		for (T e: ls) {
@@ -193,6 +208,12 @@ public class Common
 			boolean rv = fn.call(e);
 			if (rv == false)
 				break;
+		}
+	}
+	public static <T> void forEach(List<T> ls, Action2<T, Integer> fn) throws Exception {
+		int i = 0;
+		for (T e: ls) {
+			fn.call(e, i ++);
 		}
 	}
 
@@ -287,10 +308,11 @@ public class Common
 转换int工具, 如果转换失败返回0. 若想返回null可用IntValue
 
 	int i = intVaulue(99); // 99
-	int i = intVaulue(99.0); // 99
-	int i = intVaulue("99"); // 99
-	int i = intVaulue(null); // 0
-	int i = intVaulue("N99"); // 0
+	i = intVaulue(99.0); // 99
+	i = intVaulue("99"); // 99
+	i = intVaulue(null); // 0
+	i = IntVaulue(""); // 0
+	i = intVaulue("N99"); // 0
 
 	Map obj = cast(jsonDecode(str));
 	int id = intValue(obj.get("id"));
@@ -299,6 +321,9 @@ public class Common
  */
 	public static int intValue(Object obj)
 	{
+		if (obj instanceof Number) {
+			return ((Number) obj).intValue();
+		}
 		Integer val = IntValue(obj);
 		return val == null? 0: val;
 	}
@@ -308,29 +333,27 @@ public class Common
 
 转换int工具, 如果转换失败返回null.
 
-	Int i = IntVaulue(99); // 99
-	Int i = IntVaulue(99.0); // 99
-	Int i = IntVaulue("99"); // 99
-	Int i = IntVaulue(null); // 0
-	Int i = IntVaulue("N99"); // 0
+	Integer i = IntVaulue(99); // 99
+	i = IntVaulue(99.0); // 99
+	i = IntVaulue("99"); // 99
+	i = IntVaulue(null); // null
+	i = IntVaulue(""); // 0
+	i = IntVaulue("N99"); // null
 
-	Map obj = cast(jsonDecode(str));
-	Int id = IntValue(obj.get("id"));
+	Object obj = jsonDecode(str);
+	Integer id = IntValue(getJsValue(obj, "id"));
 
-@see IntValue
+@see intValue
  */
 	public static Integer IntValue(Object obj)
 	{
 		if (obj == null)
 			return null;
-		if (obj instanceof BigDecimal) {
-			return ((BigDecimal)obj).intValue();
+		if (obj instanceof Number) {
+			return ((Number) obj).intValue();
 		}
-		if (obj instanceof Integer) {
-			return (Integer)obj;
-		}
-		if (obj instanceof Double) {
-			return ((Double) obj).intValue();
+		if (obj instanceof String && ((String) obj).length() == 0) {
+			return 0;
 		}
 		try {
 			return Integer.parseInt(obj.toString());
@@ -346,13 +369,14 @@ public class Common
 转换数值Double工具, 如果转换失败返回null
 
 	Double d = DoubleVaulue(99); // 99.0
-	Double d = DoubleVaulue(99.0); // 99.0
-	Double d = DoubleVaulue("99"); // 99.0
-	Double d = DoubleVaulue(null); // 0.0
-	Double d = DoubleVaulue("N99"); // 0.0
+	d = DoubleVaulue(99.0); // 99.0
+	d = DoubleVaulue("99"); // 99.0
+	d = DoubleVaulue(""); // 0.0
+	d = DoubleVaulue(null); // null
+	d = DoubleVaulue("N99"); // null
 	
-	Map obj = cast(jsonDecode(str));
-	Double qty = DoubleValue(obj.get("qty"));
+	Object obj = jsonDecode(str);
+	Double qty = DoubleValue(getJsValue(obj, "qty"));
 	if (qty == null) ...
 
 @see doubleValue
@@ -361,14 +385,11 @@ public class Common
 	{
 		if (obj == null)
 			return null;
-		if (obj instanceof BigDecimal) {
-			return ((BigDecimal)obj).doubleValue();
+		if (obj instanceof Number) {
+			return ((Number) obj).doubleValue();
 		}
- 		if (obj instanceof Integer) {
-			return (double)(Integer)obj;
-		}
-		if (obj instanceof Double) {
-			return (Double)obj;
+		if (obj instanceof String && ((String) obj).length() == 0) {
+			return 0.0;
 		}
 		try {
 			return Double.parseDouble(obj.toString());
@@ -387,17 +408,95 @@ public class Common
 	double d = doubleVaulue(99.0); // 99.0
 	double d = doubleVaulue("99"); // 99.0
 	double d = doubleVaulue(null); // 0.0
+	double d = doubleVaulue(""); // 0.0
 	double d = doubleVaulue("N99"); // 0.0
 	
-	Map obj = cast(jsonDecode(str));
-	double qty = doubleValue(obj.get("qty"));
+	Object obj = jsonDecode(str);
+	double qty = doubleValue(getJsValue(obj, "qty"));
 
 @see DoubleValue
  */
 	public static double doubleValue(Object obj)
 	{
+		if (obj instanceof Number) {
+			return ((Number) obj).doubleValue();
+		}
 		Double val = DoubleValue(obj);
 		return val == null? 0.0: val;
+	}
+	
+/**<pre>
+@fn StringValue(obj) -> String
+
+	String v = StringVaulue(99); // "99"
+	String v = StringVaulue(null); // null
+*/
+	public static String StringValue(Object obj)
+	{
+		if (obj == null)
+			return null;
+		return obj.toString();
+	}
+
+/**<pre>
+@fn boolValue(obj) -> boolean
+
+对于0, 0.0, null, "", "0", "0.0", "false"返回false，其它返回true
+
+	boolean v = boolValue(0); // false
+
+*/
+	public static boolean boolValue(Object obj)
+	{
+		if (obj instanceof Boolean)
+			return (Boolean)obj;
+		if (obj instanceof String)
+			return Objects.equals(obj, "") || Objects.equals(obj, "false")? false: true;
+		Integer i = IntValue(obj);
+		if (i == null) // 不是数值，返回true
+			return true;
+		return i == 0? false: true;
+	}
+
+/**<pre>
+%fn jsEquals(a, b) -> Boolean
+
+支持不同类型的比较，类似JS逻辑(优先依次进行null比较, bool比较, number比较，object比较)
+
+	Boolean rv = jsEquals(0, 0.0); // true
+	rv = jsEquals(0, "0"); // true
+	rv = jsEquals(0, false); // true
+	rv = jsEquals("0", false); // true
+	rv = jsEquals("", 0); // true
+	rv = jsEquals("0", 0.0); // true
+
+ */
+	public static boolean jsEquals(Object a, Object b)
+	{
+		if (a == null || b == null) {
+			return a == b;
+		}
+		if (a instanceof Boolean || b instanceof Boolean) {
+			return boolValue(a) == boolValue(b);
+		}
+		if (a instanceof Number || b instanceof Number) {
+			if (a instanceof Double || a instanceof Float || b instanceof Double || b instanceof Float) {
+				return Objects.equals(DoubleValue(a), DoubleValue(b));
+			}
+			else {
+				return Objects.equals(IntValue(a), IntValue(b));
+			}
+		}
+		return Objects.equals(a, b);
+	}
+/**
+%fn jsEmpty(a)
+
+判断a是null/0/""/false。
+*/
+	public static boolean jsEmpty(Object a)
+	{
+		return a == null || Objects.equals(a, "") || Objects.equals(a, false) || Objects.equals(a, 0) || Objects.equals(a, 0.0);
 	}
 
 /**<pre>
@@ -1139,5 +1238,145 @@ byte数组转String，可指定多个编码一一尝试。
 			// 不支持负数
 		}
 		return new java.text.DecimalFormat(fmt.toString()).format(val);
+	}
+
+/**
+%fn arrayCmp(arr1, arr2, fnEq, callback)
+
+比较两个数组的差异，常用于数据同步。
+两个数组中的数据应一一对应。
+比较的结果会回调 `callback(e1, e2)`，如果数据在两边都有，则e1, e2均非空，否则其中一个为空。
+
+下面是一个示例，subobjList是传入的新对象列表，curSubList是数据库查出的对象列表，对比差异并更新进去：
+
+	Object subobjList = jsonDecode(rv);
+	Object curSubList = acObj.callSvc(objName, "query", new JsObject("res","id", "cond",cond, "fmt","array"), null);
+	arrayCmp((List)subobjList, (List)curSubList, (new1, old) -> {
+		// 定义两边对应关系: id相同
+		return jsEquals(getJsValue(old,"id"), getJsValue(new1,"id"));
+	}, (new1, old) -> {
+		if (new1 == null)
+			// 在new中没有，在old中有: 删除old
+			acObj.callSvc(objName, "del", new JsObject("id", getJsValue(old,"id")), null);
+		}
+		else if (old == null) {
+			// 在new中有，在old中没有: 添加new
+			acObj.callSvc(objName, "add", null, new1);
+		}
+		else {
+			// 在new和old中都有: 更新
+			acObj.callSvc(objName, "set", new JsObject("id", getJsValue(old,"id")), new1);
+		}
+	});
+*/
+	public <T1,T2> void arrayCmp(List<T1> a1, List<T2> a2, Fn2<T1, T2, Boolean> fnEq, Action2<T1, T2> cb) throws Exception
+	{
+		Set<Integer> mark = new HashSet(); // index_of_a2 => true
+		int i;
+		for (T1 e1: a1) {
+			T2 found = null;
+			i = 0;
+			for (T2 e2: a2) {
+				++ i;
+				if (fnEq.call(e1, e2)) {
+					found = e2;
+					mark.add(i);
+					break;
+				}
+			}
+			cb.call(e1, found);
+		}
+		i = 0;
+		for (T2 e2: a2) {
+			++ i;
+			if (! mark.contains(i))
+				cb.call(null, e2);
+		}
+	}
+	
+/**<pre>
+%fn isNumeric(v)
+
+v是数值类型或纯数值字符串
+*/
+	public static boolean isNumeric(Object v)
+	{
+		if (v instanceof Number)
+			return true;
+		if (v instanceof String)
+			return ((String)v).matches("[+-]?([0-9]|[1-9][0-9]+)(\\.[0-9]+)?");
+		
+		return false;
+	}
+	
+/**<pre>
+%fn extend(obj1, obj2, ...)
+
+合并各obj属性到obj1
+*/
+	public static Map extend(Map... args)
+	{
+		int i = 0;
+		Map ret = null;
+		for (Map e: args) {
+			if (i++ == 0) {
+				ret = e;
+			}
+			else {
+				ret.putAll(e);
+			}
+		}
+		return ret;
+	}
+	
+/**<pre>
+%fn makeTree(List<Map>/JsArray arr, idField="id", fatherIdField="fatherId", childrenField="children") -> List<Map>
+
+将array转成tree.
+
+	JsArray ret = makeTree(asList(
+		asMap("id",1),
+		asMap("id",2, "fatherId",1),
+		asMap("id",3, "fatherId",2),
+		asMap("id",4, "fatherId",1)
+	));
+
+结果：（以JSON表示）
+
+	[
+		{"id":1,"children":[
+			{"id":2,"fatherId":1,"children":[
+				{"id":3,"fatherId":2}
+			]},
+			{"id":4,"fatherId":1}
+		]}
+	]
+*/
+	public static List makeTree(List arr, String idField, String fatherIdField, String childrenField)
+	{
+		List ret = asList();
+		for (Object e: arr) {
+			Object fid = getJsValue(e, fatherIdField);
+			if (jsEmpty(fid)) {
+				ret.add(e);
+				continue;
+			}
+			boolean found = false;
+			for (Object e1: arr) {
+				Object fid1 = getJsValue(e1, idField);
+				if (Objects.equals(fid, fid1)) {
+					setJsValue(e1, childrenField, null, e);
+					found = true;
+					break;
+				}
+			}
+			if (! found)
+				ret.add(e);
+		}
+		return ret;
+	}
+	public static List makeTree(List arr)
+	{
+		return makeTree(arr, "id", "fatherId", "children");
 	}
 }

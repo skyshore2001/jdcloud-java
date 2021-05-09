@@ -1,4 +1,4 @@
-package com.demo;
+package com.jdcloud.app;
 
 import java.awt.image.BufferedImage;
 import java.io.*;

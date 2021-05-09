@@ -1,0 +1,70 @@
+.jd-layout {
+	margin: 1em;
+	padding: 0;
+}
+
+.jd-menu h2 {
+	color: #aaa;
+}
+.jd-menu a {
+	color: #aaa;
+	text-decoration: none;
+}
+.jd-menu ul {
+	margin:10px 0;
+}
+.jd-menu .toc {
+	margin: 0.5em;
+	min-width: 200px;
+}
+
+.jd-menu {
+	background-color: #111;
+	color: #aaa;
+	padding: 1em;
+}
+
+@media (min-width: 600px) {
+	.jd-layout {
+		position: absolute;
+		left: 300px;
+		top: 0;
+		right: 0;
+		padding-left: 3em;
+	}
+	.jd-menu {
+		width: 300px;
+		position: fixed;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		overflow: auto;
+	}
+}
+
+/* for IE8 */
+@media \0screen {
+	.jd-layout {
+		position: absolute;
+		left: 300px;
+		top: 0;
+		right: 0;
+		padding-left: 3em;
+	}
+	.jd-menu {
+		width: 300px;
+		position: fixed;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		overflow: auto;
+	}
+}
+
+@media (max-width: 600px) {
+	.jd-menu {
+		margin-left: -1em;
+		margin-right: -1em;
+	}
+}
+

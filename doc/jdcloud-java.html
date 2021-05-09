@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>jdcloud-java - 筋斗云接口开发框架(java版)</title>
+  <style type="text/css">code{white-space: pre;}</style>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="doc.css" />
+<script src="doc.js"></script>
+
+</head>
+<body>
+<h1 id="jdcloud-java---筋斗云接口开发框架java版">jdcloud-java - 筋斗云接口开发框架(java版)</h1>
+<p>筋斗云是一个低代码架构的Web接口开发框架，它基于模型驱动开发（MDD）的理念，提出极简化开发的“数据模型即接口”思想，用于快速实现基于数据模型的接口（MBI: Model Based Interface）。 它推崇以简约的方式在设计文档中描述数据模型，进而基于模型自动形成数据库表以及业务接口，称为“一站式数据模型部署”。</p>
+<p>筋斗云提供对象型接口和函数型接口两类接口开发模式，前者专为对象的增删改查提供易用强大的编程框架，后者则更为自由。</p>
+<p>筋斗云原本使用php语言开发，本项目为筋斗云的java实现版本，支持在java平台进行函数型、对象型接口开发。</p>
+<p>注意筋斗云要求最低java 8版本。</p>
+<p>筋斗云后端框架项目参考：</p>
+<ul>
+<li><a href="https://github.com/skyshore2001/jdcloud-php">jdclud-php</a> (筋斗云后端php版本)</li>
+<li><a href="https://github.com/skyshore2001/jdcloud-java">jdclud-java</a> (筋斗云后端java版本)</li>
+<li><a href="https://github.com/skyshore2001/jdcloud-cs">jdclud-cs</a> (筋斗云后端.net版本)</li>
+</ul>
+<p>另外，筋斗云有实用的前端框架，支持构建模块化的H5单页应用：</p>
+<ul>
+<li><a href="https://github.com/skyshore2001/jdcloud-mui">jdcloud-mui</a> 筋斗云移动端单页应用框架，用于创建手机H5应用程序。</li>
+<li><a href="https://github.com/skyshore2001/jdcloud-wui">jdcloud-wui</a> 筋斗云管理端单页应用框架，用于创建运营管理端H5应用程序。</li>
+</ul>
+<p><strong>[对象型接口 - 数据模型即接口]</strong></p>
+<p>假设数据库中已经建好一张记录操作日志的表叫&quot;ApiLog&quot;，包含字段id（主键，整数类型）, tm（日期时间类型）, addr（客户端地址，字符串类型）。</p>
+<p>使用筋斗云后端框架，只要创建一个空的类，就可将这个表（或称为对象）通过HTTP接口暴露给前端，提供增删改查各项功能：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">package com.jdcloud.app;</span>
+<span class="kw">import com.jdcloud.*;</span>
+
+<span class="kw">public</span> <span class="kw">class</span> AC_ApiLog <span class="kw">extends</span> AccessControl
+{
+}</code></pre></div>
+<p>现在就已经可以对匿名访问者提供&quot;ApiLog.add&quot;, &quot;ApiLog.set&quot;, &quot;ApiLog.get&quot;, &quot;ApiLog.query&quot;, &quot;ApiLog.del&quot;这些标准对象操作接口了。</p>
+<p>我们用curl工具来模拟前端调用，假设服务接口地址为<code>http://localhost/mysvc/</code>，我们就可以调用&quot;ApiLog.add&quot;接口来添加数据：</p>
+<pre><code>curl http://localhost/mysvc/api/ApiLog.add -d &quot;tm=2016-9-9 10:10&quot; -d &quot;addr=shanghai&quot;</code></pre>
+<p>注意默认所有接口都在虚拟路径&quot;/api/&quot;之下。它输出一个JSON数组：</p>
+<pre><code>[0,11338]</code></pre>
+<p>0表示调用成功，后面是成功时返回的数据，add操作返回的是新对象的id。</p>
+<p>可以调用&quot;ApiLog.query&quot;来取列表：</p>
+<pre><code>curl http://localhost/mysvc/api/ApiLog.query</code></pre>
+<p>列表支持分页，默认一次返回20条数据。query接口非常灵活，还可以指定返回字段、查询条件、排序方式， 比如查询2016年1月份的数据(cond参数)，结果只需返回id, addr字段(res参数)，按id倒序排列(orderby参数)：</p>
+<pre><code>curl http://localhost/mysvc/api/ApiLog.query -d &quot;res=id,addr&quot; -d &quot;cond=tm&gt;=&#39;2016-1-1&#39; and tm&lt;&#39;2016-2-1&#39;&quot; -d &quot;orderby=id desc&quot;</code></pre>
+<p>甚至可以做统计，比如查看2016年1月里，列出访问次数排名前10的地址，以及每个地址访问了多少次服务器，也可以通过query接口直接查出。</p>
+<p>可见，用筋斗云后端框架开发对象操作接口，可以用非常简单的代码实现强大而灵活的功能。</p>
+<p><strong>[函数型接口 - 简单直接]</strong></p>
+<p>除了对象型接口，还有一类叫函数型接口，比如要实现一个接口叫&quot;getInfo&quot;用于返回一些信息，开发起来也非常容易，只要在名为Global的类中定义一个函数：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">package com.jdcloud.app;</span>
+<span class="kw">import com.jdcloud.*;</span>
+
+<span class="kw">public</span> <span class="kw">class</span> Global <span class="kw">extends</span> JDApiBase
+{
+    <span class="kw">public</span> Object <span class="fu">api_getInfo</span>()
+    {
+        <span class="kw">return</span> <span class="kw">new</span> <span class="fu">JsObject</span>(
+            <span class="st">&quot;id&quot;</span>, <span class="dv">1001</span>,
+            <span class="st">&quot;name&quot;</span>, <span class="st">&quot;jdcloud&quot;</span>,
+            <span class="st">&quot;addr&quot;</span>, <span class="st">&quot;Shanghai&quot;</span>
+        );
+    }
+}</code></pre></div>
+<p>于是便可以访问接口&quot;getInfo&quot;:</p>
+<pre><code>curl http://localhost/mysvc/api/getInfo</code></pre>
+<p>返回：</p>
+<pre><code>[0, {&quot;name&quot;: &quot;jdcloud&quot;, &quot;addr&quot;: &quot;Shanghai&quot;}]</code></pre>
+<p><strong>[权限控制]</strong></p>
+<p>权限包括几种，最常用的是根据登录类型不同，分为用户、员工、超级管理员等角色，每种角色可访问的数据表、数据列（即字段）有所不同，这些与登录类型相关的权限一般也称为授权(在定义权限常量时，常用<code>AUTH_</code>开头)。 授权控制不同角色的用户可以访问哪些对象或函数型接口，比如getInfo接口只许用户登录后访问：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> Object <span class="fu">api_getInfo</span>()
+{
+    <span class="fu">checkAuth</span>(AUTH_USER); <span class="co">// 在应用配置中，已将AUTH_USER定义为用户权限，在用户登录后获得</span>
+    ...
+}</code></pre></div>
+<p>如果ApiLog对象接口只允许员工登录后访问，且限制为只读访问（只允许get/query接口），不允许用户或游客访问，只要定义：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="co">// 不要定义AC_ApiLog，改为AC2_ApiLog</span>
+<span class="kw">public</span> <span class="kw">class</span> AC2_ApiLog <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">allowedAc</span> = <span class="fu">asList</span>(<span class="st">&quot;get&quot;</span>, <span class="st">&quot;query&quot;</span>);
+    }
+}</code></pre></div>
+<p>在应用配置中，已将类前缀&quot;AC2&quot;绑定到员工角色(AUTH_EMP)，类似地，&quot;AC&quot;前缀表示游客角色，&quot;AC1&quot;前缀表示用户角色（AUTH_USER）。 asList是框架提供的工具函数，生成一个列表，与Array.asList类似，类似地还有asMap。</p>
+<p>通常权限还控制对同一个表中数据行的可见性，比如即使同是员工登录，普通员工只能看自己的操作日志，经理可以看到所有日志。 这种数据行权限，也称为Data ownership，一般通过在查询时追加限制条件来实现。假设已定义一个权限常量为PERM_MGR，对应经理权限，然后实现权限控制：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> <span class="kw">class</span> AC2_ApiLog <span class="kw">extends</span> AccessControl
+{
+    ...
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onQuery</span>()
+    {
+        <span class="kw">if</span> (! <span class="fu">hasPerm</span>(PERM_MGR)) {
+            Object empId = <span class="fu">_SESSION</span>(<span class="st">&quot;empId&quot;</span>);
+            <span class="kw">this</span>.<span class="fu">addCond</span>(<span class="st">&quot;t0.empId=&quot;</span> + empId);
+        }
+    }
+}</code></pre></div>
+<p>其中会话变量empId为员工编号，在员工登录后就会自动存在这个变量中，在AC2前缀的类中可直接使用。 类似的，用户登录后在uid变量表示用户编号，在AC1前缀类中可以直接使用。</p>
+<p><strong>[一站式数据模型部署]</strong></p>
+<p>筋斗云框架重视设计文档，倡导在设计文档中用简约的方式定义数据模型与接口原型， 例如，上例中的ApiLog表，无需手工创建，只要设计文档中定义：</p>
+<pre><code>@ApiLog: id, tm, addr</code></pre>
+<p>使用部署工具就可以自动创建数据表，由于数据模型即接口，也同时生成了相应的对象操作接口。 工具会根据字段的命名规则来确定字段类型，比如&quot;id&quot;结尾就用整型，&quot;tm&quot;结尾就用日期时间类型等。</p>
+<p>当增加了表或字段，同样运行工具，数据库和后端接口也都会相应被更新。</p>
+<p><strong>更多用法，请阅读教程《筋斗云接口编程》和参考文档。</strong></p>
+
+<div id="TOC" class="toc">
+<ul>
+<li><a href="#jdcloud-java---筋斗云接口开发框架java版">jdcloud-java - 筋斗云接口开发框架(java版)</a><ul>
+<li><a href="#创建筋斗云web接口项目"><span class="toc-section-number">1</span> 创建筋斗云Web接口项目</a></li>
+<li><a href="#函数型接口"><span class="toc-section-number">2</span> 函数型接口</a><ul>
+<li><a href="#权限定义"><span class="toc-section-number">2.1</span> 权限定义</a></li>
+<li><a href="#登录与退出"><span class="toc-section-number">2.2</span> 登录与退出</a></li>
+<li><a href="#获取参数"><span class="toc-section-number">2.3</span> 获取参数</a></li>
+<li><a href="#接口返回"><span class="toc-section-number">2.4</span> 接口返回</a></li>
+<li><a href="#数据库操作"><span class="toc-section-number">2.5</span> 数据库操作</a></li>
+</ul></li>
+<li><a href="#对象型接口"><span class="toc-section-number">3</span> 对象型接口</a><ul>
+<li><a href="#定制操作类型和字段"><span class="toc-section-number">3.1</span> 定制操作类型和字段</a></li>
+<li><a href="#绑定访问控制类与权限"><span class="toc-section-number">3.2</span> 绑定访问控制类与权限</a></li>
+<li><a href="#定制可访问数据"><span class="toc-section-number">3.3</span> 定制可访问数据</a></li>
+<li><a href="#虚拟字段"><span class="toc-section-number">3.4</span> 虚拟字段</a><ul>
+<li><a href="#关联字段"><span class="toc-section-number">3.4.1</span> 关联字段</a></li>
+<li><a href="#关联字段依赖"><span class="toc-section-number">3.4.2</span> 关联字段依赖</a></li>
+<li><a href="#计算字段"><span class="toc-section-number">3.4.3</span> 计算字段</a></li>
+</ul></li>
+<li><a href="#子表对象"><span class="toc-section-number">3.5</span> 子表对象</a></li>
+<li><a href="#枚举字段与字段处理"><span class="toc-section-number">3.6</span> 枚举字段与字段处理</a></li>
+<li><a href="#虚拟表和视图"><span class="toc-section-number">3.7</span> 虚拟表和视图</a></li>
+<li><a href="#非标准对象接口"><span class="toc-section-number">3.8</span> 非标准对象接口</a></li>
+<li><a href="#接口返回前回调"><span class="toc-section-number">3.9</span> 接口返回前回调</a></li>
+</ul></li>
+<li><a href="#框架功能"><span class="toc-section-number">4</span> 框架功能</a><ul>
+<li><a href="#服务配置"><span class="toc-section-number">4.1</span> 服务配置</a></li>
+<li><a href="#会话管理"><span class="toc-section-number">4.2</span> 会话管理</a></li>
+<li><a href="#api调用监控"><span class="toc-section-number">4.3</span> API调用监控</a></li>
+<li><a href="#批量请求"><span class="toc-section-number">4.4</span> 批量请求</a></li>
+<li><a href="#筋斗云插件"><span class="toc-section-number">4.5</span> 筋斗云插件</a></li>
+<li><a href="#其它未实现功能"><span class="toc-section-number">4.6</span> 其它未实现功能</a></li>
+</ul></li>
+</ul></li>
+</ul></div>
+
+<h2 id="创建筋斗云web接口项目"><span class="header-section-number">1</span> 创建筋斗云Web接口项目</h2>
+<p><strong>[任务]</strong></p>
+<p>用筋斗云框架创建一个Web接口项目叫mysvc，创建数据库，提供对ApiLog对象的操作接口。</p>
+<p>开发环境：</p>
+<ul>
+<li>JDK8及以上版本</li>
+<li>Tomcat7及以上版本（框架开发目前用的是Tomcat8.5）</li>
+<li>开发工具默认使用Eclipse，也可以换成InteliJ IDEA.</li>
+</ul>
+<p>先从github上下载开源的筋斗云后端框架及示例应用：<code>https://github.com/skyshore2001/jdcloud-java</code></p>
+<p>建议安装git工具直接下载，便于以后更新，例如直接创建Web接口项目叫mysvc：</p>
+<pre><code>git clone https://github.com/skyshore2001/jdcloud-java.git mysvc</code></pre>
+<p>如果github访问困难，也可以用这个git仓库： <code>http://dacatec.com/git/jdcloud-java.git</code></p>
+<p>下载后，里面有jdcloud, svc两个目录：</p>
+<ul>
+<li>jdcloud目录是应用框架（jar包项目）。可以将jdcloud目录以源码方式直接导入你的工程中，或用编译后的jar包在你的工程中引用。</li>
+<li>svc目录为示例java web项目（war包项目），它依赖jdcloud库，运行在tomcat上。</li>
+<li>svc/WebContent目录对应最终部署目录（Java web artifacts）中的内容。在WebContent/WEB-INF目录下，包含Java web项目配置文件web.xml，以及依赖的jar包都放在lib子目录下。 这与Java web项目部署目录规范相同。</li>
+</ul>
+<p>如果使用Eclipse，直接导入这两个目录下的工程，注意看下svc工程的属性：</p>
+<ul>
+<li>Java Build Path: Projects页中，设置有svc项目依赖jdcloud项目；Libraries页中，如果依赖的JDK版本或Tomcat版本不对，则相应做下调整。</li>
+<li>Deployment Assembly: svc工程部署时应包含jdcloud模块。</li>
+<li>Project Facets: 应有Dynamic web module</li>
+</ul>
+<p>实际项目中我们一般先将svc项目改名（目录名不变，只修改项目名），在eclipse中右键项目选择<code>Refactor-&gt;Rename</code>，换成实际项目名，比如<code>mysvc</code>。 这样在Eclipse中项目部署到Tomcat后的默认访问地址是<code>http://localhost:8080/mysvc/</code>.</p>
+<p>如果使用IDEA，导入目录后默认识别两个模块，注意查看<code>File-&gt;Project Structure</code>菜单，检查&quot;Project Setting&quot;中各项设置是否正确：</p>
+<ul>
+<li>Project栏: SDK版本与Project Language Level一致。</li>
+<li>Modules栏：两个模块均应依赖Tomcat(一般需要手工添加Tomcat依赖)，还有依赖Libraries.</li>
+<li>Libraries栏：svc/WebContent/lib目录下的所有jar包。</li>
+<li>Facets栏：svc模块为Web项目，且正确设置了项目描述文件为svc/WebContent/WEB-INF/web.xml，以及web资源目录根路径为svc/WebContent。</li>
+<li>Artifacts栏：应包含各模块的的编译结果，以及svc项目的web facet资源（即svc/WebContent目录）。</li>
+<li>首次运行时创建一个Run Configuration，在deployment页中将web项目加入并指定url为&quot;/mysvc&quot;。</li>
+</ul>
+<p>框架的git库中含有一个idea分支，可以用IDEA直接打开，其中去除了Eclipse的工程设置，可供参考。</p>
+<p>再看如何配置数据库连接等信息。在目录svc/WebContent/WEB-INF下，有个web.properties.template文件，将它复制为web.properties文件。 先指定你项目中回调入口类，如示例项目配置为：</p>
+<pre><code>JDEnv=com.jdcloud.app.WebApi</code></pre>
+<p>这个下面会再详述。现在配置数据库选项。 数据库默认使用MySQL，在配置中定义如下：</p>
+<pre><code># P_DBTYPE=mysql # 如果未指定，默认是mysql
+P_DB_DRIVER=com.mysql.jdbc.Driver
+P_DB=jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8
+P_DBCRED=demo:demo123</code></pre>
+<p>它也支持连接SQL Server，配置示例：</p>
+<pre><code>P_DBTYPE=mssql
+P_DB_DRIVER=com.microsoft.sqlserver.jdbc.SQLServerDriver
+P_DB=jdbc:sqlserver://localhost:1433;instanceName=MSSQL2008;databaseName=jdcloud;integratedSecurity=false;
+P_DBCRED=sa:demo123</code></pre>
+<p>注意安装好sqlserver for jdbc的驱动包。如果使用的是默认的instance，则不用指定instanceName.</p>
+<p>其它常用参数配置如：</p>
+<pre><code>P_TEST_MODE=1
+P_DEBUG=9</code></pre>
+<p>一般在开发时，会设置测试模式(P_TEST_MODE=1)，可返回更多调试信息; 可用P_DEBUG设置调试信息输出等级，当值为9（最高）时，可以查看SQL调用日志，这在调试SQL语句时很有用。 此外，测试模式还会开放某些内部接口，以及缺省允许跨域访问，便于通过web页面测试接口。 <strong>注意线上生产环境绝不可设置为测试模式。</strong></p>
+<p>参数P_DBTYPE用于提示数据库类型，值为&quot;mssql&quot;或&quot;mysql&quot;。</p>
+<p>配置好后运行Web项目，检查接口是否可正常访问：<code>http://localhost:8080/mysvc/api/hello</code></p>
+<ul>
+<li>正常应返回<code>[0, 数据]</code>这样的数组，第一项0表示返回值，即接口处理成功。之前若设置了测试模式则会显示更多项。</li>
+<li>如果返回404错，检查部署URL路径是否正确设置；</li>
+<li>如果返回空或创建JDEnv错，检查Artifacts的设置，尤其是WEB-INF下是否正确包含了jdcloud库以web.properties等文件，以及web.properties是否正确配置JDEnv参数。</li>
+<li>如果返回数据库连接错，则检查web.properties中数据库连接参数的设置。</li>
+</ul>
+<p>下面讲解代码，我们从svc演示工程开始，在这个工程中，为了方便编码，把所有的类都放在文件com.jdcloud.app/WebApi.java中了（所以那些接口类都没有加public前缀）。</p>
+<p>public类com.jdcloud.app.WebApi就是在web.properties配置文件中指定的入口(JDEnv=com.jdcloud.app.WebApi)，它必须继承com.jdcloud.JDEnvBase类。为了学习接口编程，我们先清空这个文件，只留下这些代码：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">package com.jdcloud.app;</span>
+<span class="kw">import java.lang.reflect.Method;</span>
+<span class="kw">import com.jdcloud.*;</span>
+
+<span class="kw">public</span> <span class="kw">class</span> WebApi <span class="kw">extends</span> JDEnvBase
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> Object <span class="fu">onNewInstance</span>(Class&lt;?&gt; t) <span class="kw">throws</span> Exception
+    {
+        <span class="kw">return</span> t.<span class="fu">newInstance</span>();
+    }
+    
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> Object <span class="fu">onInvoke</span>(Method mi, Object arg) <span class="kw">throws</span> Exception
+    {
+        <span class="kw">return</span> mi.<span class="fu">invoke</span>(arg);
+    }
+}
+
+<span class="kw">class</span> AC_ApiLog <span class="kw">extends</span> AccessControl
+{
+}</code></pre></div>
+<p>在WebApi类中重载了onNewInstance和onInvoke函数，它们不是必需的，它们的作用是允许跨包调用非public类的方法， 以便定义的Global类或AC前缀类即使不标识成public也可以被筋斗云框架创建和调用。 当然你也可以按java的风格将每个实现类放在不同的文件中，但必须和WebApi在同一个包下，在本示例里必须是放在com.jdcloud.app包中。</p>
+<p>类AC_ApiLog用于将ApiLog表的标准接口暴露出来。这一行代码就提供了对ApiLog对象的标准增删改查(CRUD)接口如下：</p>
+<pre><code>查询对象列表，支持分页、查询条件、统计等：
+ApiLog.query() -&gt; table(id, tm, addr)
+
+添加对象，通过POST参数传递字段值，返回新对象的id
+ApiLog.add()(tm, addr) -&gt; id
+
+获取对象
+ApiLog.get(id) -&gt; {id, tm, addr}
+
+更新对象，通过POST参数传递字段值。
+ApiLog.set(id)(tm?, addr?)
+
+删除对象
+ApiLog.del(id)</code></pre>
+<p>上面query接口的地址为&quot;api/ApiLog.query&quot;，其它依次类推。</p>
+<p><strong>[接口原型的描述方式]</strong></p>
+<p>在上面的接口原型描述中，用了两个括号的比如add/set操作，表示第一个括号中的参数通过GET参数（也叫URL参数）传递，第二个括号中的参数用POST参数（也叫FORM参数）传递。 多数接口参数支持用GET方式或POST方式传递，除非在接口说明中特别指定。 带&quot;?&quot;表示参数或返回的属性是可选项，可以不存在。</p>
+<p>接口原型中只描述调用成功时返回数据的数据结构，完整的返回格式是<code>[0, 返回数据]</code>；而在调用失败时，统一返回<code>[非0错误码, 错误信息]</code>。</p>
+<p>在eclipse中启动tomcat，这时默认的服务地址就是<code>http://localhost:8080/mysvc/api/{接口名}</code>. 我们可以直接用curl工具来模拟前端调用，用add接口添加一行数据，使用HTTP POST请求：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.add -d &quot;tm=2016-9-9 10:10&quot; -d &quot;addr=shanghai&quot;</code></pre>
+<p>curl用&quot;-d&quot;参数指定参数通过HTTP body来传递，由于默认使用HTTP POST谓词和form格式(Content-Type=application/x-www-form-urlencoded)， 这种参数一般称为POST参数或FORM参数，与通过URL传递的GET参数相区别。 结果输出一个JSON数组：</p>
+<pre><code>[0,11338]</code></pre>
+<p>0表示调用成功，后面是成功时返回的数据，add操作返回对象id，可供get/set/del操作使用。</p>
+<p>用get接口取出这个对象出来看看：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.get?id=11338</code></pre>
+<p>输出：</p>
+<pre><code>[0,{&quot;id&quot;:11338,&quot;tm&quot;:&quot;2016-09-09 00:00:00&quot;,&quot;addr&quot;:&quot;shanghai&quot;}]</code></pre>
+<p>这里参数id是通过URL传递的。 前面说过，未显式说明时，接口的参数可以通过URL或POST参数方式来传递，所以本例中URL参数id也可以通过POST参数来传递：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.get -d &quot;id=11338&quot;</code></pre>
+<p>如果取一个不存在的对象，会得到错误码和错误信息，比如：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.get?id=999999</code></pre>
+<p>输出：</p>
+<pre><code>[1,&quot;参数不正确&quot;]</code></pre>
+<p>注意: 如果出现中文乱码，可能是Eclipse工作区的默认编码不正确，应该为UTF-8。</p>
+<p>再用set接口做一个更新，按接口要求，要将id参数放在URL中，要更新的字段及值用POST参数：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.set?id=11338 -d &quot;addr=beijing&quot;</code></pre>
+<p>输出：</p>
+<pre><code>[0, &quot;OK&quot;]</code></pre>
+<p>再看很灵活的query接口，取下列表，默认支持分页，会输出一个nextkey字段：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.query</code></pre>
+<p>返回示例：</p>
+<pre><code>[0,{
+    &quot;h&quot;:[&quot;id&quot;,&quot;tm&quot;,&quot;addr&quot;],
+    &quot;d&quot;:[[11353,&quot;2016-01-04 18:31:06&quot;,&quot;::1&quot;],[11352,&quot;2016-02-04 18:30:43&quot;,&quot;::1&quot;],...],
+    &quot;nextkey&quot;:11349
+}]</code></pre>
+<p>返回的格式称为压缩表或hd表，&quot;h&quot;为表头字段，&quot;d&quot;为表的数据，在接口描述中用<code>table(id, 其它字段...)</code>表示。</p>
+<p>默认返回的JSON数据未经美化，效率较高，如果想看的清楚些，可以在配置文件web.properties中设置测试模式：</p>
+<pre><code>P_TEST_MODE=1</code></pre>
+<p>测试模式不仅美化输出数据，还可返回调试信息，可以设置调试等级为0-9，如果设置为9，可以查看SQL调用日志：</p>
+<pre><code>P_DEBUG=9</code></pre>
+<p>这在调试SQL语句时很有用。此外，测试模式还会开放某些内部接口，以及缺省允许跨域访问，便于通过web页面测试接口。注意线上生产环境绝不可设置为测试模式。</p>
+<p>将接口返回内存保存到debug.log用于调试：</p>
+<pre><code>P_DEBUG_LOG=1</code></pre>
+<p>值为0: 不记日志；值为1：记录所有日志（适合调试或试用阶段）；值为2：只记录错误日志（适合正式使用）</p>
+<p>query接口也支持常用的数组返回，需要加上<code>fmt=list</code>参数：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.query -d &quot;fmt=list&quot;</code></pre>
+<p>返回示例：</p>
+<pre><code>[0,{
+    &quot;list&quot;: [
+        { &quot;id&quot;: 11353, &quot;tm&quot;: &quot;2016-01-04 18:31:06&quot;, &quot;addr&quot;: &quot;::1&quot; },
+        { &quot;id&quot;: 11352, &quot;tm&quot;: &quot;2016-02-04 18:30:43&quot;, &quot;addr&quot;: &quot;::1&quot; }, 
+        ...
+    ],
+    &quot;nextkey&quot;:11349
+}]</code></pre>
+<p>还可以将<code>fmt</code>参数指定为&quot;csv&quot;, &quot;excel&quot;, &quot;txt&quot;等，在浏览器访问时可直接下载相应格式的文件，读者可自己尝试。</p>
+<p>返回的nextkey字段表示数据未完，可以用pagekey字段来取下一页，还可指定一次取的数据条数，用pagesz字段：</p>
+<pre><code>curl &quot;http://localhost:8080/mysvc/api/ApiLog.query?pagekey=11349&amp;pagesz=5&quot;</code></pre>
+<p>直到返回数据中没有nextkey字段，表示已到最后一页。</p>
+<p>不仅支持分页，query接口非常灵活，可以指定返回字段、查询条件、排序方式， 比如查询2016年1月份的数据(cond参数)，结果只需返回id, addr字段(res参数，也可用于get接口)，按id倒序排列(orderby参数)：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.query -d &quot;res=id,addr&quot; -d &quot;cond=tm&gt;=&#39;2016-1-1&#39; and tm&lt;&#39;2016-2-1&#39;&quot; -d &quot;orderby=id desc&quot;</code></pre>
+<p>甚至可以做统计，比如查看2016年1月里，列出访问次数排名前10的地址，以及每个地址访问了多少次服务器，也可以通过query接口直接查出。 做一个按addr字段的分组统计(gres参数)：</p>
+<pre><code>curl http://localhost:8080/mysvc/api/ApiLog.query -d &quot;gres=addr&quot; -d &quot;res=count(*) cnt&quot; -d &quot;cond=tm&gt;=&#39;2016-1-1&#39; and tm&lt;&#39;2016-2-1&#39;&quot; -d &quot;orderby=cnt desc&quot; -d &quot;pagesz=10&quot;</code></pre>
+<p>输出示例：</p>
+<pre><code>[0,{
+    &quot;h&quot;:[&quot;addr&quot;,&quot;cnt&quot;],
+    &quot;d&quot;:[[&quot;140.206.255.50&quot;,1],[&quot;101.44.63.119&quot;,73],[&quot;121.42.0.85&quot;,70],...],
+    &quot;nextkey&quot;: 3
+}]</code></pre>
+<p><strong>[接口调用的描述方式]</strong></p>
+<p>在之后的示例中，我们将使用接口原型来描述一个调用，不再使用curl，比如上面的调用将表示成：</p>
+<pre><code>ApiLog.query(gres=addr
+    res=&quot;count(*) cnt&quot;
+    cond=&quot;tm&gt;&#39;2016-1-1&#39; and tm&lt;&#39;2016-2-1&#39;&quot;
+    orderby=&quot;cnt desc&quot;
+    pagesz=10
+)
+-&gt;
+{
+    &quot;h&quot;:[&quot;addr&quot;,&quot;cnt&quot;],
+    &quot;d&quot;:[[&quot;140.206.255.50&quot;,1],[&quot;101.44.63.119&quot;,73],[&quot;121.42.0.85&quot;,70],...],
+    &quot;nextkey&quot;: 3
+}</code></pre>
+<p>返回数据如非特别声明，我们将只讨论调用成功时返回的部分，比如说返回&quot;OK&quot;实际上表示返回<code>[0, &quot;OK&quot;]</code>。</p>
+<h2 id="函数型接口"><span class="header-section-number">2</span> 函数型接口</h2>
+<p>如果不是典型的对象增删改查操作，可以设计函数型接口，比如登录、修改密码、上传文件这些。</p>
+<p>函数型接口实现在类Global下。假设有以下接口定义：</p>
+<pre><code>获取登录信息(who am i?)
+
+whoami() -&gt; {id}
+
+应用逻辑
+
+- 权限：AUTH_USER (必须用户登录后才可用)</code></pre>
+<p>我们使用模拟数据实现接口，函数名规范为<code>api_{接口名}</code>，写在类com.jdcloud.app.Global下：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> Global <span class="kw">extends</span> JDApiBase
+{
+    <span class="kw">public</span> Object <span class="fu">api_whoami</span>()
+    {
+        <span class="fu">checkAuth</span>(AUTH_USER);
+        <span class="kw">return</span> <span class="kw">new</span> <span class="fu">JsObject</span>(
+            <span class="st">&quot;id&quot;</span>, <span class="dv">100</span>
+        );
+    }
+}</code></pre></div>
+<p>类Global中用于包含所有的函数型接口，它应继承JDApiBase类（前面提到的对象型接口基类AccessControl也是继承自JDApiBase）。</p>
+<p>JsObject是框架提供的通用对象，其原型接口是一个<code>Map&lt;String, Object&gt;</code>，类似的还有JsArray，其原型接口是<code>List&lt;Object&gt;</code>，两者相互组合，可模拟Javascript中的对象和数组， 例如创建一个Person对象具有复杂数据结构 <code>[ {id, name, addr={country, city}, carIds=[id,...] ]</code>，我们写个接口<code>getPersons</code>来测试：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> Object <span class="fu">api_getPersons</span>() {
+    JsArray personList = <span class="kw">new</span> <span class="fu">JsArray</span>(
+        <span class="kw">new</span> <span class="fu">JsObject</span>(
+            <span class="st">&quot;id&quot;</span>, <span class="dv">100</span>,
+            <span class="st">&quot;name&quot;</span>, <span class="st">&quot;xiaohua&quot;</span>,
+            <span class="st">&quot;addr&quot;</span>, <span class="kw">new</span> <span class="fu">JsObject</span>(
+                <span class="st">&quot;country&quot;</span>, <span class="st">&quot;China&quot;</span>,
+                <span class="st">&quot;city&quot;</span>, <span class="st">&quot;Beijing&quot;</span>
+            ),
+            <span class="st">&quot;carIds&quot;</span>, <span class="kw">new</span> <span class="fu">JsArray</span>(<span class="dv">1001</span>, <span class="dv">1008</span>)
+        ),
+        <span class="kw">new</span> <span class="fu">JsObject</span>(
+            <span class="st">&quot;id&quot;</span>, <span class="dv">101</span>,
+            <span class="st">&quot;name&quot;</span>, <span class="st">&quot;xiaoming&quot;</span>,
+            <span class="st">&quot;addr&quot;</span>, <span class="kw">new</span> <span class="fu">JsObject</span>(
+                <span class="st">&quot;country&quot;</span>, <span class="st">&quot;China&quot;</span>,
+                <span class="st">&quot;city&quot;</span>, <span class="st">&quot;Shanghai&quot;</span>
+            ),
+            <span class="st">&quot;carIds&quot;</span>, <span class="kw">new</span> <span class="fu">JsArray</span>()
+        )
+    );
+    <span class="kw">return</span> personList;
+}</code></pre></div>
+<p>访问试试：</p>
+<pre><code>http://localhost:8080/mysvc/api/getPersons</code></pre>
+<p>返回的JSON内容为：</p>
+<div class="sourceCode"><pre class="sourceCode json"><code class="sourceCode json"><span class="ot">[</span>
+    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span><span class="dv">100</span><span class="fu">,</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span><span class="st">&quot;xiaohua&quot;</span><span class="fu">,</span><span class="dt">&quot;addr&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;country&quot;</span><span class="fu">:</span><span class="st">&quot;China&quot;</span><span class="fu">,</span><span class="dt">&quot;city&quot;</span><span class="fu">:</span><span class="st">&quot;Beijing&quot;</span><span class="fu">},</span><span class="dt">&quot;carIds&quot;</span><span class="fu">:</span><span class="ot">[</span><span class="dv">1001</span><span class="ot">,</span><span class="dv">1008</span><span class="ot">]</span><span class="fu">}</span><span class="ot">,</span>
+    <span class="fu">{</span><span class="dt">&quot;id&quot;</span><span class="fu">:</span><span class="dv">101</span><span class="fu">,</span><span class="dt">&quot;name&quot;</span><span class="fu">:</span><span class="st">&quot;xiaoming&quot;</span><span class="fu">,</span><span class="dt">&quot;addr&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;country&quot;</span><span class="fu">:</span><span class="st">&quot;China&quot;</span><span class="fu">,</span><span class="dt">&quot;city&quot;</span><span class="fu">:</span><span class="st">&quot;Shanghai&quot;</span><span class="fu">},</span><span class="dt">&quot;carIds&quot;</span><span class="fu">:</span><span class="ot">[]</span><span class="fu">}</span>
+<span class="ot">]</span></code></pre></div>
+<p>当然你也可以定义Person/Car这些类并使用持久化机制用于数据库存取（OR Mapping机制），但筋斗云的编程风格建议不要拘泥于此。</p>
+<p>由于java没有提供方便的创建List/Map的方法，在JDApiBase类中还提供了asList/asMap函数来方便的创建列表和映射表，如</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java">List&lt;String&gt; allowdAc = <span class="fu">asList</span>(<span class="st">&quot;get&quot;</span>, <span class="st">&quot;query&quot;</span>);  <span class="co">// json: [&quot;get&quot;, &quot;query&quot;]</span>
+Map&lt;String, Integer&gt; m = <span class="fu">asMap</span>(<span class="st">&quot;E_OK&quot;</span>, <span class="dv">0</span>, <span class="st">&quot;E_PARAM&quot;</span>, <span class="dv">1</span>, <span class="st">&quot;E_NOAUTH&quot;</span>, <span class="dv">2</span>); <span class="co">// json: { E_OK: 0, E_PARAM: 1, E_NOAUTH: 2}</span></code></pre></div>
+<p>JDApiBase.asList与Array.asList类似，但返回的List是可添加、删除元素的。 asMap的参数是一个key跟一个value，牺牲了一点类型安全性，但使用很方便。 另外，不建议用双括号语法去初始化一个集合对象。</p>
+<p>上面那个例子，也可以写成：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> Object <span class="fu">api_getPersons</span>()
+{
+    List&lt;Object&gt; personList = <span class="fu">asList</span>(
+        <span class="fu">asMap</span>(
+            <span class="st">&quot;id&quot;</span>, <span class="dv">100</span>,
+            <span class="st">&quot;name&quot;</span>, <span class="st">&quot;xiaohua&quot;</span>,
+            <span class="st">&quot;addr&quot;</span>, <span class="kw">new</span> <span class="fu">JsObject</span>(
+                <span class="st">&quot;country&quot;</span>, <span class="st">&quot;China&quot;</span>,
+                <span class="st">&quot;city&quot;</span>, <span class="st">&quot;Beijing&quot;</span>
+            ),
+            <span class="st">&quot;carIds&quot;</span>, <span class="kw">new</span> <span class="fu">JsArray</span>(<span class="dv">1001</span>, <span class="dv">1008</span>)
+        ),
+        <span class="fu">asMap</span>(
+            <span class="st">&quot;id&quot;</span>, <span class="dv">101</span>,
+            <span class="st">&quot;name&quot;</span>, <span class="st">&quot;xiaoming&quot;</span>,
+            <span class="st">&quot;addr&quot;</span>, <span class="kw">new</span> <span class="fu">JsObject</span>(
+                <span class="st">&quot;country&quot;</span>, <span class="st">&quot;China&quot;</span>,
+                <span class="st">&quot;city&quot;</span>, <span class="st">&quot;Shanghai&quot;</span>
+            ),
+            <span class="st">&quot;carIds&quot;</span>, <span class="kw">new</span> <span class="fu">JsArray</span>()
+        )
+    );
+    <span class="kw">return</span> personList;
+}</code></pre></div>
+<p>由于登录与权限定义密切相关，为了了解原理，我们清空这个文件，重新来写登录、退出接口。 同时学习获取参数、数据库操作等常用函数。</p>
+<p><strong>[任务]</strong></p>
+<p>本节要求实现登录、退出、取登录信息三个接口，设计如下：</p>
+<p>登录接口</p>
+<pre><code>login(uname, pwd, _app?=user) -&gt; {id, _isNew?}
+
+用户或员工登录（通过_app参数区分），如果是用户登录且用户不存在，可自动创建用户。
+
+参数
+
+- _app: 前端应用名称，用于区分登录类型，&quot;user&quot;-用户端, &quot;emp&quot;-员工端。
+
+返回
+
+- _isNew: 如果是新注册用户，该字段为1，否则不返回此字段。
+
+应用逻辑
+
+- 权限: AUTH_GUEST
+- 对于用户登录(_app是&quot;user&quot;)，如果用户不存在，则自动创建用户。
+- 密码采用md5加密保存</code></pre>
+<p>取登录信息</p>
+<pre><code>whoami() -&gt; {id}
+
+如果已登录，则返回与登录接口相同的信息，否则返回未登录错误。
+用户端或员工端均可用。
+客户端可调用本接口测试是否可以通过重用会话，实现免登录进入。
+
+应用逻辑
+
+- 权限：AUTH_USER | AUTH_EMP</code></pre>
+<p>退出接口</p>
+<pre><code>logout()
+
+退出登录。用户端或员工端均可用。
+
+应用逻辑
+
+- 权限：AUTH_USER | AUTH_EMP</code></pre>
+<p>在接口定义中，一般包括接口原型，参数及返回数据说明，应用逻辑等。 对于含义清晰的参数和返回数据，也不必一一说明。 应用逻辑中应先规定该接口的权限。</p>
+<p>在框架中，最重要的是JDEnvBase与JDApiBase两个类。 在创建应用时，继承JDEnvBase来配置自定义权限等；而JDApiBase类包含大量工具函数如获取参数、数据库查询等，实现接口的AC类和Global类都继承自JDApiBase。</p>
+<h3 id="权限定义"><span class="header-section-number">2.1</span> 权限定义</h3>
+<p>在实现接口前，我们先了解如何定义权限。</p>
+<p>登录类型是一种特殊的权限，在框架类JDApiBase中已经按位定义了以下登录类型：</p>
+<pre><code>// 支持8种登录类型 0x1-0x80; 其它非登录权限应从0x100开始定义，且名称规范为PERM_XXX。
+public static final int AUTH_USER = 0x1; // 用户登录
+public static final int AUTH_EMP = 0x2;  // 员工登录
+public static final int AUTH_ADMIN = 0x4; // 超级管理员登录</code></pre>
+<p>还有一个特别地任意登录权限：</p>
+<pre><code>public static final int AUTH_LOGIN = 0xff; // 任意角色登录</code></pre>
+<p>由于AC类和Global类都继承自JDApiBase，在接口类实现时可直接使用如：</p>
+<pre><code>checkAuth(AUTH_USER);
+if (hasPerm(AUTH_USER)) {
+    ...
+}</code></pre>
+<p>要检查非游客（即任意身份登录），可以用</p>
+<pre><code>checkAuth(AUTH_LOGIN);</code></pre>
+<p>权限应按位定义，即用<code>0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80, 0x100, 0x200, ...</code>这些来定义。 其中0x1到0x80这8个权限预留给登录类型。</p>
+<p>假如你做一个在线诊疗平台应用，其中除了用户（病人）登录，还有医生登录，可以扩展一个登录类型AUTH_DOCTOR； 再如同是医生登录，某些人具有更高的管理权限，可以扩展一个权限PERM_MGR； 此外，测试模式也常常当作特殊的权限来对待。</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> <span class="kw">class</span> WebApi ...
+{
+    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">int</span> AUTH_DOCTOR = <span class="bn">0x8</span>; <span class="co">// 自定义登录类型，在0x8与0x80间定义。</span>
+
+    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">int</span> PERM_MGR = <span class="bn">0x100</span>; <span class="co">// 自定义权限，从0x100开始。</span>
+    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">int</span> PERM_TEST_MODE = <span class="bn">0x200</span>;
+
+    ...
+}</code></pre></div>
+<p>于是检查权限时可以用：</p>
+<pre><code>checkAuth(WebApi.AUTH_DOCTOR); // 用checkAuth函数检查医生登录权限，如果没有权限则直接返回错误。
+checkAuth(WebApi.PERM_TEST_MODE);
+checkAuth(WebApi.PERM_TEST_MODE | WebApi.PERM_MGR); // 可以多个权限或，表示要求测试模式或管理者权限
+
+// 用hasPerm可直接检查权限
+if (hasPerm(WebApi.PERM_MGR)) { ... }</code></pre>
+<p>然后在JDEnv子类即WebApi类中定义一个重要的回调函数<code>onGetPerms</code>，它将根据登录情况或全局变量来取出所有当前可能有的权限， 常用的检查权限的函数hasPerm/checkAuth都将调用它:</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> <span class="kw">class</span> WebApi <span class="kw">extends</span> JDEnvBase
+{
+    <span class="co">// 自定义登录类型，从0x8开始。</span>
+    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">int</span> AUTH_DOCTOR = <span class="bn">0x8</span>; <span class="co">// 自定义登录类型，从0x8开始。</span>
+
+    <span class="co">// 自定义权限，从0x100开始。</span>
+    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">int</span> PERM_MGR = <span class="bn">0x100</span>;
+    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> <span class="dt">int</span> PERM_TEST_MODE = <span class="bn">0x200</span>;
+
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> Object <span class="fu">onNewInstance</span>(Class&lt;?&gt; t) <span class="kw">throws</span> Exception
+    {
+        <span class="kw">return</span> t.<span class="fu">newInstance</span>();
+    }
+    
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> Object <span class="fu">onInvoke</span>(Method mi, Object arg) <span class="kw">throws</span> Exception
+    {
+        <span class="kw">return</span> mi.<span class="fu">invoke</span>(arg);
+    }
+
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">int</span> <span class="fu">onGetPerms</span>()
+    {
+        <span class="dt">int</span> perms = <span class="dv">0</span>;
+        <span class="kw">if</span> (api.<span class="fu">_SESSION</span>(<span class="st">&quot;uid&quot;</span>) != <span class="kw">null</span>)
+        {
+            perms |= JDApiBase.<span class="fu">AUTH_USER</span>;
+        }
+        <span class="kw">else</span> <span class="kw">if</span> (api.<span class="fu">_SESSION</span>(<span class="st">&quot;doctorId&quot;</span>) != <span class="kw">null</span>)
+        {
+            perms |= AUTH_DOCTOR;
+            <span class="kw">if</span> (api.<span class="fu">_SESSION</span>(<span class="st">&quot;perms&quot;</span>).<span class="fu">toString</span>().<span class="fu">contains</span>(<span class="st">&quot;mgr&quot;</span>))
+                perms |= PERM_MGR;
+        }
+        <span class="kw">if</span> (<span class="kw">this</span>.<span class="fu">isTestMode</span>) {
+            perms |= PERM_TEST_MODE;
+        }
+
+        <span class="kw">return</span> perms;
+    }
+}</code></pre></div>
+<p>在JDEnvBase的子类中，常常用属性&quot;api&quot;来调用JDApiBase中的工具函数，比如api._SESSION用来获取一个会话变量。</p>
+<p>在登录成功时，我们应设置相应的session变量，如用户登录成功设置<code>uid</code>，员工登录成功设置<code>empId</code>，等等。</p>
+<p>后面讲对象型接口时，还会有另一个重要的回调函数<code>onCreateAC</code>，用于将权限与类名进行绑定。</p>
+<h3 id="登录与退出"><span class="header-section-number">2.2</span> 登录与退出</h3>
+<p>上节我们已经了解到，登录与权限检查密切相关，需要将用户信息存入session中，登录接口的大致实现如下（在Global类中）：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> Object <span class="fu">api_login</span>()
+{
+    String type = env.<span class="fu">appType</span>;
+    <span class="kw">if</span> (type.<span class="fu">equals</span>(<span class="st">&quot;user&quot;</span>)) {
+        <span class="kw">... </span>验证成功 ...
+        <span class="fu">_SESSION</span>(<span class="st">&quot;uid&quot;</span>, ...);
+    }
+    <span class="kw">else</span> <span class="kw">if</span> (type.<span class="fu">equals</span>(<span class="st">&quot;emp&quot;</span>)) {
+        <span class="kw">... </span>验证成功 ...
+        <span class="fu">_SESSION</span>(<span class="st">&quot;empId&quot;</span>, ...);
+    }
+    ...
+}</code></pre></div>
+<p>定义一个函数型接口，函数名称一定要符合 <code>api_{接口名}</code> 的规范。接口名以小写字母开头。 在接口实现时，一般应根据接口中的权限说明，使用checkAuth函数进行权限检查。</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> Global <span class="kw">extends</span> JDApiBase
+{
+    <span class="kw">public</span> Object <span class="fu">api_login</span>() <span class="kw">throws</span> Exception
+    {
+        String uname = (String)<span class="fu">mparam</span>(<span class="st">&quot;uname&quot;</span>);
+        String pwd = (String)<span class="fu">mparam</span>(<span class="st">&quot;pwd&quot;</span>);
+
+        Object ret = <span class="kw">null</span>;
+        <span class="kw">if</span> (env.<span class="fu">appType</span>.<span class="fu">equals</span>(<span class="st">&quot;user&quot;</span>))
+        {
+            String sql = String<span class="fu">.format</span>(<span class="st">&quot;SELECT id FROM User WHERE uname=</span><span class="ch">%s</span><span class="st">&quot;</span>, <span class="fu">Q</span>(uname));
+            Object id = <span class="fu">queryOne</span>(sql);
+            <span class="kw">if</span> (id.<span class="fu">equals</span>(<span class="kw">false</span>))
+                <span class="fu">jdRet</span>(E_AUTHFAIL, <span class="st">&quot;bad uname or pwd&quot;</span>);
+            <span class="fu">_SESSION</span>(<span class="st">&quot;uid&quot;</span>, id);
+            ret = <span class="kw">new</span> <span class="fu">JsObject</span>(<span class="st">&quot;id&quot;</span>, id);
+        }
+        <span class="kw">else</span>
+        {
+            <span class="co">// 其它登录类型</span>
+        }
+        <span class="kw">return</span> ret;
+    }
+
+    <span class="kw">public</span> Object <span class="fu">api_whoami</span>()
+    {
+        <span class="fu">checkAuth</span>(AUTH_USER);
+        <span class="dt">int</span> uid = (<span class="dt">int</span>)<span class="fu">_SESSION</span>(<span class="st">&quot;uid&quot;</span>);
+        <span class="kw">return</span> <span class="kw">new</span> <span class="fu">JsObject</span>(<span class="st">&quot;id&quot;</span>, uid);
+    }
+    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">api_logout</span>()
+    {
+        <span class="co">// checkAuth(AUTH_LOGIN);</span>
+        <span class="fu">destroySession</span>();
+    }
+}</code></pre></div>
+<p>在api_login函数中，先使用env.appType获取到登录类型（也称应用类型），再按登录类型分别查验身份，并最终设置相关会话变量， 这里设置的变量与之前的权限回调函数<code>onGetPerms</code>中相对应。</p>
+<p>这里使用了很多常用函数，比如获取必需参数使用mparam函数，数据库查询使用了queryOne, execOne函数，中断执行直接返回使用jdRet等，之后章节将详细介绍。</p>
+<p>在实现whoami接口时，返回保存在会话(session)中的变量即可，logout接口则更加简单，直接销毁会话。</p>
+<p><strong>[应用标识与应用类型]</strong></p>
+<p>在筋斗云中，URL参数<code>_app</code>称为前端应用标识(app)，缺省为&quot;user&quot;，表示用户端应用。</p>
+<p>不同应用要求使用不同的应用标识，在与后端的会话中使用的cookie也会有所不同，因而不同的应用即使同时在浏览器中打开也不会相互干扰。</p>
+<p>应用标识中的主干部分称为应用类型(app type)，例如有三个应用分别标识为&quot;emp&quot;（员工端）, &quot;emp2&quot;（经理端）和&quot;emp-store&quot;（商户管理端）， 它们的主干部分(去除尾部数字，去除&quot;-&quot;及后面部分)是相同的，都是&quot;emp&quot;，即它们具有相同的应用类型&quot;emp&quot;。</p>
+<p>在接口实现时，用env.appName, env.appType来获取应用标识和应用类型，它们是根据URL参数<code>_app</code>得到的。 不同的应用如果是相同的应用类型，则登录方式相同，比如上例中都是用员工登录。</p>
+<h3 id="获取参数"><span class="header-section-number">2.3</span> 获取参数</h3>
+<pre><code>Object id = _GET(&quot;id&quot;); // 从URL参数中获取id
+Object name = _POST(&quot;name&quot;); // 从POST参数中获取name
+// 设置值
+_GET(&quot;id&quot;, 101);
+_POST(&quot;name&quot;, &quot;li&quot;);
+// 删除值
+_GET(&quot;id&quot;, forDel);
+_POST(&quot;name&quot;, forDel);</code></pre>
+<p>更常用的，函数<code>mparam</code>用来取必传参数(m表示mandatory)，参数既可以用URL参数，也可以用POST参数传递。如果是取一个可选参数，可以用<code>param</code>函数。 这两个函数返回Object类型，与直接用于获取URL参数或POST参数的<code>_GET()</code>或<code>_POST()</code>函数相比，param/mparam可指定参数类型，如</p>
+<pre><code>// 后缀&quot;/i&quot;要求该参数为整数类型。第二个参数指定缺省值，如果请求中没有该参数就使用缺省值。
+Integer svcId = (Integer)param(&quot;svcId/i&quot;);  // 请求参数为&quot;svcId=3&quot;, 返回3。注意返回值可能为null，应该用包装类型Integer不宜用int避免转换异常.
+// 必选参数或指定默认参数
+Integer svcId2 = (Integer)mparam(&quot;svcId/i&quot;);
+Integer svcId3 = (Integer)param(&quot;svcId/i&quot;, 1);
+
+// 不指定类型后缀时，默认均为string.
+String s = (String)param(&quot;name&quot;);</code></pre>
+<p>如果传来的svcId不是整型，则param/mparam可直接报错返回。 上面例子中用强制转换是安全的（不会抛出异常），因为&quot;/i&quot;标识让param返回整数值或null(即Integer类型)。 因为值可能为空，则应该用Integer这样的包装类型。</p>
+<p>而使用mparam时或给定缺省值时，一定不会返回null，因而也可以直接转成int类型。</p>
+<p>类似地：</p>
+<pre><code>// 取id参数，特别地，对id参数一定要求是整数。
+Integer id = (Integer)param(&quot;id&quot;);  // 请求参数为&quot;id=3&quot;, 返回3
+
+// 后缀&quot;/b&quot;要求该参数布尔型，为0或1，返回true/false
+Boolean wantArray = (bool)param(&quot;wantArray/b&quot;, false); // 请求参数为&quot;wantArray=1&quot;, 返回true
+
+// 后缀&quot;/dt&quot;或&quot;/tm&quot;表示日期时间类型，格式如&quot;2011-2-1 8:8:8&quot;, 也支持&quot;2010/1/1 10:10&quot;, &quot;2010.3.4&quot;, &quot;2011-02-01T10:10:10Z&quot;等（参考JDApiBase.parseDate函数）
+java.util.Date startTm = (java.util.Date)param(&quot;startTm/dt&quot;); // 请求参数为&quot;startTm=2016-9-10 10:10&quot;
+
+// 后缀&quot;/n&quot;表示数值类型(numeric)，可以是小数，如&quot;qty=3.14&quot;。
+// 第三个参数为&quot;P&quot;指定从POST集合中取参数，也可用&quot;G&quot;指定从GET集合即URL中取参数。
+//   如果不指定这个参数，则默认先查GET再查POST，即客户端既可以用URL参数，也可以用POST参数
+Double qty = (Double)mparam(&quot;qty/n&quot;, &quot;P&quot;);
+Double qty2 = (Double)param(&quot;qty2/n&quot;, null, &quot;P&quot;);</code></pre>
+<p>param/mparam除了检查简单类型，还支持一些复杂类型，比如&quot;/i+&quot;用于整数列表：</p>
+<pre><code>List&lt;Integer&gt; idList = (List&lt;Integer&gt;)mparam(&quot;idList/i+&quot;); // 请求参数为&quot;idList=3,4,5&quot;, 返回列表 {3, 4, 5}</code></pre>
+<p>更多用法，比如两个参数至少填写一个，传一个压缩子表（如&quot;/i:s:n&quot;），可查阅参考文档。</p>
+<h3 id="接口返回"><span class="header-section-number">2.4</span> 接口返回</h3>
+<p>函数应返回符合接口原型中描述的对象，框架会将其转为最终的JSON字符串。</p>
+<p>比如登录接口要求返回<code>{id, _isNew}</code>：</p>
+<pre><code>login(uname, pwd, _app?=user) -&gt; {id, _isNew?}</code></pre>
+<p>因而在api_login中，返回结构相符的对象即可：</p>
+<pre><code>ret = new JsObject(
+    &quot;id&quot;, id,
+    &quot;_isNew&quot;, true
+);
+return ret;</code></pre>
+<p>最终返回的JSON示例：</p>
+<pre><code>[0, {&quot;id&quot;: 1, &quot;_isNew&quot;: true}]</code></pre>
+<p>如果接口原型中没有定义返回值，框架会自动返回字符串&quot;OK&quot;。比如接口api_logout没有调用return，则最终返回的JSON为：</p>
+<pre><code>[0, &quot;OK&quot;]</code></pre>
+<p><strong>[异常返回]</strong></p>
+<p>如果处理出错，应返回一个错误对象，这通过jdRet来实现，比如</p>
+<pre><code>jdRet(E_AUTHFAIL, &quot;bad password&quot;, &quot;密码错误&quot;);
+// 等价于以下旧写法，即抛出MyException异常
+throw new MyException(E_AUTHFAIL, &quot;bad password&quot;, &quot;密码错误&quot;);</code></pre>
+<p>它最终返回的JSON为：</p>
+<pre><code>[-1, &quot;密码错误&quot;, &quot;bad password&quot;]</code></pre>
+<p>分别表示<code>[错误码, 显示给用户看的错误信息, 调试信息]</code>，一般调试信息用英文，在各种编码下都能显示，且内容会详细些；错误信息一般用中文，提示给最终用户看。</p>
+<p>也可以忽略错误信息，这时框架返回错误码对应的默认错误信息，如</p>
+<pre><code>jdRet(E_AUTHFAIL, &quot;bad password&quot;);</code></pre>
+<p>最终返回JSON为：</p>
+<pre><code>[-1, &quot;认证失败&quot;, &quot;bad password&quot;]</code></pre>
+<p>甚至直接：</p>
+<pre><code>jdRet(E_AUTHFAIL);</code></pre>
+<p>最终返回JSON为：</p>
+<pre><code>[-1, &quot;认证失败&quot;]</code></pre>
+<p>常用的其它返回码还有E_PARAM（参数错）, E_FORBIDDEN（无权限操作）等:</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java">E_ABORT = -<span class="dv">100</span>; <span class="co">// 要求客户端不报错</span>
+E_PARAM=<span class="dv">1</span>; <span class="co">// 参数不合法</span>
+E_NOAUTH=<span class="dv">2</span>; <span class="co">// 未认证，一般要求前端跳转登录页面</span>
+E_DB=<span class="dv">3</span>; <span class="co">// 数据库错</span>
+E_SERVER=<span class="dv">4</span>; <span class="co">// 服务器错</span>
+E_FORBIDDEN=<span class="dv">5</span>; <span class="co">// 无操作权限，不允许访问</span></code></pre></div>
+<p><strong>[立即返回]</strong></p>
+<p>接口可以用jdRet函数，立即中断执行并返回结果，例如：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> Object <span class="fu">api_hello</span>()
+{
+    <span class="co">// env.response.setContentType(&quot;application/json&quot;);</span>
+    <span class="co">// header(&quot;Content-Type&quot;, &quot;application/json&quot;);</span>
+    <span class="fu">echo</span>(<span class="st">&quot;[0, {</span><span class="ch">\&quot;</span><span class="st">id</span><span class="ch">\&quot;</span><span class="st">:100, </span><span class="ch">\&quot;</span><span class="st">_isNew</span><span class="ch">\&quot;</span><span class="st">: true}]&quot;</span>);
+    <span class="fu">jdRet</span>(); <span class="co">// 等价于 throw new DirectReturn();</span>
+}</code></pre></div>
+<p>可以通过env.request和env.response来获得HttpServletRequest和HttpServletResponse对象。 echo是JDApiBase中的工具函数，相当于 <code>env.response.getWriter().print()</code>，而且可支持多个参数，如<code>echo(&quot;hello&quot;, &quot;world&quot;);</code>. 而header函数则相当于<code>env.response.addHeader(k, v)</code>，为结果添加HTTP输出头。</p>
+<p>示例：实现获取图片接口pic。</p>
+<pre><code>pic() -&gt; 图片内容</code></pre>
+<p>注意：该接口直接返回图片内容，不符合筋斗云<code>[0, JSON数据]</code>的返回规范，所以用jdRet立即返回，避免框架干预：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> <span class="dt">void</span> <span class="fu">api_hello</span>() <span class="kw">throws</span> Exception
+{
+    String path = <span class="kw">this</span>.<span class="fu">env</span>.<span class="fu">request</span>.<span class="fu">getServletContext</span>().<span class="fu">getRealPath</span>(<span class="st">&quot;1.jpg&quot;</span>);
+    FileInputStream file = <span class="kw">new</span> FileInputStream(path);
+    <span class="dt">int</span> sz  = file.<span class="fu">available</span>();
+    <span class="dt">byte</span> data[]=<span class="kw">new</span> <span class="dt">byte</span>[sz];
+    file.<span class="fu">read</span>(data);
+    file.<span class="fu">close</span>();
+    env.<span class="fu">response</span>.<span class="fu">setContentType</span>(<span class="st">&quot;image/jpeg&quot;</span>);
+    env.<span class="fu">response</span>.<span class="fu">getOutputStream</span>().<span class="fu">write</span>(data);
+    <span class="fu">jdRet</span>();
+}</code></pre></div>
+<p>前端可以直接使用链接显示图片：</p>
+<pre><code>&lt;img src=&quot;http://localhost:8080/mysvc/api/pic&quot;&gt;</code></pre>
+<h3 id="数据库操作"><span class="header-section-number">2.5</span> 数据库操作</h3>
+<p>数据库连接是在web.properties文件中配置的：</p>
+<pre><code>P_DB_DRIVER=com.mysql.jdbc.Driver
+P_DB=jdbc:mysql://localhost:3306/jdcloud?characterEncoding=utf8
+P_DBCRED=demo:demo123</code></pre>
+<p>数据库查询的常用函数是<code>queryOne</code>和<code>queryAll</code>，用来执行SELECT查询。 queryOne只返回首行数据，特别地，如果返回行中只有一列，则直接返回首行首列值：</p>
+<pre><code>// 查到数据时，返回首行，例如 [100, &quot;hello&quot;]，类型为JsArray
+// 没有查到数据时，返回 false
+Object rv = queryOne(&quot;SELECT id, dscr FROM Ordr WHERE id=1&quot;);
+if (rv.equals(false)) {
+    // 无数据
+}
+JsArray row = (JsArray)rv;
+// row.get(0)为id字段, row.get(1)为dscr字段, 注意均可能为null
+
+// 查到数据时，由于SELECT语句只有一个字段cnt，因而返回值即是cnt.
+rv = queryOne(&quot;SELECT COUNT(*) cnt FROM Ordr&quot;);
+if (rv.equals(false)) {}  // 其实上面SQL语句不可能查不到，这个判断可以不要。
+Long id = (Long)rv;
+    </code></pre>
+<p>如果字段较多，常设置第二个参数assoc为true，要求返回关联数组（JsObject）以增加可读性：</p>
+<pre><code>// 操作成功时，返回关联数组JsObject，例如 {&quot;id&quot;: 1, &quot;name&quot;: &quot;jdcloud&quot;}
+Object rv = queryOne(&quot;SELECT id, name FROM User WHERE id=1&quot;, true);
+if (rv.equals(false)) {
+    // 无数据
+}
+JsObject row = (JsObject)rv;
+Integer id = (Integer)row.get(&quot;id&quot;);
+String name = (String)row.get(&quot;name&quot;);</code></pre>
+<p>如果要查询所有行的数据，可以用<code>queryAll</code>函数，它返回JsArray对象：</p>
+<pre><code>// 有数据时，返回二维数组 [[id, dscr], ...]
+// 没有数据时，返回空数组 []，而不是false
+JsArray rv = queryAll(&quot;SELECT id, dscr FROM Ordr WHERE userId=1&quot;);
+if (rv.size() == 0) { } // 无数据
+JsArray row = (JsArray)rv.get(0); // 第一行，可用row.get(0), row.get(1)引用id, dscr字段</code></pre>
+<p>也可指定参数assoc=true让返回行使用关联数组，如：</p>
+<pre><code>JsArray rv = queryAll(&quot;SELECT id, dscr FROM Ordr WHERE userId=1&quot;, true);
+if (rv.size() == 0) { } // 无数据
+JsObject row = (JsObject)rv.get(0); // 第一行，可用row.get(&quot;id&quot;), row.get(&quot;dscr&quot;)引用id, dscr字段</code></pre>
+<p>执行非查询语句可以用包装函数<code>execOne</code>，返回受到影响的记录数，如：</p>
+<pre><code>int recCnt = execOne(&quot;DELETE ...&quot;);
+execOne(&quot;UPDATE ...&quot;);
+execOne(&quot;INSERT INTO ...&quot;);</code></pre>
+<p>对于insert语句，设置第二个参数为true, 可以取到执行后得到的新id值：</p>
+<pre><code>int newId = execOne(&quot;INSERT INTO ...&quot;, true);</code></pre>
+<p>(v2) 对一般的插入和更新，可以用更方便的dbInsert/dbUpdate函数，如：</p>
+<pre><code>int orderId = dbInsert(&quot;Ordr&quot;, new JsObject(
+    &quot;tm&quot;, new Date(), // 支持Date类型
+    &quot;tm1&quot;, dbExpr(&quot;now()&quot;), // &quot;=&quot;开头，表示是SQL表达式
+    &quot;amount&quot;, 100,
+    &quot;dscr&quot;, null // null字段会被忽略
+));
+// 等价于：
+String sql = String.format(&quot;INSERT INTO Ordr (tm, tm1, amount, dscr) VALUES (&#39;%s&#39;, now(), %f, %s)&quot;, date(FMT_DT, tm), amount, Q(dscr)); // date函数为框架提供，用于转日期字符串
+int orderId = execOne(sql, true);
+
+// UPDATE Ordr SET ... WHERE id=100
+int cnt = dbUpdate(&quot;Ordr&quot;, new JsObject(
+    &quot;amount&quot;, 30,
+    &quot;dscr&quot;, &quot;test dscr&quot;,
+    &quot;tm&quot;, &quot;null&quot;, // 用&quot;&quot;或&quot;null&quot;对字段置空；用&quot;empty&quot;对字段置空串。
+    &quot;tm1&quot;, null // null会被忽略
+), 100);
+
+// UPDATE Ordr SET tm=now() WHERE tm IS NULL
+int cnt = dbUpdate(&quot;Ordr&quot;, new JsObject(
+    &quot;tm&quot;, dbExpr(&quot;now()&quot;)  // &quot;=&quot;开头，表示是SQL表达式
+), &quot;tm IS NULL);</code></pre>
+<p><strong>[防备SQL注入]</strong></p>
+<p>要特别注意的是，所有外部传入的字符串参数都不应直接用来拼接SQL语句， 下面登录接口的实现就包含一个典型的SQL注入漏洞：</p>
+<pre><code>String uname = (String)mparam(&quot;uname&quot;);
+String pwd = (String)mparam(&quot;pwd&quot;);
+Object id = queryOne(String.format(&quot;SELECT id FROM User WHERE uname=&#39;%s&#39; AND pwd=&#39;%s&#39;&quot;, uname, pwd));
+if (id.equals(false))
+    jdRet(E_AUTHFAIL, &quot;bad uname/pwd&quot;, &quot;用户名或密码错误&quot;);
+// 登录成功
+_SESSION(&quot;uid&quot;, id);</code></pre>
+<p>如果黑客精心准备了参数 <code>uname=a&amp;pwd=a' or 1=1</code>，这样SQL语句将是</p>
+<pre><code>SELECT id FROM User WHERE uname=&#39;a&#39; AND pwd=&#39;a&#39; or 1=1</code></pre>
+<p>总可以查询出结果，于是必能登录成功。 修复方式很简单，可以用Q函数进行转义：</p>
+<pre><code>String sql = String.format(&quot;SELECT id FROM User WHERE uname=%s AND pwd=%s&quot;, Q(uname), Q(pwd));
+Object id = queryOne(sql);</code></pre>
+<p>(v2)对于插入和更新语句，尽量用dbInsert/dbUpdate方法，它们会安全地处理处理参数。</p>
+<p><strong>[支持数据库事务]</strong></p>
+<p>假如有一个用户用帐户余额给订单付款的接口，先更新订单状态，再更新用户帐户余额：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> Object <span class="fu">api_payOrder</span>()
+{
+    <span class="fu">execOne</span>(<span class="st">&quot;UPDATE Ordr SET status=&#39;已付款&#39;...&quot;</span>);
+    ...
+    <span class="fu">execOne</span>(<span class="st">&quot;UPDATE User SET balance=...&quot;</span>);
+    ...
+}</code></pre></div>
+<p>在更新之后，假如因故抛出了异常返回，订单状态或用户余额会不会状态错误？</p>
+<p>有经验的开发者知道应使用数据库事务，让多条数据库查询要么全部执行(事务提交/commit)，要么全部取消掉(事务回滚/rollback)。 而筋斗云已经帮我们自动使用了事务确保数据一致性。</p>
+<p><strong>筋斗云一次接口调用中的所有数据库查询都在一个事务中。</strong> 开发者一般不必自行使用事务，除非为了优化并发和数据库锁。</p>
+<p>要处理数据库连接细节，可以自行使用env.conn访问到Connection接口，例如做SQL编译优化等。</p>
+<h2 id="对象型接口"><span class="header-section-number">3</span> 对象型接口</h2>
+<p>为了简化接口对象到数据库表的映射，我们在数据库中创建的表名和字段名就按上述大小写相间的风格来，表名或对象名的首字母大写，表字段或对象属性的首字母小写。</p>
+<p>某些版本的MySQL/MariaDB在Windows等系统上表和字段名称全部用大写字母，遇到这种情况，可在配置文件my.ini中加上设置：</p>
+<pre><code>[mysqld]
+lower_case_table_names=0 </code></pre>
+<p>然后重启MySQL即可。</p>
+<h3 id="定制操作类型和字段"><span class="header-section-number">3.1</span> 定制操作类型和字段</h3>
+<p>对象接口通过继承AccessControl类来实现，默认允许5个标准对象操作，可以在onInit回调中改写属性<code>allowedAc</code>来限定允许的操作：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC_ApiLog <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">allowedAc</span> = <span class="fu">asList</span>(<span class="st">&quot;get&quot;</span>, <span class="st">&quot;query&quot;</span>, <span class="st">&quot;add&quot;</span>);
+        <span class="co">// 可以为 {&quot;add&quot;, &quot;get&quot;, &quot;set&quot;, &quot;del&quot;, &quot;query&quot;, &quot;setIf&quot;, &quot;delIf&quot;, &quot;batchAdd&quot;}中任意几个。</span>
+    }
+}</code></pre></div>
+<p>缺省get/query操作返回ApiLog的所有字段，可以用属性<code>hiddenFields</code>隐藏一些字段，比如不返回&quot;addr&quot;和&quot;tm&quot;字段：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">this</span>.<span class="fu">hiddenFields</span> = <span class="fu">asList</span>(<span class="st">&quot;addr&quot;</span>, <span class="st">&quot;tm&quot;</span>);</code></pre></div>
+<p>对于add/set接口，可用<code>requiredFields</code>设置必填字段，用<code>readonlyFields</code>设置只读字段。 特别地，&quot;id&quot;字段默认就是只读的，无须设置。</p>
+<p>示例：实现下面控制逻辑</p>
+<ul>
+<li>&quot;addr&quot;字段为必填字段，即在add接口中必须填值，在set接口中不允许置空；</li>
+<li>&quot;tm&quot;字段为只读字段，即在add/set接口中如果填值则忽略（但不报错）；</li>
+<li>在add操作中，由程序自动填写&quot;tm&quot;字段。</li>
+</ul>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC_ApiLog <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">requiredFields</span> = <span class="fu">asList</span>(<span class="st">&quot;addr&quot;</span>);
+        <span class="kw">this</span>.<span class="fu">readonlyFields</span> = <span class="fu">asList</span>(<span class="st">&quot;tm&quot;</span>);
+    }
+
+    <span class="co">// 由add/set接口回调，用于验证字段(Validate)，或做自动补全(AutoComplete)工作。</span>
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onValidate</span>()
+    {
+        <span class="kw">if</span> (<span class="kw">this</span>.<span class="fu">ac</span>.<span class="fu">equals</span>(<span class="st">&quot;add&quot;</span>))
+        {
+            <span class="fu">_POST</span>(<span class="st">&quot;tm&quot;</span>, <span class="fu">date</span>());
+        }
+    }
+}</code></pre></div>
+<p>例中使用回调onValidate来对tm字段自动填值。 <code>date()</code>函数是JDApiBase类提供的工具方法，返回当前日期字符串，相当于：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java">    String nowStr = <span class="kw">new</span> SimpleDateFormat(<span class="st">&quot;yyyy-MM-dd HH:mm:ss&quot;</span>)<span class="fu">.format</span>(<span class="kw">new</span> Date());</code></pre></div>
+<p>还可指定格式或日期，如：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java">    Date dt1 = <span class="kw">new</span> Date(<span class="fu">now</span>() + <span class="dv">10</span> * T_DAY); <span class="co">// 工具类中还提供now()方法，返回long类型的毫秒数，以及 T_SEC/T_MIN/T_HOUR/T_DAY 常量</span>
+    String dtStr = <span class="fu">date</span>(<span class="st">&quot;yyyy-MM-dd&quot;</span>, dt1);</code></pre></div>
+<p>如果某些字段是在添加时不是必填，但更新时不可置空，可以用<code>requiredFields2</code>来设置； 类似地，添加时可写，更新时只读的字段，用<code>readonlyFields2</code>来设置。</p>
+<h3 id="绑定访问控制类与权限"><span class="header-section-number">3.2</span> 绑定访问控制类与权限</h3>
+<p>前面在讲函数型接口时，提到权限检查用checkAuth函数来实现。 在对象型接口中，通过绑定访问控制类与权限，来实现不同角色通过不同的类来控制。</p>
+<p>比如前例中ApiLog对象接口允许员工登录(AUTH_EMP)后访问，只要定义：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC2_ApiLog <span class="kw">extends</span> AccessControl
+{
+    ...
+}</code></pre></div>
+<p>那么为什么AC2前缀对应员工权限呢？ 这是因为框架定义默认权限-类名绑定逻辑为：</p>
+<ul>
+<li>访客(AUTH_GUEST): 对应AC前缀类</li>
+<li>用户(AUTH_USER): 对应AC1/AC类，即优先用AC1类，当AC1类不存在时，使用AC类</li>
+<li>员工(AUTH_EMP): 对应AC2类</li>
+<li>超级管理员(AUTH_ADMIN): 对应AC0/AccessControl类，即优先用AC0类，如果不存在，则使用AccessControl类； 由于AccessControl是框架提供的，因而对于超级管理员，不创建任何类也可以调用任何对象接口。</li>
+</ul>
+<p>如果要重写这些规则，需要重载回调函数<code>JDEnvBase.onCreateAC</code>，由它来实现类与权限的绑定。 下面示例就是默认规则的实现，返回类名数组，表示依次找这些类，或返回null，表示无权限或未登录。注意类名不带包名。</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java">
+<span class="kw">public</span> <span class="kw">class</span> WebApi <span class="kw">extends</span> JDEnvBase
+{
+    ...
+
+    <span class="fu">@Override</span>
+    <span class="kw">public</span> String[] <span class="fu">onCreateAC</span>(String table)
+    {
+        <span class="kw">if</span> (Objects.<span class="fu">equals</span>(<span class="kw">this</span>.<span class="fu">appType</span>, <span class="st">&quot;user&quot;</span>)) {
+            <span class="kw">if</span> (<span class="fu">hasPerm</span>(AUTH_USER))
+                <span class="kw">return</span> <span class="kw">new</span> String[] { <span class="st">&quot;AC1_&quot;</span> + table, <span class="st">&quot;AC_&quot;</span> + table };
+            <span class="kw">return</span> <span class="kw">new</span> String[] {<span class="st">&quot;AC_&quot;</span> + table};
+        }
+        <span class="kw">else</span> <span class="kw">if</span> (Objects.<span class="fu">equals</span>(<span class="kw">this</span>.<span class="fu">appType</span>, <span class="st">&quot;emp&quot;</span>)) {
+            <span class="kw">if</span> (<span class="fu">hasPerm</span>(AUTH_EMP))
+                <span class="kw">return</span> <span class="kw">new</span> String[] { <span class="st">&quot;AC2_&quot;</span> + table };
+        }
+        <span class="kw">return</span> <span class="kw">null</span>;
+    }
+}</code></pre></div>
+<p>该函数传入一个表名（或称对象名，比如&quot;ApiLog&quot;），根据当前用户的角色，返回一个类名，比如&quot;AC1_ApiLog&quot;，&quot;AC2_ApiLog&quot;这些。 如果发现指定的类不存在，则不允许访问该对象接口。</p>
+<p>在该段代码中，定义了用户登录后用&quot;AC1&quot;前缀的类，如果类不存在，可以再尝试用&quot;AC&quot;前缀的类，如果再不存在则不允许访问接口； 如果是员工登录，则只用&quot;AC2&quot;前缀的类，如果类不存在，则不允许访问接口。</p>
+<p>关于hasPerm的用法及权限定义，可以参考前面章节“权限定义”及“登录与退出”。</p>
+<h3 id="定制可访问数据"><span class="header-section-number">3.3</span> 定制可访问数据</h3>
+<p>除了限制用户可以访问哪些表和字段，还常会遇到一类需求是限制用户只能访问自己的数据。</p>
+<p><strong>[任务]</strong></p>
+<p>用户登录后，可以添加订单、查看自己的订单。 我们在设计文档中设计接口如下：</p>
+<pre><code>添加订单
+Ordr.add()(amount) -&gt; id
+
+查看订单
+Ordr.query() -&gt; tbl(id, userId, status, amount)
+Ordr.get(id) -&gt; { 同query接口字段...}
+
+应用逻辑
+
+- 权限：AUTH_USER
+- 用户只能添加(add)、查看(get/query)订单，不可修改(set)、删除(del)订单
+- 用户只能查看(get/query)属于自己的订单。
+- 用户在添加订单时，必须设置amount字段，不可设置userId, status这些字段。
+  后端将userId字段自动设置为该用户编号，status字段自动设置为&quot;CR&quot;（已创建）</code></pre>
+<p>上面接口原型描述中，get接口用&quot;...&quot;省略了详细的返回字段，因为返回对象的字段与query接口是一样的，两者写清楚一个即可。</p>
+<p>实现对象型接口如下：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">allowedAc</span> = <span class="fu">asList</span>(<span class="st">&quot;get&quot;</span>, <span class="st">&quot;query&quot;</span>, <span class="st">&quot;add&quot;</span>);
+        <span class="kw">this</span>.<span class="fu">requiredFields</span> = <span class="fu">asList</span>(<span class="st">&quot;amount&quot;</span>);
+        <span class="kw">this</span>.<span class="fu">readonlyFields</span> = <span class="fu">asList</span>(<span class="st">&quot;status&quot;</span>, <span class="st">&quot;userId&quot;</span>);
+    }
+
+    <span class="co">// get/query接口会回调</span>
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onQuery</span>()
+    {
+        Object userId = <span class="fu">_SESSION</span>(<span class="st">&quot;uid&quot;</span>);
+        <span class="kw">this</span>.<span class="fu">addCond</span>(<span class="st">&quot;t0.userId=&quot;</span> + userId);
+    }
+
+    <span class="co">// add/set接口会回调</span>
+    <span class="fu">@Override</span> 
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onValidate</span>()
+    {
+        <span class="kw">if</span> (<span class="kw">this</span>.<span class="fu">ac</span>.<span class="fu">equals</span>(<span class="st">&quot;add&quot;</span>))
+        {
+            Object userId = <span class="fu">_SESSION</span>(<span class="st">&quot;uid&quot;</span>);
+            <span class="fu">_POST</span>(<span class="st">&quot;userId&quot;</span>, userId);
+            <span class="fu">_POST</span>(<span class="st">&quot;status&quot;</span>, <span class="st">&quot;CR&quot;</span>);
+        }
+    }
+}</code></pre></div>
+<ul>
+<li><p>在get/query操作中，会回调<code>onQuery</code>函数，在这里我们用<code>addCond</code>添加了一条限制：用户只能查看到自己的订单。 <code>addCond</code>的参数可理解为SQL语句中WHERE子句的片段；字段用&quot;t0.userId&quot;来表示，其中&quot;t0&quot;表示当前操作表&quot;Ordr&quot;的别名(alias)。后面会讲到联合查询(join)其它表，就可能使用其它表的别名。</p></li>
+<li><p>add/set操作会回调<code>onValidate</code>函数（本例中<code>allowedAc</code>中未定义&quot;set&quot;，因而不会有&quot;set&quot;操作过来）。在这个回调中常常设置<code>_POST(k,v)</code>来自动设置一些字段。</p></li>
+<li><p>注意会话变量<code>uid</code>是在用户登录成功后设置的，由于&quot;AC1&quot;类是用户登录后使用的，所以必能取到该变量。</p></li>
+</ul>
+<p><strong>[任务]</strong></p>
+<p>我们把需求稍扩展一下，现在允许set/del操作，即用户可以更改和删除自己的订单。</p>
+<p>可以这样实现：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">allowedAc</span> = <span class="fu">asList</span>( <span class="st">&quot;get&quot;</span>, <span class="st">&quot;query&quot;</span>, <span class="st">&quot;add&quot;</span>, <span class="st">&quot;set&quot;</span>, <span class="st">&quot;del&quot;</span> );
+        ...
+    }
+
+    <span class="co">// get/set/del接口会回调</span>
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onValidateId</span>()
+    {
+        Object uid = <span class="fu">_SESSION</span>(<span class="st">&quot;uid&quot;</span>);
+        Object id = <span class="fu">mparam</span>(<span class="st">&quot;id&quot;</span>);
+        Object rv = <span class="fu">queryOne</span>(String<span class="fu">.format</span>(<span class="st">&quot;SELECT id FROM Ordr WHERE id=</span><span class="ch">%s</span><span class="st"> AND userId=</span><span class="ch">%s</span><span class="st">&quot;</span>, id, uid);
+        <span class="kw">if</span> (rv.<span class="fu">Equals</span>(<span class="kw">false</span>))
+            <span class="fu">jdRet</span>(E_FORBIDDEN, <span class="st">&quot;not your order&quot;</span>);
+    }
+}</code></pre></div>
+<p>可通过<code>onValidateId</code>回调来限制get/set/del操作时，只允许访问自己的订单。</p>
+<p>函数<code>mparam</code>用来取必传参数(m表示mandatory)。 函数<code>queryOne</code>用来查询首行数据，如果查询只有一列，则返回首行首列数据，但如果查询不到数据，就返回false. 这里如果返回false，既可能是订单id不存在，也可能是虽然存在但是是别人的订单，简单处理，我们都返回一个E_FORBIDDEN异常。</p>
+<p>框架对异常会自动处理，一般不用特别再检查数据库操作失败之类的异常。如果返回错误，可调用jdRet:</p>
+<pre><code>jdRet(E_FORBIDDEN);</code></pre>
+<p>错误码&quot;E_FORBIDDEN&quot;表示没有权限，不允许操作；常用的其它错误码还有&quot;E_PARAM&quot;，表示参数错误。</p>
+<p>jdRet的第二个参数是内部调试信息，第三个参数是对用户友好的报错信息，比如：</p>
+<pre><code>jdRet(E_FORBIDDEN, String.format(&quot;order id %s does not belong to user %s&quot;, id, uid), &quot;不是你的订单，不可操作&quot;);</code></pre>
+<h3 id="虚拟字段"><span class="header-section-number">3.4</span> 虚拟字段</h3>
+<p>前面已经学习过怎样把一个数据库中的表作为对象暴露出去。 其中，表的字段就可直接映射为对象的属性。对于不在对象主表中定义的字段，统称为虚拟字段。</p>
+<p>通过属性<code>vcolDefs</code>来定义虚拟字段，最简单的一类虚拟字段是字段别名，比如在<code>AC1_Ordr.onInit</code>中设置:</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+    <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;t0.id orderId&quot;</span>, <span class="st">&quot;t0.dscr description&quot;</span>)
+);</code></pre></div>
+<p>这样就为Ordr对象增加了orderId与description两个虚拟字段。 在get/query接口中，是可以用它们作为查询字段的，比如：</p>
+<pre><code>Ordr.query(cond=&quot;orderId&gt;100 and description like &#39;红色&#39;&quot;)</code></pre>
+<p>在query接口中，虚拟字段与真实字段使用起来几乎没有区别。对外接口只有对象名，没有表名的概念，比如不允许在cond参数中指定&quot;t0.orderId&gt;100&quot;。</p>
+<h4 id="关联字段"><span class="header-section-number">3.4.1</span> 关联字段</h4>
+<p><strong>[任务]</strong></p>
+<p>在订单的query/get接口中，只有userId字段，为了方便显示用户姓名和手机号，需要增加虚拟字段userName, userPhone字段，它们关联到User表的name, phone字段。</p>
+<p>设计文档中定义接口如下：</p>
+<pre><code>Ordr.query() -&gt; tbl(id, dscr, ..., userName?, userPhone?)</code></pre>
+<p>习惯上，我们在query或get接口的字段列表中加&quot;...&quot;表示参考数据表定义中的字段，而&quot;...&quot;之后描述的就是虚拟字段。 虚拟字段上的后缀&quot;?&quot;表示该字段默认不返回，仅当在res参数中指定才会返回，如：</p>
+<pre><code>Ordr.query(res=&quot;*,userName&quot;)</code></pre>
+<p>一般虚拟字段都建议默认不返回，而是按需来取，以减少关联表或计算带来的开销。</p>
+<p>在cond参数中可以直接使用虚拟字段，不管它是否在res参数中指定，如</p>
+<pre><code>Ordr.query(cond=&quot;userName LIKE &#39;%john%&#39;&quot;, res=&quot;id,dscr&quot;)</code></pre>
+<p>实现时，通过设置属性<code>vcolDefs</code>实现这些关联字段：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="kw">protected</span> override <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;u.name userName&quot;</span>, <span class="st">&quot;u.phone userPhone&quot;</span>)
+                .<span class="fu">join</span>(<span class="st">&quot;INNER JOIN User u ON u.id=t0.userId&quot;</span>)
+                <span class="co">// .isDefault(false)  // 与接口原型中字段是否可缺省(是否用&quot;?&quot;标记)对应</span>
+        );
+    }
+}</code></pre></div>
+<ul>
+<li>以上很多表或字段指定了别名，比如表&quot;User u&quot;，字段&quot;u.name userName&quot;（等价于与SQL类似的&quot;u.name userName&quot;）</li>
+<li>表的别名不是必须的，除非有多个同名的表被引用。</li>
+<li>如果指定&quot;default&quot;选项为true, 则调用Ordr.query()时如果未指定&quot;res&quot;参数，会默认会带上该字段。</li>
+</ul>
+<h4 id="关联字段依赖"><span class="header-section-number">3.4.2</span> 关联字段依赖</h4>
+<p>假设设计有“订单评价”对象，它与“订单”相关联：</p>
+<pre><code>@Rating: id, orderId, content</code></pre>
+<p>现在要为Rating表增加关联字段订单描述(orderDscr)与客户姓名(userName), 设计接口为：</p>
+<pre><code>Rating.query() -&gt; tbl(id, orderId, content, ..., orderDscr, userName?)</code></pre>
+<p>注意：userName字段不直接与Rating表关联，而是通过Ordr表桥接到User表才能取到。</p>
+<p>需要在vcolDefs定义&quot;userName&quot;字段时，使用require选项指定依赖字段：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">public</span> <span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span> 
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;o.dscr orderDscr&quot;</span>)
+                .<span class="fu">join</span>(<span class="st">&quot;INNER JOIN Ordr o ON o.id=t0.orderId&quot;</span>),
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;u.name userName&quot;</span>)
+                .<span class="fu">join</span>(<span class="st">&quot;INNER JOIN User u ON o.userId=u.id&quot;</span>)
+                .<span class="fu">require</span>(<span class="st">&quot;userId&quot;</span>) <span class="co">// *** 定义依赖，如果要用到res中的字段如userName，则自动添加orderDscr字段引入的表关联。</span>
+        );
+
+        ...
+    }
+}</code></pre></div>
+<h4 id="计算字段"><span class="header-section-number">3.4.3</span> 计算字段</h4>
+<p>在定义虚拟字段时，&quot;res&quot;也可以是一个计算值，或一个很复杂的子查询。</p>
+<p>例如表OrderItem是Ordr对象的一个子表，表示订单中每一项产品的名称、数量、价格：</p>
+<pre><code>@Ordr: id, userId, status(2), amount, dscr(l)
+@OrderItem: id, orderId, name, qty, price
+
+一个订单对应多个产品项：
+OrderItem(orderId) n&lt;-&gt;1 Ordr</code></pre>
+<p>在添加订单时，同时将每个产品的数量、单价添加到OrderItem表中了。 订单中有一个amount字段表示金额，由于可能存在折扣或优惠，它不一定等于OrderItem中每个产品价格之和。 现在希望增加一个amount2字段表示原价，可以实现为：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;(SELECT SUM(qty*ifnull(price2,0)) FROM OrderItem WHERE orderId=t0.id) amount2&quot;</span>)
+        );
+    }
+}</code></pre></div>
+<p>这里amount2在res中定义为一个复杂的子查询，其中还用到了t0表，也即是主表&quot;Ordr&quot;的固定别名。 可想而知，在这个例子中，取该字段的查询效率是比较差的。也尽量不要把它用到cond条件中。</p>
+<p><strong>[子表字段]</strong></p>
+<p>上面Ordr与OrderItem表是典型的一对多关系，有时希望在返回一个对象时，同时返回一个子对象数组，比如获取一个订单像这样：</p>
+<pre><code>{ id: 1, dscr: &quot;换轮胎及洗车&quot;, ..., orderItem: [
+    {id: 1, name: &quot;洗车&quot;, price: 25, qty: 1}
+    {id: 2, name: &quot;换轮胎&quot;, price: 380, qty: 2}
+]}</code></pre>
+<p>后面章节&quot;子表对象&quot;将介绍其实现方式。但如果子对象相对简单，且预计记录数不会特别多， 我们也可以把子表压缩成一个字符串字段，表中每行以&quot;,&quot;分隔，行中每个字段以&quot;:&quot;分隔，像这样返回：</p>
+<pre><code>{ id: 1, dscr: &quot;换轮胎及洗车&quot;, ..., itemsInfo: &quot;洗车:25:1,换轮胎:380:2&quot;}</code></pre>
+<p>设计接口原型如下，我们用List来描述这种紧凑列表的格式：</p>
+<pre><code>Ordr.query() -&gt; tbl(..., itemsInfo)
+
+返回
+- itemsInfo: List(name, price, qty). 格式例如&quot;洗车:25:1,换轮胎:380:2&quot;, 表示两行记录，每行3个字段。注意字段内容中不可出现&quot;:&quot;, &quot;,&quot;这些分隔符。</code></pre>
+<p>要将字段拼合成这种格式，在MySQL中一般用group_concat：</p>
+<pre><code>SELECT group_concat(concat(oi.name, &#39;:&#39;, oi.price, &#39;:&#39;, oi.qty))
+FROM OrderItem oi
+WHERE ...</code></pre>
+<p>在MSSQL中，可以用&quot;SELECT...FOR XML&quot;方式来拼合, 生成的串最后会多带一个逗号，如&quot;洗车:25:1,换轮胎:380:2,&quot;</p>
+<pre><code>SELECT oi.name + &#39;:&#39; + cast(oi.price as varchar) + &#39;:&#39; + cast(oi.qty as varchar) + &#39;,&#39;
+FROM OrderItem oi
+WHERE ...
+FOR XML PATH(&#39;&#39;)</code></pre>
+<p>子表字段也是一种计算字段，可实现如下：</p>
+<pre><code>VcolDef vcol = new VcolDef().res(
+    &quot;(SELECT oi.name + &#39;:&#39; + cast(oi.price as varchar) + &#39;:&#39; + cast(oi.qty as varchar) + &#39;,&#39;\n&quot; +
+    &quot;FROM OrderItem oi\n&quot; +
+    &quot;WHERE oi.orderId=t0.id\n&quot; +
+    &quot;FOR XML PATH(&#39;&#39;) ) itemsInfo&quot;
+);</code></pre>
+<h3 id="子表对象"><span class="header-section-number">3.5</span> 子表对象</h3>
+<p>前面提到过想在对象中返回子表时，可以使用压缩成一个字符串的子表字段，一般适合数据比较简单的场合。</p>
+<p>另一种方式是用<code>subobj</code>来定义子表对象。</p>
+<p>例如在获取订单时，同时返回订单日志，设计接口如下：</p>
+<pre><code>Ordr.get() -&gt; {id, ..., @orderLog?, %user?}
+
+- orderLog: [{tm, dscr}] 订单日志（子表）。
+- user: {id, name} 关联的用户（关联表）。</code></pre>
+<p>上面接口原型描述中，字段orderLog前面的&quot;@&quot;标记表示它是一个数组，字段user前面的&quot;%&quot;标记它是一个对象。</p>
+<p>接口返回示例：</p>
+<pre><code>{id: 1, dscr: &quot;换轮胎及洗车&quot;, ..., orderLog: [
+    {tm: &quot;2016-1-1 10:10&quot;, dscr: &quot;创建订单&quot;},
+    {tm: &quot;2016-1-1 10:20&quot;, dscr: &quot;付款&quot;}
+], user: {id: 1, name: &quot;用户1&quot;} }</code></pre>
+<p>数据库中订单，日志及用户表如下：</p>
+<pre><code>@Ordr: id, userId, tm, amount (通过userId关联User)
+@OrderLog: id, orderId, tm, dscr (通过orderId关联Ordr)
+@User: id, name</code></pre>
+<p>实现示例：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">subobj</span> = <span class="fu">asMap</span>(
+            <span class="st">&quot;user&quot;</span>, <span class="kw">new</span> <span class="fu">SubobjDef</span>().<span class="fu">obj</span>(<span class="st">&quot;User&quot;</span>).<span class="fu">cond</span>(<span class="st">&quot;id={userId}&quot;</span>).<span class="fu">AC</span>(<span class="st">&quot;AccessControl&quot;</span>).<span class="fu">wantOne</span>(<span class="kw">true</span>),
+            <span class="st">&quot;orderLog&quot;</span>, <span class="kw">new</span> <span class="fu">SubobjDef</span>().<span class="fu">obj</span>(<span class="st">&quot;OrderLog&quot;</span>).<span class="fu">cond</span>(<span class="st">&quot;orderId={id}&quot;</span>).<span class="fu">AC</span>(<span class="st">&quot;AccessControl&quot;</span>).<span class="fu">res</span>(<span class="st">&quot;tm,dscr&quot;</span>)
+        );
+    }
+}</code></pre></div>
+<ul>
+<li><p>参数<code>obj</code>指定子对象名。意味着<code>Ordr.get</code>查询中返回的<code>orderLog</code>字段，实现时相当于调用内部接口<code>OrderLog.query</code>。</p></li>
+<li><p>可选参数<code>AC</code>指定子表类名，如果不指定，则根据当前角色自动选择类（如<code>AC1_OrderLog</code>，若没有这个类则会报错）。 这里直接指定使用基类<code>AccessControl</code>，是最简单的做法，不必去定义子表的AC类。当然也就无法使用子类的虚拟字段或子表对象。</p></li>
+<li><p>参数<code>cond</code>指定了关联关系，其中用<code>{id}</code>替代主表id。在较早的版本使用<code>orderId=%d</code>的方式（<code>%d</code>等价于<code>{id}</code>）。</p></li>
+<li><p>可选参数<code>res</code>指定子表缺省字段，相当于调用<code>OrderLog.query(res=&quot;tm,dscr&quot;)</code>. 还可以通过<code>put</code>方法支持其它多数query接口的参数，例如<code>orderby</code>, <code>gres</code>等，还支持<code>OrderLog</code>子对象支持的特殊参数等，示例：<code>new SubobjDef().put(&quot;orderby&quot;, &quot;id DESC&quot;).put(&quot;myType&quot;, &quot;type1&quot;)</code></p></li>
+<li><p>选项&quot;wantOne&quot;表示是否只返回一行。默认是返回一个对象数组，如<code>[{id, tm, ...}]</code>。 如果选项&quot;wantOne&quot;为true，则结果以一个对象返回即 <code>{id, name...}</code>, 适用于当前主表与关联表一对一或多对一的情况。</p></li>
+<li><p>选项&quot;isDefault&quot;与虚拟字段(vcolDefs)上的&quot;isDefault&quot;选项一样，表示当get或query接口未指定&quot;res&quot;参数时，是否默认返回该字段。 一般应使用默认值false，客户端需要时应通过res参数指定，如 <code>Ordr.query(res=&quot;*,orderLog&quot;)</code>.</p></li>
+</ul>
+<p>注意：</p>
+<ul>
+<li><p>由于分页的限制，子表字段查询到的条数有限制（默认1000条，可设置AC类的maxPageSz到10000条）。 若一条主表记录可能关联超过千条子表记录，则不建议用子表，而是直接用OrderLog.query去做。</p></li>
+<li><p>在query接口中，为避免对每一条记录分别查询子表导致性能低下，做了批量查询优化。 例如Ordr.query返回20条数据，若不优化，该接口需要查询1(主表)+20(user子表)+20(orderLog子表)=41次，优化后只查询1(主表)+1(user子表)+1(orderLog子表)=3次。 所以若一条主表记录平均关联50条以上子表记录，则只应使用get接口，不要用query接口。 因为query接口的优化算法很可能导致子表数据有丢失（比如一次取20条数据，每条Ordr数据平均关联50条OrderLog子表记录，则优化后需要一次取1000条记录，而默认分页限制为1000条记录）。</p></li>
+</ul>
+<p>上面直接用了<code>AccessControl</code>类来实现子表查询，也可增加子表<code>OrderLog</code>的AC类定义，以实现更多的子表控制，比如限制增删改查操作类型、定义虚拟字段等。</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_OrderLog <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">allowedAc</span> = <span class="fu">asList</span>( <span class="st">&quot;query&quot;</span> );  <span class="co">// 只允许查询</span>
+        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>( <span class="kw">... </span>);
+        ...
+    }
+}</code></pre></div>
+<p>有子表定义后，只要将&quot;orderLog&quot;定义的AC选项由&quot;AccessControl&quot;改成&quot;AC1_OrderLog&quot;即可(或忽略AC选项，默认会使用与当前登录权限匹配的AC类):</p>
+<pre><code>    this.subobj = asMap(
+        ...
+        &quot;orderLog&quot;, new SubobjDef().obj(&quot;OrderLog&quot;).cond(&quot;orderId={id}&quot;).AC(&quot;AC1_OrderLog&quot;).res(&quot;tm,dscr&quot;)
+    );</code></pre>
+<p>用了<code>AC1</code>前缀则表示该接口对外开放了，也可以把类名改为<code>OrderLog</code>这样的类，这样子表接口就不直接对外开放了。</p>
+<p>有了子表定义，可以在<code>Ordr.add</code>接口中直接添加子项，如</p>
+<pre><code>callSvr(&quot;Ordr.add&quot;, $.noop, {..., orderLog: [{dscr:&quot;操作1&quot;}, {dscr:&quot;操作2&quot;}]});</code></pre>
+<p>它内部会调用<code>OrderLog.add</code>接口。</p>
+<p>以及在<code>Ordr.set</code>中追加、更新和删除子项，如：</p>
+<pre><code>callSvr(&quot;Ordr.set&quot;, $.noop, {orderLog: [{dscr:&quot;操作3&quot;}] } ); // 未指定子项id，表示追加一项，
+callSvr(&quot;Ordr.set&quot;, $.noop, {orderLog: [{id:1, dscr:&quot;操作-1&quot;}]} ); // 指定子项id，更新一项
+callSvr(&quot;Ordr.set&quot;, $.noop, {orderLog: [{id:2, _delete:1} ]} ); // 指定子项id，并指定`_delete:1`表示删除一项
+
+// 更新一项，删除一项，追加一项：
+callSvr(&quot;Ordr.set&quot;, $.noop, {orderLog: [{id:1, dscr:&quot;操作-1&quot;}, {id:2, _delete:1}, {dscr:&quot;操作3&quot;} ]} );</code></pre>
+<p>它内部会调用<code>OrderLog.add/set/del</code>接口。</p>
+<p>当然，前提是子表AC类中允许相应的接口。AC类默认是支持这些标准接口的，可由<code>allowedAc</code>来限定，例如例中限制了只允许<code>query</code>接口(<code>this.allowedAc=asList(&quot;query&quot;)</code>)，于是所有对子项的追加、更新、修改都会报错。</p>
+<h3 id="枚举字段与字段处理"><span class="header-section-number">3.6</span> 枚举字段与字段处理</h3>
+<p>之前讲的虚拟字段都是通过数据库来关联或计算的，还有一种方式可以使用代码任意处理返回字段值，这就是枚举字段，也称计算字段。</p>
+<p>示例：实现接口</p>
+<pre><code>Ordr.get(id) -&gt; {id, status, ..., statusStr?}
+Ordr.query() -&gt; tbl(同get接口字段...)
+
+- status: &quot;CR&quot; - 新创建, &quot;PA&quot; - 已付款
+- statusStr: 状态名称，用中文表示。</code></pre>
+<p>分析：框架本身就支持枚举字段，比如要将status字段转成描述，可直接由前端调用，示例：</p>
+<pre><code>Ordr.query(res=&quot;id 编号, status 状态=CR:新创建;PA:已付款&quot;)</code></pre>
+<p>此处是要求将statusStr字段进行转换，所以只需要定义一下虚拟字段即可，设置enumFields，让该字段能自动转换枚举值：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> function <span class="fu">onInit</span>()
+    {
+        <span class="co">// 定义statusStr就是status，如果希望默认返回，可追加`isDefault(true)`选项。</span>
+        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;status statusStr&quot;</span>)
+        );
+        <span class="co">// 设置转换</span>
+        <span class="kw">this</span>.<span class="fu">enumFields</span>(<span class="st">&quot;statusStr&quot;</span>, <span class="fu">asMap</span>(<span class="st">&quot;CR&quot;</span>,<span class="st">&quot;新创建&quot;</span>, <span class="st">&quot;PA&quot;</span>,<span class="st">&quot;已付款&quot;</span>));
+    }
+}</code></pre></div>
+<p>以上将statusStr定义成一个虚拟字段，可以和标准字段一样使用。 也可以用enumFields指定处理函数，以下代码效果与上面相同：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="kw">protected</span> <span class="dt">static</span> Map&lt;String, Object&gt; statusMap = <span class="fu">asMap</span>(<span class="st">&quot;CR&quot;</span>,<span class="st">&quot;新创建&quot;</span>, <span class="st">&quot;PA&quot;</span>,<span class="st">&quot;已付款&quot;</span>);
+
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>() <span class="kw">throws</span> Exception {
+        <span class="co">// 定义虚拟字段statusStr，如果希望query接口默认返回该字段，可追加`isDefault(true)`选项。</span>
+        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;status statusStr&quot;</span>)
+        );
+        <span class="co">// 字段计算逻辑</span>
+        <span class="kw">this</span>.<span class="fu">enumFields</span>(<span class="st">&quot;statusStr&quot;</span>, (v, row) -&gt; {
+            <span class="kw">if</span> (statusMap.<span class="fu">containsKey</span>(v)) {
+                <span class="kw">return</span> statusMap.<span class="fu">get</span>(v);
+                <span class="co">// 示例：更复杂些的返回</span>
+                <span class="co">// return String.format(&quot;%s-%s&quot;, v, statusMap.get(v));</span>
+            }
+            <span class="kw">return</span> v;
+        });
+    }
+}</code></pre></div>
+<p>由于enumFields很灵活，我们经常使用enumFields机制来对虚拟字段、子表字段做自定义计算处理，实现计算字段。</p>
+<p>假如上例中statusStr由status,type,closeFlag多个字段计算得来，可以使用require选项让它依赖其它字段。 依赖的字段可以是表字段、其它虚拟字段、子表字段等，支持多个字段，以逗号分隔，如：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java">        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;status statusStr&quot;</span>).<span class="fu">require</span>(<span class="st">&quot;type,closeFlag&quot;</span>);
+        );
+        <span class="kw">this</span>.<span class="fu">enumFields</span>(<span class="st">&quot;statusStr&quot;</span>, (v, row) -&gt; {
+            <span class="co">// 用getAliasVal取字段值，不要直接用row.get，这样可以支持使用了别名的字段</span>
+            Object type = <span class="kw">this</span>.<span class="fu">getAliasVal</span>(row, <span class="st">&quot;type&quot;</span>);
+            Object closeFlag = <span class="kw">this</span>.<span class="fu">getAliasVal</span>(row, <span class="st">&quot;closeFlag&quot;</span>);
+            <span class="kw">... </span>计算逻辑 ...
+
+            <span class="co">// 示例：设置status1字段</span>
+            <span class="co">// 如果是设置已定义过的虚拟字段，应使用setAliasVal以支持别名，而非直接`row.put(&quot;status1&quot;, val)`</span>
+            <span class="kw">this</span>.<span class="fu">setAliasVal</span>(row, <span class="st">&quot;status1&quot;</span>, ...); <span class="co">// 假如要设置一些字段，用setAliasVal而不要直接row.put</span>
+            <span class="kw">return</span> v;
+        });</code></pre></div>
+<p>类似地，可以对子表字段做深度处理，比如修改格式、增加字段等。 要注意的是，在enumField中应尽量少做SQL查询，因为在query接口中，每一行记录都会调用它，会导致大量的SQL调用和返回缓慢。</p>
+<p>一般通过计算字段已经可以解决绝大多数问题。 若遇到不易解决的问题，还可以试试更加底层的onHandleRow回调。</p>
+<p>示例：如果返回了status字段，则自动添加statusStr字段。</p>
+<p>显然，这个需求可以更优雅地通过<code>enumField(&quot;status&quot;, fn)</code>来解决，这里做为示例用onHandleRow实现如下：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="kw">protected</span> <span class="dt">static</span> Map&lt;String, Object&gt; statusMap = <span class="fu">asMap</span>(<span class="st">&quot;CR&quot;</span>,<span class="st">&quot;新创建&quot;</span>, <span class="st">&quot;PA&quot;</span>,<span class="st">&quot;已付款&quot;</span>);
+
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onHandleRow</span>(JsObject row) <span class="kw">throws</span> Exception
+    {
+        Object val = <span class="kw">this</span>.<span class="fu">getAliasVal</span>(row, <span class="st">&quot;status&quot;</span>);
+        <span class="kw">if</span> (val != <span class="kw">null</span>) {
+            <span class="co">// 假如statusStr是在vcolDefs或subobj中定义成虚拟字段的，</span>
+            <span class="co">// 则应使用`this.setAliasVal(row, &quot;statusStr&quot;, val)`来赋值以支持字段别名。</span>
+            <span class="kw">this</span>.<span class="fu">setAliasVal</span>(row, <span class="st">&quot;statusStr&quot;</span>, statusMap.<span class="fu">getOrDefault</span>(val, val));
+        }
+    }
+}</code></pre></div>
+<h3 id="虚拟表和视图"><span class="header-section-number">3.7</span> 虚拟表和视图</h3>
+<p>假设表ApiLog中有一个字段叫app，表示前端应用名，当app=&quot;emp&quot;时，就表示是员工端应用的操作日志。</p>
+<pre><code>@ApiLog: id, tm, addr, app, userId</code></pre>
+<p>现在想对员工端操作日志进行查询，定义以下接口：</p>
+<pre><code>EmpLog.query() -&gt; tbl(id, tm, userId, ac, ..., empName?, empPhone?)
+
+返回
+- empName/empPhone: 关联字段，通过userId关联到Employee表的name/phone字段。
+
+应用逻辑
+- 权限：AUTH_EMP</code></pre>
+<p>EmpLog类似一个数据库视图，是一个虚拟对象或虚拟表，筋斗云可直接使用AccessControl创建虚拟表，代码如下：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC2_EmpLog <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span>
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onInit</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">allowedAc</span> = <span class="fu">asList</span>(<span class="st">&quot;query&quot;</span>);
+        <span class="kw">this</span>.<span class="fu">table</span> = <span class="st">&quot;ApiLog&quot;</span>;
+        <span class="kw">this</span>.<span class="fu">defaultRes</span> = <span class="st">&quot;id, tm, userId, ac, req, res, reqsz, ressz, empName, empPhone&quot;</span>;
+        <span class="kw">this</span>.<span class="fu">defaultSort</span> = <span class="st">&quot;t0.id DESC&quot;</span>;
+
+        <span class="kw">this</span>.<span class="fu">vcolDefs</span> = <span class="fu">asList</span>(
+            <span class="kw">new</span> <span class="fu">VcolDef</span>().<span class="fu">res</span>(<span class="st">&quot;e.name empName&quot;</span>, <span class="st">&quot;e.phone empPhone&quot;</span>)
+                .<span class="fu">join</span>(<span class="st">&quot;LEFT JOIN Employee e ON e.id=t0.userId&quot;</span>)
+        );
+    }
+
+    <span class="co">// get/query操作都会走这里</span>
+    <span class="fu">@Override</span> 
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onQuery</span>()
+    {
+        <span class="kw">this</span>.<span class="fu">addCond</span>(<span class="st">&quot;t0.app=&#39;emp&#39; and t0.userId IS NOT NULL&quot;</span>);
+    }
+}</code></pre></div>
+<p>其要点是：</p>
+<ul>
+<li>重写<code>table</code>属性, 定义实际表</li>
+<li>用属性<code>vcolDefs</code>定义虚拟字段</li>
+<li>用<code>addCond</code>方法添加缺省查询条件</li>
+</ul>
+<p>属性<code>defaultSort</code>和<code>defaultRes</code>可用于定义缺省返回字段及排序方式。</p>
+<p>在get/query接口中可以用&quot;res&quot;指定返回字段，如果未指定，则会返回除了$hiddenFields定义的字段之外，所有主表中的字段，还会包括设置了<code>isDefault=true</code>的虚拟字段。 通过<code>defaultRes</code>可以指定缺省返回字段列表。</p>
+<p>query接口中可以通过&quot;orderby&quot;来指定排序方式，如果未指定，默认是按id排序的，通过<code>defaultSort</code>可以修改默认排序方式。</p>
+<h3 id="非标准对象接口"><span class="header-section-number">3.8</span> 非标准对象接口</h3>
+<p>对象的增删改查(add/set/get/query/del共5个)接口称为标准接口。 可以为对象增加其它非标准接口，例如取消订单接口：</p>
+<pre><code>Ordr.cancel(id)
+
+应用逻辑
+
+- 权限: AUTH_USER
+- 用户只能操作自己的订单</code></pre>
+<p>只要在相应的访问控制类中，添加名为<code>api_{非标准接口名}</code>的函数即可：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="co">// &quot;Ordr.cancel&quot;接口</span>
+    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">api_cancel</span>()
+    {
+        <span class="co">// 不需要checkAuth</span>
+        <span class="kw">this</span>.<span class="fu">id</span> = <span class="fu">mparam</span>(<span class="st">&quot;id&quot;</span>);
+        <span class="kw">this</span>.<span class="fu">onValidateId</span>();
+        ...
+        <span class="fu">execOne</span>(<span class="st">&quot;UPDATE Ordr SET status=&#39;CA&#39; WHERE id=&quot;</span> + <span class="kw">this</span>.<span class="fu">id</span>.<span class="fu">toString</span>());
+    }
+}</code></pre></div>
+<p>非标准对象接口与与函数型接口写法类似，返回Object或void均可。</p>
+<h3 id="接口返回前回调"><span class="header-section-number">3.9</span> 接口返回前回调</h3>
+<p>示例：添加订单到Ordr表时，自动添加一条&quot;创建订单&quot;日志到OrderLog表，可以这样实现：</p>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="fu">@Override</span> 
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onValidate</span>()
+    {
+        <span class="kw">if</span> (<span class="kw">this</span>.<span class="fu">ac</span>.<span class="fu">equals</span>(<span class="st">&quot;add&quot;</span>))
+        {
+            <span class="kw">... </span>
+
+            <span class="kw">this</span>.<span class="fu">onAfterActions</span>.<span class="fu">add</span>( (ret)-&gt; {
+                Object orderId = <span class="kw">this</span>.<span class="fu">id</span>;
+                String sql = String<span class="fu">.format</span>(<span class="st">&quot;INSERT INTO OrderLog (orderId, action, tm) VALUES (</span><span class="ch">%s</span><span class="st">,&#39;CR&#39;,&#39;</span><span class="ch">%s</span><span class="st">&#39;)&quot;</span>, orderId, <span class="fu">date</span>());
+                <span class="fu">execOne</span>(sql);
+            });
+        }
+    }
+}</code></pre></div>
+<p>属性<code>onAfterActions</code>是一个回调函数（lambda表达式）列表，在操作结束时被回调，在里面可以修改接口的返回对象<code>ret</code>。 属性<code>id</code>可用于取add操作结束时的新对象id，或get/set/del操作的id参数。</p>
+<p>对象接口调用完后，还会回调onAfter函数，也可以在这个回调里面操作。 此外，如要在get/query接口返回前修改返回数据，用onHandleRow回调函数更加方便。</p>
+<p>示例：实现接口</p>
+<pre><code>Ordr.get(id) -&gt; {id, status, ..., statusStr?}
+Ordr.query() -&gt; tbl(同get接口字段...)
+
+- status: &quot;CR&quot; - 新创建, &quot;PA&quot; - 已付款
+- statusStr: 状态名称，用中文表示，当有status返回时则同时返回该字段</code></pre>
+<div class="sourceCode"><pre class="sourceCode java"><code class="sourceCode java"><span class="kw">class</span> AC1_Ordr <span class="kw">extends</span> AccessControl
+{
+    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">final</span> Map&lt;String, String&gt; statusStr = <span class="fu">asMap</span>(
+        <span class="st">&quot;CR&quot;</span>, <span class="st">&quot;未付款&quot;</span>, 
+        <span class="st">&quot;PA&quot;</span>, <span class="st">&quot;待服务&quot;</span>
+    );
+    <span class="co">// get/query接口会回调</span>
+    <span class="fu">@Override</span> 
+    <span class="kw">protected</span> <span class="dt">void</span> <span class="fu">onHandleRow</span>(JsObject rowData)
+    {
+        <span class="kw">if</span> (rowData.<span class="fu">containsKey</span>(<span class="st">&quot;status&quot;</span>))
+        {
+            String st = rowData.<span class="fu">get</span>(<span class="st">&quot;status&quot;</span>).<span class="fu">toString</span>();
+            String value = statusStr.<span class="fu">get</span>(st);
+            <span class="kw">if</span> (value == <span class="kw">null</span>)
+                value = st;
+            rowData.<span class="fu">put</span>(<span class="st">&quot;statusStr&quot;</span>, value);
+        }
+    }
+}</code></pre></div>
+<h2 id="框架功能"><span class="header-section-number">4</span> 框架功能</h2>
+<h3 id="服务配置"><span class="header-section-number">4.1</span> 服务配置</h3>
+<p>服务端配置文件为<code>WEB-INF/web.properties</code>。一般习惯上提交web.properties.template文件到代码库中，在部署时，手工复制修改它来创建web.properties文件。</p>
+<p>在配置文件中应通过JDEnv指定服务入口类，如：</p>
+<pre><code>JDEnv=com.jdcloud.app.WebApi</code></pre>
+<p>在参考文档中搜索web.properties查看所有配置选项。</p>
+<p>配置选项还可以通过在JDEnv的onApiInit回调函数来初始化，如</p>
+<pre><code>// class WebApi extends JDEnvBase
+protected void onApiInit() {
+    // 关闭ApiLog
+    this.props.setProperty(&quot;enableApiLog&quot;, &quot;0&quot;);    
+}</code></pre>
+<h3 id="会话管理"><span class="header-section-number">4.2</span> 会话管理</h3>
+<p>筋斗云使用cookie机制来维持与客户端的会话。 按DACA规范，后端服务应支持多种前端应用（appType不同）同时访问，例如在浏览器中同时登录客户端(appType=&quot;user&quot;)和管理端(appType=&quot;emp&quot;)，两者应互不干扰，比如一个应用退出登录不会造成另一应用退出。 前端通过URL参数<code>_app</code>传递appName（隐含了appType，如appName=&quot;emp-adm&quot;时其appType为&quot;emp&quot;），服务在实现时需要对不同的appType进行会话隔离。</p>
+<p>在jdcloud-php版本中，通过不同appType使用不同的cookie名来实现应用类型隔离。 例如客户端应用和管理端应用使用的cookie名称为&quot;userid&quot;和&quot;empid&quot;。</p>
+<p>受限于javaweb机制，session使用的cookie名称(JSESSIONID)无法根据请求参数动态设置。因而不同的应用可能会共享同一session的，框架在实现时确保不同应用的session不重名且一个应用退出不影响其它应用。</p>
+<p>开发者应调用<code>_SESSION(key, val)</code>方法来操作session，避免使用Servlet原生的 env.request.getSession 来操作。</p>
+<pre><code>Object uid = _SESSION(&quot;uid&quot;); // 取值
+_SESSION(&quot;uid&quot;, uid); // 设置
+_SESSION(&quot;uid&quot;, forDel); // 删除</code></pre>
+<p>如果想修改默认的session名称（JSESSIONID）或超时时间（30分钟），可在WEB-INF/web.xml中配置：</p>
+<pre><code>&lt;session-config&gt;  
+  &lt;session-timeout&gt;30&lt;/session-timeout&gt;  
+  &lt;cookie-config&gt;  
+    &lt;name&gt;jdcloudId&lt;/name&gt;  
+  &lt;/cookie-config&gt;  
+&lt;/session-config&gt;</code></pre>
+<h3 id="api调用监控"><span class="header-section-number">4.3</span> API调用监控</h3>
+<p>筋斗云php框架默认将接口调用记录到表ApiLog中供分析。 可通过配置选项<code>enableApiLog=0</code>关闭该特性。</p>
+<h3 id="批量请求"><span class="header-section-number">4.4</span> 批量请求</h3>
+<p>DACA协议定义了批量请求，即在一次请求中，包含多条接口调用，并可指定是否在一个事务中执行。</p>
+<p>示例：</p>
+<pre><code>POST api/batch
+
+[
+    {
+        &quot;ac&quot;: &quot;User.get&quot;,
+        &quot;get&quot;: {&quot;res&quot;: &quot;name,phone&quot;}
+    },
+    {
+        &quot;ac&quot;: &quot;ActionLog.add&quot;,
+        &quot;post&quot;: {&quot;page&quot;: &quot;home&quot;, &quot;ver&quot;: &quot;android&quot;, &quot;userId&quot;: &quot;{$-1.id}&quot;},
+        &quot;ref&quot;: [&quot;userId&quot;]
+    }
+]</code></pre>
+<p>主要特性：</p>
+<ul>
+<li>一次请求包含多个调用。通过POST请求中的JSON数组指定，数组中每一项为一个调用，其格式为: <code>{ac, %get?, %post?, @ref?}</code>, 只有ac参数必须，其它均可省略。</li>
+<li>事务。可通过URL参数useTrans来指定多个调用是否在一个事务中，即可指定一个调用失败是否回滚前面调用的改动。</li>
+<li>前向引用。后面调用可引用前面调用的结果，如&quot;{$-1}&quot;就是一个前向引用，每个引用包含在<code>{}</code>中，含有引用的参数通过ref数组指定。</li>
+</ul>
+<dl>
+<dt>get</dt>
+<dd>URL请求参数。
+</dd>
+<dt>post</dt>
+<dd>POST请求参数。
+</dd>
+<dt>ref</dt>
+<dd>使用了batch引用的参数列表。
+</dd>
+</dl>
+<p>如果使用事务，只是URL上加个参数：</p>
+<pre><code>POST api/batch?useTrans=1</code></pre>
+<p>batch的返回内容是多条调用返回内容组成的数组，样例如下：</p>
+<pre><code>[0, [
+    [ 0, {id: 1, name: &quot;用户1&quot;, phone: &quot;13712345678&quot;} ],  // 调用User.get的返回结果
+    [ 0, &quot;OK&quot; ]  // 调用ActionLog.add的返回结果
+]]</code></pre>
+<p>具体可参考筋斗云前端文档及DACA协议文档。</p>
+<h3 id="筋斗云插件"><span class="header-section-number">4.5</span> 筋斗云插件</h3>
+<p>目前在演示程序中提供了系统支持JDLogin和JDUpload两个插件。</p>
+<p>插件类应以JD为前缀，应包括接口文档，具有独立的函数接口和对象接口。</p>
+<p>使用插件时，先将插件源码复制入口类(JDEnv)相同包中。为了调用其中函数接口，应配置onCreateApi回调：</p>
+<pre><code>// class WebApi extends JDEnvBase
+protected String[] onCreateApi()
+{
+    return new String[] { &quot;Global&quot;, &quot;JDLogin&quot;, &quot;JDUpload&quot; };
+}</code></pre>
+<p class="todo">TODO: 插件工具</p>
+<h3 id="其它未实现功能"><span class="header-section-number">4.6</span> 其它未实现功能</h3>
+<p>与筋斗云php版本相比，以下功能未实现。</p>
+<ul>
+<li>工具集</li>
+</ul>
+<p>包括数据库部署工具、初始化配置工具、上线工具等。</p>
+<p>筋斗云php版中通过tool/upgrade.php，将主设计文档DESIGN.md中的数据模型部署到数据库中，jdcloud-java中直接使用php版本做相应操作。</p>
+<ul>
+<li>函数</li>
+</ul>
+<p>logit - 调试输出到文件。</p>
+<ul>
+<li>版本管理及自动更新机制</li>
+</ul>
+<p>参考 X-Daca-Server-Rev.</p>
+<ul>
+<li><p>后台定时任务框架</p></li>
+<li><p>模拟模式与第三方扩展接口</p></li>
+</ul>
+
+</body>
+</html>

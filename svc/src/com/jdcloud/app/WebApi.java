@@ -1,4 +1,4 @@
-package com.demo;
+package com.jdcloud.app;
 
 import java.lang.reflect.Method;
 import com.jdcloud.*;
@@ -26,7 +26,7 @@ public class WebApi extends JDEnvBase
 	@Override
 	protected int onGetPerms() {
 		int perms = super.onGetPerms();
-		if ((perms | JDApiBase.AUTH_EMP) != 0) {
+		if ((perms | AUTH_EMP) != 0) {
 			String[] permArr = (String[]) _SESSION("perms");
 			if (permArr != null) {
 				for (String perm : permArr) {
@@ -68,8 +68,8 @@ class AC0_User extends AccessControl
 	protected void onValidate()
 	{
 		if (issetval("pwd")) {
-			String pwd = (String)env._POST.get("pwd");
-			env._POST.put("pwd", hashPwd(pwd));
+			String pwd = (String)_POST("pwd");
+			_POST("pwd", hashPwd(pwd));
 		}
 	}
 }
@@ -85,8 +85,8 @@ class AC1_User extends AccessControl
 	@Override
 	protected void onValidateId()
 	{
-		Object uid = getSession("uid");
-		env._GET.put("id", uid);
+		Object uid = _SESSION("uid");
+		_GET("id", uid);
 	}
 }
 
@@ -104,12 +104,12 @@ class AC0_Employee extends AccessControl
 	protected void onValidate()
 	{
 		if (this.ac.equals("add") && !issetval("perms")) {
-			env._POST.put("perms", "emp");
+			_POST("perms", "emp");
 		}
 
 		if (issetval("pwd")) {
-			String pwd = (String)env._POST.get("pwd");
-			env._POST.put("pwd", hashPwd(pwd));
+			String pwd = (String)_POST("pwd");
+			_POST("pwd", hashPwd(pwd));
 		}
 	}
 }
@@ -131,7 +131,7 @@ class AC2_Employee extends AC0_Employee
 	{
 		Object id = param("id");
 		if (!hasPerm(App.PERM_MGR) || id == null) {
-			env._GET.put("id", getSession("empId"));
+			_GET("id", _SESSION("empId"));
 		}
 	}
 }
@@ -147,8 +147,8 @@ class AC0_Ordr extends AccessControl
 		);
 		
 		this.subobj = asMap(
-			"orderLog", new SubobjDef().sql("SELECT ol.*, e.uname AS empPhone, e.name AS empName FROM OrderLog ol LEFT JOIN Employee e ON ol.empId=e.id WHERE orderId=%d"),
-			"atts", new SubobjDef().sql("SELECT id, attId FROM OrderAtt WHERE orderId=%d")
+			"orderLog", new SubobjDef().obj("OrderLog").AC("AccessControl").cond("orderId={id}"),
+			"atts", new SubobjDef().obj("OrderAtt").AC("AccessControl").cond("orderId={id}").res("id, attId")
 		);
 	}
 }
@@ -165,7 +165,7 @@ class AC1_Ordr extends AC0_Ordr
 	@Override
 	protected void onQuery()
 	{
-		Object uid = getSession("uid");
+		Object uid = _SESSION("uid");
 		this.addCond(String.format("t0.userId=%s", uid));
 	}
 
@@ -174,15 +174,15 @@ class AC1_Ordr extends AC0_Ordr
 	{
 		String logAction = null;
 		if (this.ac.equals("add")) {
-			Object userId = getSession("uid");
-			env._POST.put("userId", userId);
-			env._POST.put("status", "CR");
+			Object userId = _SESSION("uid");
+			_POST("userId", userId);
+			_POST("status", "CR");
 			logAction = "CR";
 		}
 		else {
 			if (issetval("status")) {
 				// TODO: validate status
-				logAction = (String)env._POST.get("status");
+				logAction = (String)_POST("status");
 			}
 		}
 
@@ -190,8 +190,11 @@ class AC1_Ordr extends AC0_Ordr
 			final String logAction1 = logAction;
 			this.onAfterActions.add( e -> {
 				Object orderId = this.id;
-				String sql = String.format("INSERT INTO OrderLog (orderId, action, tm) VALUES (%s,%s,'%s')", orderId, Q(logAction1), date());
-				execOne(sql);
+				dbInsert("OrderLog", asMap(
+					"orderId", orderId,
+					"action", logAction1,
+					"tm", date()
+				));
 			});
 		}
 	}
@@ -212,21 +215,24 @@ class AC2_Ordr extends AC0_Ordr
 	{
 		if (this.ac.equals("set")) {
 			if (issetval("status")) {
-				Object status = env._POST.get("status");
+				Object status = _POST("status");
 				if (status.equals("RE") || status.equals("CA")) {
 					Object oldStatus = queryOne(String.format("SELECT status FROM Ordr WHERE id=%s", this.id));
 					if (! oldStatus.equals("CR")) {
-						throw new MyException(E_FORBIDDEN, String.format("forbidden to change status to %s", status));
+						jdRet(E_FORBIDDEN, String.format("forbidden to change status to %s", status));
 					}
 					this.onAfterActions.add(ret -> {
 						Object orderId = this.id;
-						Object empId = getSession("empId");
-						String sql = String.format("INSERT INTO OrderLog (orderId, action, tm, empId) VALUES (%s,'%s','%s',%s)", orderId, status, date(), empId);
-						execOne(sql);
+						dbInsert("OrderLog", asMap(
+							"orderId", orderId,
+							"action", status,
+							"empId", _SESSION("empId"),
+							"tm", date()
+						));
 					});
 				}
 				else {
-					throw new MyException(E_FORBIDDEN, String.format("forbidden to change status to %s", status));
+					jdRet(E_FORBIDDEN, String.format("forbidden to change status to %s", status));
 				}
 			}
 		}
@@ -243,7 +249,7 @@ class AC2_Ordr extends AC0_Ordr
 	public Object api_setIf() throws Exception {
 		checkAuth(App.PERM_MGR);
 		this.checkSetFields(asList("dscr", "cmt"));
-		Object empId = getSession("empId");
+		Object empId = _SESSION("empId");
 		addCond("t0.id=" + empId);
 		return super.api_setIf();
 	}

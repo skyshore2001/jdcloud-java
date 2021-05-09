@@ -1,4 +1,4 @@
-package com.demo.rtest;
+package com.jdcloud.app.rtest;
 
 import java.lang.reflect.Method;
 import com.jdcloud.*;
